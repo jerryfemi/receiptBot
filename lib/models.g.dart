@@ -1,0 +1,124 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'models.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+BusinessProfile _$BusinessProfileFromJson(Map<String, dynamic> json) =>
+    BusinessProfile(
+      phoneNumber: json['phoneNumber'] as String,
+      status: $enumDecodeNullable(_$OnboardingStatusEnumMap, json['status']) ??
+          OnboardingStatus.new_user,
+      currentAction:
+          $enumDecodeNullable(_$UserActionEnumMap, json['currentAction']) ??
+              UserAction.idle,
+      businessName: json['businessName'] as String?,
+      businessAddress: json['businessAddress'] as String?,
+      displayPhoneNumber: json['displayPhoneNumber'] as String?,
+      logoUrl: json['logoUrl'] as String?,
+      bankName: json['bankName'] as String?,
+      accountNumber: json['accountNumber'] as String?,
+      accountName: json['accountName'] as String?,
+      pendingTransaction: _transactionFromJson(json['pendingTransaction']),
+      themeIndex: (json['themeIndex'] as num?)?.toInt(),
+      currencyCode: json['currencyCode'] as String? ?? 'NGN',
+      currencySymbol: json['currencySymbol'] as String? ?? '₦',
+    );
+
+Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
+    <String, dynamic>{
+      'phoneNumber': instance.phoneNumber,
+      'status': _$OnboardingStatusEnumMap[instance.status],
+      'currentAction': _$UserActionEnumMap[instance.currentAction],
+      'businessName': instance.businessName,
+      'businessAddress': instance.businessAddress,
+      'displayPhoneNumber': instance.displayPhoneNumber,
+      'logoUrl': instance.logoUrl,
+      'bankName': instance.bankName,
+      'accountNumber': instance.accountNumber,
+      'accountName': instance.accountName,
+      'pendingTransaction': instance.pendingTransaction,
+      'themeIndex': instance.themeIndex,
+      'currencyCode': instance.currencyCode,
+      'currencySymbol': instance.currencySymbol,
+    };
+
+const _$OnboardingStatusEnumMap = {
+  OnboardingStatus.new_user: 'new_user',
+  OnboardingStatus.awaiting_address: 'awaiting_address',
+  OnboardingStatus.awaiting_phone: 'awaiting_phone',
+  OnboardingStatus.awaiting_logo: 'awaiting_logo',
+  OnboardingStatus.active: 'active',
+};
+
+const _$UserActionEnumMap = {
+  UserAction.idle: 'idle',
+  UserAction.createReceipt: 'createReceipt',
+  UserAction.editName: 'editName',
+  UserAction.editPhone: 'editPhone',
+  UserAction.editAddress: 'editAddress',
+  UserAction.editLogo: 'editLogo',
+  UserAction.createInvoice: 'createInvoice',
+  UserAction.editBankDetails: 'editBankDetails',
+  UserAction.selectTheme: 'selectTheme',
+  UserAction.editProfileMenu: 'editProfileMenu',
+  UserAction.selectCurrency: 'selectCurrency',
+};
+
+ReceiptItem _$ReceiptItemFromJson(Map<String, dynamic> json) => ReceiptItem(
+      description: json['description'] as String,
+      amount: (json['amount'] as num).toDouble(),
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+    );
+
+Map<String, dynamic> _$ReceiptItemToJson(ReceiptItem instance) =>
+    <String, dynamic>{
+      'description': instance.description,
+      'amount': instance.amount,
+      'quantity': instance.quantity,
+    };
+
+Transaction _$TransactionFromJson(Map<String, dynamic> json) => Transaction(
+      customerName: json['customerName'] as String,
+      customerAddress: json['customerAddress'] as String?,
+      customerPhone: json['customerPhone'] as String?,
+      items: (json['items'] as List<dynamic>)
+          .map((e) => ReceiptItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      totalAmount: (json['totalAmount'] as num).toDouble(),
+      amountInWords: json['amountInWords'] as String?,
+      date: DateTime.parse(json['date'] as String),
+      type: $enumDecodeNullable(_$TransactionTypeEnumMap, json['type']) ??
+          TransactionType.receipt,
+      dueDate: json['dueDate'] == null
+          ? null
+          : DateTime.parse(json['dueDate'] as String),
+      bankName: json['bankName'] as String?,
+      accountNumber: json['accountNumber'] as String?,
+      accountName: json['accountName'] as String?,
+      tax: (json['tax'] as num?)?.toDouble(),
+    );
+
+Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
+    <String, dynamic>{
+      'customerName': instance.customerName,
+      'customerAddress': instance.customerAddress,
+      'customerPhone': instance.customerPhone,
+      'items': instance.items,
+      'totalAmount': instance.totalAmount,
+      'amountInWords': instance.amountInWords,
+      'date': instance.date.toIso8601String(),
+      'type': _$TransactionTypeEnumMap[instance.type]!,
+      'dueDate': instance.dueDate?.toIso8601String(),
+      'bankName': instance.bankName,
+      'accountNumber': instance.accountNumber,
+      'accountName': instance.accountName,
+      'tax': instance.tax,
+    };
+
+const _$TransactionTypeEnumMap = {
+  TransactionType.receipt: 'receipt',
+  TransactionType.invoice: 'invoice',
+};

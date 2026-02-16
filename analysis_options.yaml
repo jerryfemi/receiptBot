@@ -1,0 +1,21 @@
+analyzer:
+  errors:
+    always_put_required_named_parameters_first: ignore
+    avoid_dynamic_calls: ignore
+    constant_identifier_names: ignore
+    inference_failure_on_untyped_parameter: ignore
+    lines_longer_than_80_chars: ignore
+    omit_local_variable_types: ignore
+    parameter_assignments: ignore
+    prefer_single_quotes: ignore
+    require_trailing_commas: ignore
+    unawaited_futures: ignore
+    use_string_buffers: ignore
+include: package:dart_frog_lint/recommended.yaml
+
+linter:
+  rules:
+    public_member_api_docs: false
+    sort_constructors_first: false
+    prefer_const_constructors: false
+    avoid_print: false

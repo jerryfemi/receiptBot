@@ -1,0 +1,187 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:receipt_bot/models.dart';
+
+/// Service to interact with Google Gemini API for receipt parsing.
+class GeminiService {
+  /// The API key for accessing Gemini.
+  final String apiKey;
+  late final GenerativeModel _model;
+
+  /// Creates a [GeminiService] with the given [apiKey].
+  GeminiService({String? apiKey})
+      : apiKey = apiKey ?? Platform.environment['GEMINI_API_KEY'] ?? '' {
+    if (this.apiKey.isEmpty) {
+      print('Warning: GEMINI_API_KEY is missing.');
+    }
+    // Use gemini-1.5-flash as it is faster and widely supported
+    _model = GenerativeModel(
+      model: 'gemini-flash-latest',
+      apiKey: this.apiKey,
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json',
+      ),
+    );
+  }
+
+  /// Parses the given [text] into a [Transaction] using Gemini.
+  Future<Transaction> parseTransaction(
+    String text, {
+    String currencySymbol = '₦',
+    String currencyCode = 'NGN',
+  }) async {
+    final prompt = '''
+    You are an expert receipt and invoice parser. The user's currency is $currencyCode ($currencySymbol).
+    COnvert any amount to $currencyCode.
+    
+    Extract the following details from the text:
+    - customerName (String): The name of the buyer. If unknown, use "Customer".
+    - customerAddress (String?): The buyer's address if mentioned.
+    - customerPhone (String?): The buyer's phone number if mentioned.
+    - items (List): List of items purchased. Each item needs:
+      - description (String)
+      - amount (double): Unit price or total price for the item.
+      - quantity (int): Default to 1 if not specified.
+    - totalAmount (double): The sum of all items. Calculate it carefully.
+    - amountInWords (String): The total amount written in words (e.g. "One Thousand Two Hundred $currencyCode Only").
+    - date (String): Current date in ISO 8601 format if not specified.
+    - type (String): "invoice" if the user mentions "invoice", "due date", "bank name", "account number", or asks for payment later. "receipt" otherwise.
+    - dueDate (String?): If it is an invoice, extract the due date in ISO 8601.
+    - bankName (String?): If mentioned, the bank name for payment.
+    - accountNumber (String?): If mentioned, the account number.
+    - accountName (String?): If mentioned, the account name.
+
+    Handle Nigerian currency terms:
+    - "k" = 1,000 (e.g., 5k = 5000).
+    - "m" = 1,000,000 (e.g., 1.2m = 1,200,000).
+    - "m" = 1,000,000 (e.g., 1.2m = 1,200,000).
+    - "$currencySymbol", "$currencyCode" are currency symbols to ignore when parsing amounts, but use them to identify values.
+
+
+    CRITIAL INSTRUCTION:
+    - If the user input does not contain any specific items with prices, return an empty list `[]` for "items".
+    - Do NOT invent or guess items.
+    - If no Customer Name is found, use "Customer".
+    - If the user mentions "Tax", "VAT", or similar, extract the amount or calculate it if a percentage is given.
+    - If Tax is present, ensure `totalAmount` includes it.
+
+    Return ONLY valid JSON matching this schema:
+    {
+      "customerName": "String",
+      "customerAddress": "String or null",
+      "customerPhone": "String or null",
+      "items": [
+        {"description": "String", "amount": 0.0, "quantity": 1}
+      ],
+      "tax": 0.0,
+      "totalAmount": 0.0,
+      "amountInWords": "String",
+      "date": "ISO8601_Date_String",
+      "type": "receipt" or "invoice",
+      "dueDate": "ISO8601_Date_String or null",
+      "bankName": "String or null",
+      "accountNumber": "String or null",
+      "accountName": "String or null"
+    }
+
+    User Input: "$text"
+    ''';
+
+    try {
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content);
+
+      if (response.text == null) {
+        throw Exception('Gemini returned an empty response.');
+      }
+      return _cleanAndParseJson(response.text!);
+    } catch (e) {
+      print('Gemini Service Error: $e');
+      rethrow;
+    }
+  }
+
+  /// Parses an image (receipt/invoice/handwritten note) into a [Transaction].
+  Future<Transaction> parseImageTransaction(
+    Uint8List imageBytes, {
+    String currencySymbol = '₦',
+    String currencyCode = 'NGN',
+  }) async {
+    final prompt = TextPart('''
+      You are an expert receipt parser.
+      Look at this image of a receipt, invoice, or handwritten note.
+      Extract the transaction details.
+      
+      RULES:
+      1. Default currency is $currencyCode ($currencySymbol).
+      2. If you see a total, use it. If not, sum the items.
+      3. If you see a date, use it.
+      4. If items are listed without total, calculate the total.
+      5. Determine "type": "invoice" if the image contains "Invoice" or "Bank Name", "Bill To", or has a Due Date. "receipt" otherwise.
+      
+      Return ONLY valid JSON matching this schema:
+      {
+        "customerName": "String (default: 'Valued Customer')",
+        "items": [
+          {"description": "String", "amount": 0.0, "quantity": 1}
+        ],
+        "totalAmount": 0.0,
+        "type": "receipt" or "invoice", 
+        "dueDate": "String (YYYY-MM-DD) or null",
+        "tax": 0.0,
+        "amountInWords": "String",
+        "date": "ISO8601_Date_String",
+        "bankName": "String or null",
+        "accountNumber": "String or null",
+        "accountName": "String or null"
+      }
+    ''');
+
+    // Send Image + Text to Gemini
+    final imagePart = DataPart('image/jpeg', imageBytes);
+    final content = [
+      Content.multi([prompt, imagePart])
+    ];
+
+    try {
+      final response = await _model.generateContent(content);
+      if (response.text == null) {
+        throw Exception('Gemini returned an empty response for image.');
+      }
+      return _cleanAndParseJson(response.text!);
+    } catch (e) {
+      print('Gemini Image Parse Error: $e');
+      rethrow;
+    }
+  }
+
+  // Helper to safely parse Gemini's response
+  Transaction _cleanAndParseJson(String rawText) {
+    try {
+      // Clean up markdown code blocks if present
+      final cleanJson =
+          rawText.replaceAll('```json', '').replaceAll('```', '').trim();
+
+      final decoded = jsonDecode(cleanJson);
+      Map<String, dynamic> json;
+      if (decoded is List) {
+        if (decoded.isEmpty) throw Exception('Empty list returned from Gemini');
+        json = decoded.first as Map<String, dynamic>;
+      } else {
+        json = decoded as Map<String, dynamic>;
+      }
+
+      // Auto-fill date if missing
+      if (json['date'] == null || json['date'].toString().isEmpty) {
+        json['date'] = DateTime.now().toIso8601String();
+      }
+
+      return Transaction.fromJson(json);
+    } catch (e) {
+      print("Gemini JSON Parse Error: $e \nRaw: $rawText");
+      throw Exception("Failed to parse AI response");
+    }
+  }
+}
