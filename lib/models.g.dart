@@ -110,7 +110,7 @@ Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
       'totalAmount': instance.totalAmount,
       'amountInWords': instance.amountInWords,
       'date': instance.date.toIso8601String(),
-      'type': _$TransactionTypeEnumMap[instance.type]!,
+      'type': _$TransactionTypeEnumMap[instance.type],
       'dueDate': instance.dueDate?.toIso8601String(),
       'bankName': instance.bankName,
       'accountNumber': instance.accountNumber,

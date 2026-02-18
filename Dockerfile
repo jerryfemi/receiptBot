@@ -19,7 +19,6 @@ RUN dart pub global run dart_frog_cli:dart_frog build
 FROM dart:stable AS runtime
 WORKDIR /app
 COPY --from=build /app/build /app
-COPY service_account.json ./service_account.json
 RUN dart pub get
 
 # Start server.

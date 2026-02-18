@@ -2,6 +2,8 @@ analyzer:
   errors:
     always_put_required_named_parameters_first: ignore
     avoid_dynamic_calls: ignore
+    avoid_redundant_argument_values: ignore
+    cast_nullable_to_non_nullable: ignore
     constant_identifier_names: ignore
     inference_failure_on_untyped_parameter: ignore
     lines_longer_than_80_chars: ignore
@@ -10,6 +12,7 @@ analyzer:
     prefer_single_quotes: ignore
     require_trailing_commas: ignore
     unawaited_futures: ignore
+    unnecessary_breaks: ignore
     use_string_buffers: ignore
 include: package:dart_frog_lint/recommended.yaml
 

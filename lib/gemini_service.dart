@@ -18,7 +18,7 @@ class GeminiService {
     }
     // Use gemini-1.5-flash as it is faster and widely supported
     _model = GenerativeModel(
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       apiKey: this.apiKey,
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -42,7 +42,7 @@ class GeminiService {
     - customerPhone (String?): The buyer's phone number if mentioned.
     - items (List): List of items purchased. Each item needs:
       - description (String)
-      - amount (double): Unit price or total price for the item.
+- amount (double): The UNIT PRICE for ONE single item.
       - quantity (int): Default to 1 if not specified.
     - totalAmount (double): The sum of all items. Calculate it carefully.
     - amountInWords (String): The total amount written in words (e.g. "One Thousand Two Hundred $currencyCode Only").
@@ -52,6 +52,16 @@ class GeminiService {
     - bankName (String?): If mentioned, the bank name for payment.
     - accountNumber (String?): If mentioned, the account number.
     - accountName (String?): If mentioned, the account name.
+
+### **CRITICAL MATH RULES (READ CAREFULLY)**
+    1. **Unit Price vs Total:** - If the user says: "3 items at 5k each", the `amount` (Unit Price) is 5000.
+       - If the user says: "3 items for 15k total", calculate the unit price: 15000 / 3 = 5000.
+       - **DO NOT** put the Total Price in the `amount` field. `amount` is ALWAYS the price for ONE item.
+    
+    2. **Calculations:**
+       - Always calculate `totalAmount` = Sum of all (Quantity * Unit Price).
+       - If Tax/VAT is mentioned, calculate it and add to the total.
+
 
     Handle Nigerian currency terms:
     - "k" = 1,000 (e.g., 5k = 5000).
@@ -120,6 +130,7 @@ class GeminiService {
       3. If you see a date, use it.
       4. If items are listed without total, calculate the total.
       5. Determine "type": "invoice" if the image contains "Invoice" or "Bank Name", "Bill To", or has a Due Date. "receipt" otherwise.
+      3. CRITICAL: For `items`, ensure `amount` is the UNIT PRICE.
       
       Return ONLY valid JSON matching this schema:
       {

@@ -16,12 +16,12 @@ import 'package:receipt_bot/models.dart';
 import 'package:receipt_bot/pdf_service.dart';
 
 // Configuration
-// Configuration
 final String _verifyToken =
     Platform.environment['VERIFY_TOKEN'] ?? 'my_secure_receipt_token';
 final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
 final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
-final String _projectId = Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
+final String _projectId =
+    Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
 final String _geminiApiKey = Platform.environment['GEMINI_API_KEY'] ?? '';
 
 // Service Instances (Lazy initialization or via Middleware)
@@ -48,9 +48,7 @@ Future<Response> onRequest(RequestContext context) async {
   // Initialize services only for other requests (POST)
   if (!_servicesInitialized) {
     try {
-      final serviceAccountContent =
-          await File('service_account.json').readAsString();
-      await _firestoreService.initialize(serviceAccountContent);
+      await _firestoreService.initialize();
       _geminiService = GeminiService(apiKey: _geminiApiKey);
       _servicesInitialized = true;
     } catch (e) {
@@ -231,39 +229,47 @@ Future<void> _handleActiveUser(
   Map<String, dynamic> messageData,
   BusinessProfile profile,
 ) async {
-  // 1. IMAGE SCANNING LOGIC (NEW!)
+  // 1. IMAGE HANDLING
   if (type == 'image') {
-    await _sendWhatsAppMessage(from, "Scanning image... 🤖");
-
-    try {
-      // A. Get the image from WhatsApp
-      final imageId = messageData['image']['id'] as String;
-      final url = await _getWhatsAppMediaUrl(imageId);
-      // Note: _downloadFileBytes returns List<int>, need to convert to Uint8List
-      final imageBytesList = await _downloadFileBytes(url);
-      final imageBytes = Uint8List.fromList(imageBytesList);
-
-      // B. Send to Gemini Vision
-      final transaction = await _geminiService.parseImageTransaction(
-        imageBytes,
-        currencySymbol: profile.currencySymbol,
-        currencyCode: profile.currencyCode,
-      );
-
-      // C. Save & Ask for Theme (Same as text flow)
-      await _firestoreService.updateProfileData(from, {
-        'pendingTransaction': jsonEncode(transaction.toJson()),
-        'currentAction': UserAction.selectTheme.name
-      });
-
-      await _sendWhatsAppMessage(from,
-          "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:\n1️⃣ *Classic*\n2️⃣ *Beige*\n3️⃣ *Blue*");
-    } catch (e) {
-      print("Image Scan Error: $e");
-      await _sendWhatsAppMessage(from,
-          "⚠️ I couldn't read that image clearly. Please try sending a clearer photo or type the details.");
+    // A. Priority: Check if we are in a specific flow that needs an image (e.g. Logo Upload)
+    if (profile.currentAction == UserAction.editLogo ||
+        profile.status == OnboardingStatus.awaiting_logo) {
+      // Let the switch statement handle it below
     }
-    return;
+    // B. Otherwise: Default to Image Scanning (Receipt Parsing)
+    else {
+      await _sendWhatsAppMessage(from, "Scanning image... 🔎");
+
+      try {
+        // A. Get the image from WhatsApp
+        final imageId = messageData['image']['id'] as String;
+        final url = await _getWhatsAppMediaUrl(imageId);
+        // Note: _downloadFileBytes returns List<int>, need to convert to Uint8List
+        final imageBytesList = await _downloadFileBytes(url);
+        final imageBytes = Uint8List.fromList(imageBytesList);
+
+        // B. Send to Gemini Vision
+        final transaction = await _geminiService.parseImageTransaction(
+          imageBytes,
+          currencySymbol: profile.currencySymbol,
+          currencyCode: profile.currencyCode,
+        );
+
+        // C. Save & Ask for Theme (Same as text flow)
+        await _firestoreService.updateProfileData(from, {
+          'pendingTransaction': jsonEncode(transaction.toJson()),
+          'currentAction': UserAction.selectTheme.name
+        });
+
+        await _sendWhatsAppMessage(from,
+            "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:\n1️⃣ *Classic*\n2️⃣ *Beige*\n3️⃣ *Blue*");
+      } catch (e) {
+        print("Image Scan Error: $e");
+        await _sendWhatsAppMessage(from,
+            "⚠️ I couldn't read that image clearly. Please try sending a clearer photo or type the details.");
+      }
+      return; // Stop here if we scanned
+    }
   }
 
   // 2. TEXT COMMANDS (Global)
@@ -482,7 +488,7 @@ Future<void> _handleActiveUser(
         final lower = text.toLowerCase();
         // Check for common receipt content indicators (relaxed)
         // If it contains numbers OR newlines (list format) OR is long enough
-        bool looksLikeReceipt = text.length > 15 ||
+        final bool looksLikeReceipt = text.length > 15 ||
             text.contains(RegExp(r'\d')) ||
             text.contains('\n') ||
             lower.contains('bought') ||
@@ -538,7 +544,7 @@ Future<bool> _handleGlobalCommands(
     await _sendWhatsAppMessage(
       from,
       '''
-*How to use PennyWise* 🤖🧾
+*How to use Remi* 🤖🧾
 
 I can help you create professional Receipts and Invoices quickly!
 
@@ -643,6 +649,11 @@ Future<void> _processReceiptResult(
     from,
     'Generating ${isInvoice ? "Invoice" : "Receipt"}... ⏳',
   );
+
+  print(
+      'DEBUG: Processing receipt with Currency: ${profile.currencyCode} (${profile.currencySymbol})');
+
+  await _sendTypingIndicator(from);
   try {
     // AI Parsing
     final transaction = await _geminiService.parseTransaction(
@@ -895,5 +906,26 @@ Future<void> _sendWhatsAppMedia(
     }
   } catch (e) {
     print('Error sending WhatsApp media: $e');
+  }
+}
+
+Future<void> _sendTypingIndicator(String to) async {
+  final url =
+      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
+  final headers = {
+    'Authorization': 'Bearer $_whatsappToken',
+    'Content-Type': 'application/json',
+  };
+  final body = jsonEncode({
+    'messaging_product': 'whatsapp',
+    'recipient_type': 'individual',
+    'to': to,
+    'sender_action': 'typing_on', // This triggers the typing bubble
+  });
+
+  try {
+    await http.post(url, headers: headers, body: body);
+  } catch (e) {
+    print('Error sending typing indicator: $e');
   }
 }

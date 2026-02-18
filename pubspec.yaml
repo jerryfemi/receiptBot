@@ -9,8 +9,8 @@ environment:
 dependencies:
   dart_frog: ^1.1.0
   google_generative_ai: ^0.4.7
-  googleapis: ^13.0.0
-  googleapis_auth: ^1.6.0
+  googleapis: ^16.0.0
+  googleapis_auth: ^2.0.0
   http: ^1.2.0
   json_annotation: ^4.9.0
   pdf: ^3.10.0

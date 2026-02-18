@@ -7,14 +7,13 @@ Future<void> main() async {
   print('Running Onboarding Fix Verification...');
 
   // Use a NEW number to ensure new user status
-  final String newNumber = '2348999999999';
+  const String newNumber = '2348999999999';
 
   // Test 1: Simulate New User "Hi"
   // EXPECTATION: Should NOT show Menu, but ask for Business Name
   await _sendWebhook(
     from: newNumber,
     text: 'Hi',
-    type: 'text',
   );
 
   // Test 2: Simulate Sending "Menu" (Attempt to bypass)
@@ -30,7 +29,6 @@ Future<void> main() async {
   await _sendWebhook(
     from: newNumber,
     text: 'My Business Name',
-    type: 'text',
   );
 }
 

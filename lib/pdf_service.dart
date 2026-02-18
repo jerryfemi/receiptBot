@@ -491,43 +491,55 @@ class PdfService {
 
       // --- TOTALS ---
       pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.end,
         children: [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.end,
-            children: [
-              if (transaction.tax != null && transaction.tax! > 0)
-                pw.Container(
+          pw.Spacer(), // Push to right
+          pw.Container(
+            width: 250, // Constraint width to force wrapping
+            padding: const pw.EdgeInsets.only(right: 20),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                if (transaction.tax != null && transaction.tax! > 0)
+                  pw.Container(
                     padding: const pw.EdgeInsets.symmetric(
                         vertical: 2, horizontal: 10),
-                    child: pw.Row(children: [
-                      pw.Text('TAX:   ',
-                          style: pw.TextStyle(
-                              fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                      pw.Text(
-                        _formatCurrency(
-                            transaction.tax!, profile.currencySymbol),
-                        style: const pw.TextStyle(fontSize: 10),
-                      ),
-                    ])),
-              pw.Row(children: [
-                pw.Text('TOTAL AMOUNT:   ',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text(
-                  _formatCurrency(
-                      transaction.transactionTotal, profile.currencySymbol),
-                  style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold, fontSize: 14),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.end,
+                      children: [
+                        pw.Text('TAX:   ',
+                            style: pw.TextStyle(
+                                fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                        pw.Text(
+                          _formatCurrency(
+                              transaction.tax!, profile.currencySymbol),
+                          style: const pw.TextStyle(fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.end,
+                  children: [
+                    pw.Text('TOTAL AMOUNT:   ',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      _formatCurrency(
+                          transaction.transactionTotal, profile.currencySymbol),
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 14),
+                    ),
+                  ],
                 ),
-              ]),
-              pw.SizedBox(height: 5),
-              if (transaction.amountInWords != null)
-                pw.Text(
-                  '(${transaction.amountInWords})',
-                  style: pw.TextStyle(
-                      fontSize: 10, fontStyle: pw.FontStyle.italic),
-                ),
-            ],
+                pw.SizedBox(height: 5),
+                if (transaction.amountInWords != null)
+                  pw.Text(
+                    '(${transaction.amountInWords})',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 10, fontStyle: pw.FontStyle.italic),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -588,7 +600,7 @@ class PdfService {
 
 extension TransactionTotal on Transaction {
   double get transactionTotal {
-    double subtotal =
+    final double subtotal =
         items.fold(0, (sum, item) => sum + (item.amount * item.quantity));
     return subtotal + (tax ?? 0);
   }

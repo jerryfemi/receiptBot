@@ -3,3 +3,5 @@
 build/
 .github/
 test/
+service_account.json
+.env
