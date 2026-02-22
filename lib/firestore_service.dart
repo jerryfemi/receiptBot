@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math'; // For random generate 
 import 'package:googleapis/firestore/v1.dart';
 import 'package:googleapis/storage/v1.dart';
 import 'package:googleapis_auth/auth_io.dart';
@@ -11,6 +12,8 @@ class FirestoreService {
   FirestoreApi? _firestoreApi;
   StorageApi? _storageApi;
   AutoRefreshingAuthClient? _authClient;
+
+  FirestoreApi? get firestoreApi => _firestoreApi;
 
   // ignore: unused_field
   final http.Client _client = http.Client();
@@ -62,6 +65,10 @@ class FirestoreService {
     return 'projects/$projectId/databases/(default)/documents/users/$phoneNumber';
   }
 
+  String _orgPath(String orgId) {
+    return 'projects/$projectId/databases/(default)/documents/organizations/$orgId';
+  }
+
   Future<BusinessProfile?> getProfile(String phoneNumber) async {
     await _ensureInitialized(); // Safety Check
 
@@ -78,6 +85,125 @@ class FirestoreService {
       print('Error getting profile: $e');
       rethrow;
     }
+  }
+
+  // --- ORGANIZATION METHODS ---
+
+  Future<Organization?> getOrganization(String orgId) async {
+    await _ensureInitialized();
+
+    try {
+      final doc = await _firestoreApi!.projects.databases.documents.get(
+        _orgPath(orgId),
+      );
+      if (doc.fields == null) return null;
+      return _orgFromFields(doc.fields!, orgId);
+    } catch (e) {
+      if (e.toString().contains('404') || e.toString().contains('Not Found')) {
+        return null; // Org doesn't exist
+      }
+      print('Error getting organization: $e');
+      rethrow;
+    }
+  }
+
+  Future<String?> findOrganizationByInviteCode(String inviteCode) async {
+    await _ensureInitialized();
+
+    // Requires structuredQuery to search collections
+    final query = RunQueryRequest(
+      structuredQuery: StructuredQuery(
+        from: [CollectionSelector(collectionId: 'organizations')],
+        where: Filter(
+          fieldFilter: FieldFilter(
+            field: FieldReference(fieldPath: 'inviteCode'),
+            op: 'EQUAL',
+            value: Value(stringValue: inviteCode),
+          ),
+        ),
+        limit: 1,
+      ),
+    );
+
+    try {
+      final results =
+          await _firestoreApi!.projects.databases.documents.runQuery(
+        query,
+        'projects/$projectId/databases/(default)/documents',
+      );
+
+      // runQuery returns a list of RunQueryResponse objects, one per matched doc
+      for (final result in results) {
+        if (result.document != null) {
+          // Document name looks like: projects/X/databases/(default)/documents/organizations/Y
+          final namePaths = result.document!.name!.split('/');
+          final orgId = namePaths.last;
+          return orgId;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error finding organization by invite code: $e');
+      return null;
+    }
+  }
+
+  Future<String> createOrganization(String businessName) async {
+    await _ensureInitialized();
+
+    final orgId = Uuid().v4();
+    String inviteCode = _generateInviteCode();
+
+    // Ensure uniqueness
+    while (await findOrganizationByInviteCode(inviteCode) != null) {
+      inviteCode = _generateInviteCode();
+    }
+
+    final fields = <String, Value>{
+      'inviteCode': Value(stringValue: inviteCode),
+      'businessName': Value(stringValue: businessName),
+      'themeIndex': Value(integerValue: '0'), // Default theme
+    };
+
+    await _firestoreApi!.projects.databases.documents.patch(
+      Document(fields: fields),
+      _orgPath(orgId),
+    );
+
+    return orgId;
+  }
+
+  String _generateInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final random = Random.secure();
+    return String.fromCharCodes(Iterable.generate(
+        6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
+  }
+
+  Future<void> updateOrganizationData(
+      String orgId, Map<String, dynamic> data) async {
+    await _ensureInitialized();
+
+    final fields = <String, Value>{};
+    data.forEach((key, value) {
+      if (value is String) {
+        fields[key] = Value(stringValue: value);
+      } else if (value is int) {
+        fields[key] = Value(integerValue: value.toString());
+      } else if (value is double) {
+        fields[key] = Value(doubleValue: value);
+      } else if (value is bool) {
+        fields[key] = Value(booleanValue: value);
+      }
+    });
+
+    if (fields.isEmpty) return;
+
+    await _firestoreApi!.projects.databases.documents.patch(
+      Document(fields: fields),
+      _orgPath(orgId),
+      updateMask_fieldPaths: fields.keys.toList(),
+    );
   }
 
   Future<void> updateOnboardingStep(
@@ -144,8 +270,6 @@ class FirestoreService {
     final fields = <String, Value>{};
     data.forEach((key, value) {
       if (value is String) {
-        // ignore: unnecessary_null_comparison
-        if (value == null) return;
         fields[key] = Value(stringValue: value);
       } else if (value is int) {
         fields[key] = Value(integerValue: value.toString());
@@ -202,6 +326,11 @@ class FirestoreService {
       Map<String, Value> fields, String phoneNumber) {
     return BusinessProfile(
       phoneNumber: phoneNumber,
+      orgId: fields['orgId']?.stringValue,
+      role: UserRole.values.firstWhere(
+        (e) => e.name == (fields['role']?.stringValue ?? 'admin'),
+        orElse: () => UserRole.admin,
+      ),
       status: OnboardingStatus.values.firstWhere(
         (e) => e.name == (fields['status']?.stringValue ?? 'new_user'),
         orElse: () => OnboardingStatus.new_user,
@@ -223,7 +352,30 @@ class FirestoreService {
               jsonDecode(fields['pendingTransaction']!.stringValue!)
                   as Map<String, dynamic>)
           : null,
-      themeIndex: int.tryParse(fields['themeIndex']?.integerValue ?? '0') ?? 0,
+      themeIndex: fields['themeIndex']?.integerValue != null
+          ? int.tryParse(fields['themeIndex']!.integerValue!)
+          : null,
+      currencyCode: fields['currencyCode']?.stringValue ?? 'NGN',
+      currencySymbol: fields['currencySymbol']?.stringValue ?? '₦',
+    );
+  }
+
+  Organization _orgFromFields(Map<String, Value> fields, String orgId) {
+    return Organization(
+      id: orgId,
+      inviteCode: fields['inviteCode']?.stringValue ?? '',
+      businessName: fields['businessName']?.stringValue,
+      businessAddress: fields['businessAddress']?.stringValue,
+      displayPhoneNumber: fields['displayPhoneNumber']?.stringValue,
+      logoUrl: fields['logoUrl']?.stringValue,
+      bankName: fields['bankName']?.stringValue,
+      accountNumber: fields['accountNumber']?.stringValue,
+      accountName: fields['accountName']?.stringValue,
+      themeIndex: fields['themeIndex']?.integerValue != null
+          ? int.tryParse(fields['themeIndex']!.integerValue!)
+          : null,
+      currencyCode: fields['currencyCode']?.stringValue ?? 'NGN',
+      currencySymbol: fields['currencySymbol']?.stringValue ?? '₦',
     );
   }
 }

@@ -16,8 +16,7 @@ import 'package:receipt_bot/models.dart';
 import 'package:receipt_bot/pdf_service.dart';
 
 // Configuration
-final String _verifyToken =
-    Platform.environment['VERIFY_TOKEN'] ?? 'my_secure_receipt_token';
+final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
 final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
 final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
 final String _projectId =
@@ -80,7 +79,6 @@ Future<Response> onRequest(RequestContext context) async {
           text = (message['caption'] ?? '') as String;
         }
 
-        // Fire and Forget: Process in background to return 200 OK fast
         _handleMessage(from, text, type, message as Map<String, dynamic>)
             .catchError((e) => print('Background processing error: $e'));
       }
@@ -121,12 +119,11 @@ Future<void> _handleMessage(
       );
       // 3. New User Flow (Start)
       if (profile.status == OnboardingStatus.new_user) {
-        // Actually, if we just created the profile, we should ask for the name immediately.
         await _sendWhatsAppMessage(from,
-            "Welcome to PennyWise! 🤖🧾\n\nI can help you generate professional Receipts & Invoices internally.\n\nTo get started, I'll need a few details:\n1. Business Name\n2. Address\n3. Phone Number\n4. Logo (Optional)\n\nLet's start! What is your *Business Name*?");
+            "Welcome! \n\nI can help you generate professional Receipts & Invoices internally.\n\nAre you here to:\n1️⃣ Create your own Business Profile\n2️⃣ Join a Team via Invite Code\n\nReply with 1 or 2.");
 
         await _firestoreService.updateOnboardingStep(
-            from, OnboardingStatus.new_user);
+            from, OnboardingStatus.awaiting_setup_choice);
         return;
       }
     }
@@ -134,26 +131,71 @@ Future<void> _handleMessage(
     // 2. State Machine
     switch (profile.status ?? OnboardingStatus.new_user) {
       case OnboardingStatus.new_user:
+        await _sendWhatsAppMessage(from,
+            "Welcome! \n\nI can help you generate professional Receipts & Invoices internally.\n\nAre you here to:\n1️⃣ Create your own Business Profile\n2️⃣ Join a Team via Invite Code\n\nReply with 1 or 2.");
+        await _firestoreService.updateOnboardingStep(
+            from, OnboardingStatus.awaiting_setup_choice);
+        break;
+
+      case OnboardingStatus.awaiting_setup_choice:
+        if (text.trim() == '1') {
+          await _firestoreService.updateOnboardingStep(
+            from,
+            OnboardingStatus
+                .awaiting_address, // Next step is business name, but we store in 'businessName' during this step
+          );
+          await _sendWhatsAppMessage(
+              from, "Let's start! What is your *Business Name*?");
+        } else if (text.trim() == '2') {
+          await _firestoreService.updateOnboardingStep(
+            from,
+            OnboardingStatus.awaiting_invite_code,
+          );
+          await _sendWhatsAppMessage(from,
+              "Great! Please reply with the 6-character Invite Code your admin gave you.\n\nType *Cancel* to exit.");
+        } else {
+          await _sendWhatsAppMessage(
+              from, "Please reply with 1 or 2 to proceed.");
+        }
+        break;
+
+      case OnboardingStatus.awaiting_invite_code:
+        final code = text.trim().toUpperCase();
+        await _sendWhatsAppMessage(from, "Checking code... 🔎");
+
+        final orgId =
+            await _firestoreService.findOrganizationByInviteCode(code);
+        if (orgId != null) {
+          final org = await _firestoreService.getOrganization(orgId);
+          await _firestoreService.updateProfileData(from, {
+            'orgId': orgId,
+            'role': UserRole.agent.name,
+            'status': OnboardingStatus.active.name,
+          });
+          await _sendWhatsAppMessage(from,
+              "Success! 🎉 You are now linked to **${org?.businessName ?? 'your team'}** as a Sales Agent.\n\nYou can now send me receipt details and I will generate them using the company's official template.");
+        } else {
+          await _sendWhatsAppMessage(from,
+              "Oops, that code is invalid. Please try again or ask your admin for the correct code, or type 'cancel' to restart.");
+        }
+        break;
+
+      case OnboardingStatus.awaiting_address:
+        // Here `text` is the businessName provided
+        final newOrgId = await _firestoreService.createOrganization(text);
+        await _firestoreService.updateProfileData(from, {
+          'orgId': newOrgId,
+          'role': UserRole.admin.name,
+        });
+
         await _firestoreService.updateOnboardingStep(
           from,
-          OnboardingStatus.awaiting_address,
+          OnboardingStatus.awaiting_phone,
           data: {'businessName': text},
         );
         await _sendWhatsAppMessage(
           from,
-          'Great! Now, what is your *Business Address*?',
-        );
-        break;
-
-      case OnboardingStatus.awaiting_address:
-        await _firestoreService.updateOnboardingStep(
-          from,
-          OnboardingStatus.awaiting_phone,
-          data: {'businessAddress': text},
-        );
-        await _sendWhatsAppMessage(
-          from,
-          'Got it. What is your *Business Phone Number*',
+          'Great! Now, what is your *Business Address*?\n\nType *Cancel* to exit.',
         );
         break;
 
@@ -165,16 +207,18 @@ Future<void> _handleMessage(
         );
         await _sendWhatsAppMessage(
           from,
-          "Almost done! Please upload a transparent **PNG of your Business Logo**.\n\nType *Skip* if you don't have one.",
+          "Almost done! Please upload a transparent **PNG of your Business Logo**.\n\nType *Skip* if you don't have one, or *Cancel* to exit.",
         );
         break;
 
       case OnboardingStatus.awaiting_logo:
-        if (type == 'image') {
-          // Handle Image Upload
-          final imageId = messageData['image']['id'];
+        if (type == 'image' || type == 'document') {
+          // Handle Image or Document Upload
+          final mediaId = type == 'image'
+              ? messageData['image']['id']
+              : messageData['document']['id'];
           // 1. Get WhatsApp URL
-          final tempUrl = await _getWhatsAppMediaUrl(imageId as String);
+          final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
 
           // 2. Download Bytes
           final bytes = await _downloadFileBytes(tempUrl);
@@ -190,7 +234,7 @@ Future<void> _handleMessage(
 
           await _sendWhatsAppMessage(
             from,
-            "Setup Complete! 🎉\n\nYou can now create receipts!\n\nSend 'Create Receipt' to start, or just type the details.",
+            "Setup Complete! 🎉\n\nYou can now create receipts and invoices.\n\n🔹 Type *Create Receipt* to make a receipt\n🔹 Type *Create Invoice* to make an invoice\n🔹 Type *Menu* to see quick actions\n🔹 Type *Help* for more info",
           );
         } else if (text.toLowerCase() == 'skip') {
           // SKIP LOGO
@@ -201,12 +245,12 @@ Future<void> _handleMessage(
           );
           await _sendWhatsAppMessage(
             from,
-            "Setup Complete! 🎉\n\nYou can now create receipts!\n\nSend 'Create Receipt' to start, or just type the details.",
+            "Setup Complete! 🎉\n\nYou can now create receipts and invoices.\n\n🔹 Type *Create Receipt* to make a receipt\n🔹 Type *Create Invoice* to make an invoice\n🔹 Type *Menu* to see quick actions\n🔹 Type *Help* for more info",
           );
         } else {
           await _sendWhatsAppMessage(
             from,
-            'Please send an **image** for your logo, or type *Skip* to proceed without one.',
+            'Please send an **image or document** for your logo, or type *Skip* to proceed without one.',
           );
         }
         break;
@@ -262,7 +306,7 @@ Future<void> _handleActiveUser(
         });
 
         await _sendWhatsAppMessage(from,
-            "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:\n1️⃣ *Classic*\n2️⃣ *Beige*\n3️⃣ *Blue*");
+            "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:\n1️⃣ *Classic*\n2️⃣ *Beige*\n3️⃣ *Blue*\n\nType *Cancel* to exit.");
       } catch (e) {
         print("Image Scan Error: $e");
         await _sendWhatsAppMessage(from,
@@ -281,7 +325,7 @@ Future<void> _handleActiveUser(
     if (isHandled) return;
   }
 
-  // 3. Handle Current Action
+  // 4. Handle Current Action (Remaining actions from the original switch)
   switch (profile.currentAction ?? UserAction.idle) {
     case UserAction.createReceipt:
       await _processReceiptResult(from, text, profile, isInvoice: false);
@@ -290,35 +334,40 @@ Future<void> _handleActiveUser(
       await _processReceiptResult(from, text, profile, isInvoice: true);
       break;
     case UserAction.editProfileMenu:
+      if (profile.role != UserRole.admin) {
+        await _sendWhatsAppMessage(from, "Only Admins can edit the profile.");
+        await _firestoreService.updateAction(from, UserAction.idle);
+        return;
+      }
       if (text.contains('1')) {
         await _firestoreService.updateAction(from, UserAction.editName);
         await _sendWhatsAppMessage(
           from,
-          'Okay, send me the **New Business Name**.',
+          'Okay, send me the **New Business Name**.\n\nType *Cancel* to exit.',
         );
       } else if (text.contains('2')) {
         await _firestoreService.updateAction(from, UserAction.editPhone);
         await _sendWhatsAppMessage(
           from,
-          'Okay, send me the **New Phone Number**.',
+          'Okay, send me the **New Phone Number**.\n\nType *Cancel* to exit.',
         );
       } else if (text.contains('3')) {
         await _firestoreService.updateAction(from, UserAction.editBankDetails);
         await _sendWhatsAppMessage(
           from,
-          'Okay, send me your **Bank Details**:\n\nBank Name, Account Number, Account Name',
+          'Okay, send me your **Bank Details**:\n\nBank Name, Account Number, Account Name\n\nType *Cancel* to exit.',
         );
       } else if (text.contains('4')) {
         await _firestoreService.updateAction(from, UserAction.selectTheme);
         await _sendWhatsAppMessage(
           from,
-          'Select a default style for your documents:\n\n1️⃣ Classic (B&W)\n2️⃣ Beige Corporate\n3️⃣ Blue Accent\n\nReply with 1, 2, or 3.',
+          'Select a default style for your documents:\n\n1️⃣ Classic (B&W)\n2️⃣ Beige Corporate\n3️⃣ Blue Accent\n\nReply with 1, 2, or 3, or type *Cancel* to exit.',
         );
       } else if (text.contains('5')) {
         await _firestoreService.updateAction(from, UserAction.editAddress);
         await _sendWhatsAppMessage(
           from,
-          'Okay, send me the **New Business Address**.',
+          'Okay, send me the **New Business Address**.\n\nType *Cancel* to exit.',
         );
       } else {
         await _sendWhatsAppMessage(from, 'Please reply with 1, 2, 3, 4, or 5.');
@@ -455,9 +504,11 @@ Future<void> _handleActiveUser(
       break;
 
     case UserAction.editLogo:
-      if (type == 'image') {
-        final imageId = messageData['image']['id'];
-        final tempUrl = await _getWhatsAppMediaUrl(imageId as String);
+      if (type == 'image' || type == 'document') {
+        final mediaId = type == 'image'
+            ? messageData['image']['id']
+            : messageData['document']['id'];
+        final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
 
         final bytes = await _downloadFileBytes(tempUrl);
         final publicUrl = await _firestoreService.uploadFile(
@@ -465,7 +516,7 @@ Future<void> _handleActiveUser(
           bytes,
           'image/jpeg',
         );
-
+        await _sendWhatsAppMessage(from, 'Saving Logo...... ');
         await _firestoreService.saveLogoUrl(from, publicUrl);
         await _sendWhatsAppMessage(from, 'Logo updated successfully! 🖼️');
 
@@ -476,37 +527,54 @@ Future<void> _handleActiveUser(
           'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
         );
       } else {
-        await _sendWhatsAppMessage(from, 'Please send an image.');
+        await _sendWhatsAppMessage(from, 'Please send an image or document.');
       }
       break;
 
     case UserAction.idle:
-      // Legacy Flow / Fallback
-      if (type == 'text') {
-        // Only attempt to parse if it contains numbers or keywords, or is of sufficient length.
-        // If it's short and not a command, ask for clarification.
-        final lower = text.toLowerCase();
-        // Check for common receipt content indicators (relaxed)
-        // If it contains numbers OR newlines (list format) OR is long enough
-        final bool looksLikeReceipt = text.length > 15 ||
-            text.contains(RegExp(r'\d')) ||
-            text.contains('\n') ||
-            lower.contains('bought') ||
-            lower.contains('items');
+      // CONVERSATIONAL ROUTER
+      await _sendTypingIndicator(from);
 
-        if (looksLikeReceipt) {
-          await _processReceiptResult(from, text, profile, isInvoice: false);
-        } else {
-          await _sendWhatsAppMessage(
-            from,
-            "I'm not sure if that's a receipt. Please send details like 'Items, Prices' or type 'Create Receipt' to start.",
-          );
+      try {
+        final intentResult = await _geminiService.determineUserIntent(text);
+
+        switch (intentResult.type) {
+          case UserIntent.chat:
+            if (intentResult.response != null) {
+              await _sendWhatsAppMessage(from, intentResult.response!);
+            } else {
+              await _sendWhatsAppMessage(from,
+                  "I'm here to help! Would you like to create a receipt or invoice?");
+            }
+            break;
+
+          case UserIntent.createReceipt:
+            await _processReceiptResult(from, text, profile, isInvoice: false);
+            break;
+
+          case UserIntent.createInvoice:
+            await _processReceiptResult(from, text, profile, isInvoice: true);
+            break;
+
+          case UserIntent.help:
+            await _sendHelpMessage(from);
+            break;
+
+          case UserIntent.unknown:
+            // Relaxed Fallback: If intent is unknown but text is long, try parsing.
+            if (text.length > 20) {
+              await _processReceiptResult(from, text, profile,
+                  isInvoice: false);
+            } else {
+              await _sendWhatsAppMessage(from,
+                  "I didn't quite catch that. You can type 'Menu' to see options or just tell me what you sold!");
+            }
+            break;
         }
-      } else {
-        await _sendWhatsAppMessage(
-          from,
-          "Please send text to generate a receipt or type 'Menu'.",
-        );
+      } catch (e) {
+        print('Router Error: $e');
+        await _sendWhatsAppMessage(from,
+            "I'm having a little trouble thinking right now. 😵‍💫 Try telling me what you sold again.");
       }
       break;
   }
@@ -528,11 +596,7 @@ Future<bool> _handleGlobalCommands(
       lower == 'good evening' ||
       lower == 'yo' ||
       lower == 'start') {
-    await _firestoreService.updateAction(from, UserAction.idle);
-    await _sendWhatsAppMessage(
-      from,
-      'Hey! What can I do for you?\n\n🔹 *Create Receipt*\n🔹 *Create Invoice*\n🔹 *Edit Profile* (Name, Address, Bank, Theme)\n🔹 *Change Currency* (${profile.currencyCode})\n🔹 *Upload New Logo*\n🔹 *Cancel* to exit',
-    );
+    await _sendWelcomeMessage(from, profile);
     return true;
   }
 
@@ -541,34 +605,7 @@ Future<bool> _handleGlobalCommands(
       lower == 'info' ||
       lower == 'how to use' ||
       lower.contains('instructions')) {
-    await _sendWhatsAppMessage(
-      from,
-      '''
-*How to use Remi* 🤖🧾
-
-I can help you create professional Receipts and Invoices quickly!
-
-*1. Create a Receipt*
-Simply type the details of the sale.
-Example: *"Sold 2 pairs of shoes for 15k each and a t-shirt for 5000 to John Doe"*
-OR type *"Create Receipt"* to follow the steps.
-
-*2. Create an Invoice*
-Type *"Create Invoice"* to start. I'll ask for client details, items, and due date.
-(Make sure your Bank Details are set in your profile!)
-
-*3. Edit Profile*
-Type *"Edit Profile"* or *"Menu"* to update your Business Name, Address, Phone, Logo, or Bank Details.
-
-*4. Change Currency*
-Type *"Change Currency"* to switch between NGN, USD, GBP, etc.
-
-*5. Image Parsing*
-Send me a photo of a handwritten receipt or note, and I'll try to digitize it for you!
-
-Need more help? Contact support at woobackbigmlboa@gmail.com.
-''',
-    );
+    await _sendHelpMessage(from);
     return true;
   }
 
@@ -576,7 +613,7 @@ Need more help? Contact support at woobackbigmlboa@gmail.com.
     await _firestoreService.updateAction(from, UserAction.createReceipt);
     await _sendWhatsAppMessage(
       from,
-      'Please provide the receipt details:\n\n- Customer Name\n- Items Bought & Prices\n- Address (optional)\n- Phone (optional)',
+      'Please provide the receipt details:\n\n- Customer Name\n- Items Bought & Prices\n- Tax (optional)\n- Customer Address (optional)\n- Customer Phone Number (optional)\n\nType *Cancel* to exit.',
     );
     return true;
   }
@@ -589,23 +626,62 @@ Need more help? Contact support at woobackbigmlboa@gmail.com.
     if (hasBankDetails) {
       await _sendWhatsAppMessage(
         from,
-        'Please provide the INVOICE details:\n\n- Client Name\n- Items & Prices\n- Due Date (optional)\n- Address/Phone',
+        'Please provide the INVOICE details:\n\n- Client Name\n- Items & Prices\n- Tax (optional)\n- Due Date (optional)\n- Client Address (optional)\n- Client Phone Number (optional)\n\nType *Cancel* to exit.',
       );
     } else {
       await _sendWhatsAppMessage(
         from,
-        'Please provide the INVOICE details:\n\n- Client Name\n- Items & Prices\n- Due Date\n\n⚠️ **Also, please include your Bank Details (Bank Name, Account Number, Name) to save for future invoices.**',
+        'Please provide the INVOICE details:\n\n- Client Name\n- Items & Prices\n- Tax (optional)\n- Due Date\n\n⚠️ **Also, please include your Bank Details (Bank Name, Account Number, Name) to save for future invoices.**\n\nType *Cancel* to exit.',
       );
     }
     return true;
   }
 
   if (lower == 'edit profile') {
+    if (profile.role != UserRole.admin) {
+      await _sendWhatsAppMessage(
+        from,
+        'Only Admins can edit the business profile.',
+      );
+      return true;
+    }
     await _firestoreService.updateAction(from, UserAction.editProfileMenu);
     await _sendWhatsAppMessage(
       from,
-      'What would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n\nReply with the number.',
+      'What would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nReply with the number, or type *Cancel* to exit.',
     );
+    return true;
+  }
+
+  if (lower == 'invite team member') {
+    if (profile.role != UserRole.admin) {
+      await _sendWhatsAppMessage(
+        from,
+        'Only Admins can invite team members.',
+      );
+      return true;
+    }
+
+    if (profile.orgId != null) {
+      final org = await _firestoreService.getOrganization(profile.orgId!);
+      if (org != null) {
+        await _sendWhatsAppMessage(
+          from,
+          'Your Team Invite Code is:\n\n*${org.inviteCode}*\n\nShare this code with your team members so they can join your organization.',
+        );
+      } else {
+        await _sendWhatsAppMessage(
+          from,
+          'Your organization could not be found. Please contact support.',
+        );
+      }
+    } else {
+      await _sendWhatsAppMessage(
+        from,
+        'You are not currently part of an organization. Please recreate your profile to get an invite code.',
+      );
+    }
+
     return true;
   }
 
@@ -618,15 +694,23 @@ Need more help? Contact support at woobackbigmlboa@gmail.com.
       message +=
           '${i + 1}️⃣ ${currencies[i]['code']} (${currencies[i]['symbol']}) - ${currencies[i]['name']}\n';
     }
-    message += '\nReply with the number.';
+    message += '\nReply with the number, or type *Cancel* to exit.';
 
     await _sendWhatsAppMessage(from, message);
     return true;
   }
 
-  if (lower == 'upload new logo') {
+  if (lower == 'upload logo') {
+    if (profile.role != UserRole.admin) {
+      await _sendWhatsAppMessage(
+        from,
+        'Only Admins can upload the business logo.',
+      );
+      return true;
+    }
     await _firestoreService.updateAction(from, UserAction.editLogo);
-    await _sendWhatsAppMessage(from, 'Okay, send me the **New Logo Image**.');
+    await _sendWhatsAppMessage(from,
+        'Okay, send me the **New Logo Image**.\n\n⚠️ *If your logo has a transparent background, upload it as a Document so WhatsApp keeps it transparent!*\n\nType *Cancel* to exit.');
     return true;
   }
 
@@ -645,6 +729,25 @@ Future<void> _processReceiptResult(
   BusinessProfile profile, {
   required bool isInvoice,
 }) async {
+  // Conversational filter: prevent chatting during document generation phase
+  if (text.length < 100) {
+    try {
+      final intentResult = await _geminiService.determineUserIntent(text);
+      if (intentResult.type == UserIntent.chat) {
+        await _sendWhatsAppMessage(
+            from,
+            intentResult.response ??
+                "Please provide the document details, or type 'Cancel' to exit.");
+        return;
+      } else if (intentResult.type == UserIntent.help) {
+        await _sendHelpMessage(from);
+        return;
+      }
+    } catch (_) {
+      // Ignore intent failure and proceed
+    }
+  }
+
   await _sendWhatsAppMessage(
     from,
     'Generating ${isInvoice ? "Invoice" : "Receipt"}... ⏳',
@@ -790,10 +893,16 @@ Future<void> _generateAndSendPDF(
   await _sendWhatsAppMessage(from, 'Generating PDF... ⏳');
 
   try {
+    Organization? org;
+    if (profile.orgId != null) {
+      org = await _firestoreService.getOrganization(profile.orgId!);
+    }
+
     final pdfBytes = await _pdfService.generateReceipt(
-      profile,
+      profile, // Still passing profile as fallback/context
       transaction,
       themeIndex: themeIndex,
+      org: org,
     );
 
     // Upload and Send
@@ -928,4 +1037,58 @@ Future<void> _sendTypingIndicator(String to) async {
   } catch (e) {
     print('Error sending typing indicator: $e');
   }
+}
+
+Future<void> _sendWelcomeMessage(String to, BusinessProfile profile) async {
+  await _firestoreService.updateAction(to, UserAction.idle);
+
+  String menuText = 'Hey! What can I do for you? 🤖\n\n'
+      'Type any of these commands:\n'
+      '🔹 *Create Receipt*\n'
+      '🔹 *Create Invoice*\n';
+
+  if (profile.role == UserRole.admin) {
+    menuText += '🔹 *Edit Profile* (Name, Address, Bank, Theme)\n'
+        '🔹 *Upload Logo*\n'
+        '🔹 *Invite Team Member*\n';
+  }
+
+  menuText += '🔹 *Change Currency* (${profile.currencyCode})\n'
+      '🔹 *Help*\n'
+      '🔹 *Cancel*\n\n'
+      '_Or just send me the details of a sale to quickly generate a receipt!_';
+
+  await _sendWhatsAppMessage(to, menuText);
+}
+
+Future<void> _sendHelpMessage(String to) async {
+  await _sendWhatsAppMessage(
+    to,
+    '''
+*How to use Remi* 🤖🧾
+
+I can help you create professional Receipts and Invoices quickly!
+
+*1. Create a Receipt*
+Simply type the details of the sale.
+Example: *"Sold 2 pairs of shoes for 15k each and a t-shirt for 5000 to John Doe"*
+OR type *"Create Receipt"* to follow the steps. You can also include taxes!
+
+*2. Create an Invoice*
+Type *"Create Invoice"* to start. I'll ask for client details, items, tax, and due date.
+(Make sure your Bank Details are set in your profile!)
+
+*3. Edit Profile & Logo (Admins Only)*
+Type *"Edit Profile"* or *"Menu"* to update your Business Name, Address, Phone, or Bank Details. Type *"Upload Logo"* to set your brand image.
+
+*4. Invite Team Member (Admins Only)*
+Type *"Invite Team Member"* to get your 6-character code. Your staff can use this to join your organization and generate receipts on your behalf.
+
+*5. Image Parsing*
+Send me a photo of a handwritten receipt or note, and I'll digitize it for you!
+
+Type *"Menu"* to see all options or type *"Cancel"* to stop any current action.
+Need more help? Contact support at woobackbigmlboa@gmail.com.
+''',
+  );
 }

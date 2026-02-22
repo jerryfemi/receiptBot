@@ -6,11 +6,15 @@ part 'models.g.dart';
 
 enum OnboardingStatus {
   new_user,
+  awaiting_setup_choice,
+  awaiting_invite_code,
   awaiting_address,
   awaiting_phone,
   awaiting_logo,
   active,
 }
+
+enum UserRole { admin, agent }
 
 enum UserAction {
   idle,
@@ -34,6 +38,8 @@ enum TransactionType {
 @JsonSerializable()
 class BusinessProfile {
   final String phoneNumber;
+  final String? orgId; // New Field: Link to Organization
+  final UserRole role; // New Field: Admin or Agent
   final OnboardingStatus? status;
   final UserAction? currentAction; // New Field
   final String? businessName;
@@ -54,6 +60,8 @@ class BusinessProfile {
 
   BusinessProfile({
     required this.phoneNumber,
+    this.orgId,
+    this.role = UserRole.admin,
     this.status = OnboardingStatus.new_user,
     this.currentAction = UserAction.idle,
     this.businessName,
@@ -76,6 +84,8 @@ class BusinessProfile {
 
   BusinessProfile copyWith({
     String? phoneNumber,
+    String? orgId,
+    UserRole? role,
     OnboardingStatus? status,
     UserAction? currentAction,
     String? businessName,
@@ -92,6 +102,8 @@ class BusinessProfile {
   }) {
     return BusinessProfile(
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      orgId: orgId ?? this.orgId,
+      role: role ?? this.role,
       status: status ?? this.status,
       currentAction: currentAction ?? this.currentAction,
       businessName: businessName ?? this.businessName,
@@ -180,4 +192,40 @@ class Transaction {
       _$TransactionFromJson(json);
 
   Map<String, dynamic> toJson() => _$TransactionToJson(this);
+}
+
+@JsonSerializable()
+class Organization {
+  final String id;
+  final String inviteCode;
+  final String? businessName;
+  final String? businessAddress;
+  final String? displayPhoneNumber;
+  final String? logoUrl;
+  final String? bankName;
+  final String? accountNumber;
+  final String? accountName;
+  final int? themeIndex;
+  final String currencyCode;
+  final String currencySymbol;
+
+  Organization({
+    required this.id,
+    required this.inviteCode,
+    this.businessName,
+    this.businessAddress,
+    this.displayPhoneNumber,
+    this.logoUrl,
+    this.bankName,
+    this.accountNumber,
+    this.accountName,
+    this.themeIndex,
+    this.currencyCode = 'NGN',
+    this.currencySymbol = '₦',
+  });
+
+  factory Organization.fromJson(Map<String, dynamic> json) =>
+      _$OrganizationFromJson(json);
+
+  Map<String, dynamic> toJson() => _$OrganizationToJson(this);
 }

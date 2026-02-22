@@ -16,7 +16,6 @@ class GeminiService {
     if (this.apiKey.isEmpty) {
       print('Warning: GEMINI_API_KEY is missing.');
     }
-    // Use gemini-1.5-flash as it is faster and widely supported
     _model = GenerativeModel(
       model: 'gemini-3-flash-preview',
       apiKey: this.apiKey,
@@ -41,9 +40,9 @@ class GeminiService {
     - customerAddress (String?): The buyer's address if mentioned.
     - customerPhone (String?): The buyer's phone number if mentioned.
     - items (List): List of items purchased. Each item needs:
-      - description (String)
-- amount (double): The UNIT PRICE for ONE single item.
-      - quantity (int): Default to 1 if not specified.
+    - description (String)
+    - amount (double): The UNIT PRICE for ONE single item.
+    - quantity (int): Default to 1 if not specified.
     - totalAmount (double): The sum of all items. Calculate it carefully.
     - amountInWords (String): The total amount written in words (e.g. "One Thousand Two Hundred $currencyCode Only").
     - date (String): Current date in ISO 8601 format if not specified.
@@ -195,4 +194,57 @@ class GeminiService {
       throw Exception("Failed to parse AI response");
     }
   }
+
+  // --- Intent Classification ---
+  Future<IntentResult> determineUserIntent(String text) async {
+    final prompt = """
+    You are Remi, a friendly, professional AI assistant for business owners.
+    Analyze the user's message: "$text"
+    
+    Decide if they are:
+    1. Just chatting/greeting (INTENT: chat)
+    2. Providing details to make a receipt (INTENT: createReceipt)
+    3. Providing details to make an invoice (INTENT: createInvoice)
+    4. Asking for help (INTENT: help)
+    
+    If it's a greeting or general chat, provide a short, friendly,  professional response.
+    Return JSON ONLY: {"intent": "chat|createReceipt|createInvoice|help|unknown", "reply": "your friendly response if chat (optional)"}
+    """;
+
+    try {
+      final response = await _model.generateContent([Content.text(prompt)]);
+
+      if (response.text == null) return IntentResult(UserIntent.unknown);
+
+      // Clean markdown if present
+      var cleanText = response.text!.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.replaceAll('```json', '').replaceAll('```', '');
+      }
+      if (cleanText.startsWith('```')) {
+        cleanText = cleanText.replaceAll('```', '');
+      }
+
+      final data = jsonDecode(cleanText);
+      final intentStr = data['intent'] as String;
+
+      final intent = UserIntent.values.firstWhere(
+        (e) => e.name == intentStr,
+        orElse: () => UserIntent.unknown,
+      );
+
+      return IntentResult(intent, response: data['reply'] as String?);
+    } catch (e) {
+      print('Intent classification error: $e');
+      return IntentResult(UserIntent.unknown);
+    }
+  }
+}
+
+enum UserIntent { chat, createReceipt, createInvoice, help, unknown }
+
+class IntentResult {
+  final UserIntent type;
+  final String? response;
+  IntentResult(this.type, {this.response});
 }

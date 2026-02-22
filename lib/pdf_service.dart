@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:receipt_bot/models.dart';
@@ -11,6 +12,7 @@ class PdfService {
     BusinessProfile profile,
     Transaction transaction, {
     int themeIndex = 0, // 0: B&W, 1: Beige, 2: Blue
+    Organization? org, // Optional Organization context
   }) async {
     // Load Fonts
     final regularFontData =
@@ -25,12 +27,22 @@ class PdfService {
 
     final pdf = pw.Document();
 
+    // Determine values correctly from org or fallback
+    final usedLogoUrl = org?.logoUrl ?? profile.logoUrl;
+    final usedBusinessName = org?.businessName ?? profile.businessName;
+    final usedBusinessAddress = org?.businessAddress ?? profile.businessAddress;
+    final usedDisplayPhoneNumber =
+        org?.displayPhoneNumber ?? profile.displayPhoneNumber;
+    final usedBankName = org?.bankName ?? profile.bankName;
+    final usedAccountNumber = org?.accountNumber ?? profile.accountNumber;
+    final usedAccountName = org?.accountName ?? profile.accountName;
+
     // 1. Load Logo
     pw.MemoryImage? logoImage;
-    if (profile.logoUrl != null) {
+    if (usedLogoUrl != null) {
       try {
         final response = await http
-            .get(Uri.parse(profile.logoUrl!))
+            .get(Uri.parse(usedLogoUrl))
             .timeout(const Duration(seconds: 5));
         if (response.statusCode == 200) {
           logoImage = pw.MemoryImage(response.bodyBytes);
@@ -74,11 +86,34 @@ class PdfService {
       ),
       build: (context) => [
         if (transaction.type == TransactionType.invoice)
-          ..._generateInvoiceLayout(context, profile, transaction, logoImage,
-              primary, textColor, regularFont, boldFont)
+          ..._generateInvoiceLayout(
+              context,
+              transaction,
+              logoImage,
+              primary,
+              textColor,
+              regularFont,
+              boldFont,
+              usedBusinessName,
+              usedBusinessAddress,
+              usedDisplayPhoneNumber,
+              usedBankName,
+              usedAccountNumber,
+              usedAccountName,
+              org?.currencySymbol ?? profile.currencySymbol)
         else
-          ..._generateReceiptLayout(context, profile, transaction, logoImage,
-              primary, textColor, regularFont, boldFont)
+          ..._generateReceiptLayout(
+              context,
+              transaction,
+              logoImage,
+              primary,
+              textColor,
+              regularFont,
+              boldFont,
+              usedBusinessName,
+              usedBusinessAddress,
+              usedDisplayPhoneNumber,
+              org?.currencySymbol ?? profile.currencySymbol)
       ],
     ));
 
@@ -88,13 +123,19 @@ class PdfService {
   // --- CORPORATE INVOICE LAYOUT ---
   List<pw.Widget> _generateInvoiceLayout(
       pw.Context context,
-      BusinessProfile profile,
       Transaction transaction,
       pw.MemoryImage? logoImage,
       PdfColor primary,
       PdfColor textColor,
       pw.Font regularFont,
-      pw.Font boldFontParam) {
+      pw.Font boldFontParam,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String? bankName,
+      String? accountNumber,
+      String? accountName,
+      String currencySymbol) {
     // Fonts
     final headerFont = boldFontParam;
     final bodyFont = regularFont;
@@ -161,13 +202,32 @@ class PdfService {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text("INVOICE", style: styleTitle),
-            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-              pw.Text(profile.businessName?.toUpperCase() ?? "BUSINESS NAME",
-                  style: styleCompany),
-              pw.SizedBox(height: 5),
-              pw.Text(profile.businessAddress ?? "", style: styleBody),
-              pw.Text(profile.displayPhoneNumber ?? "", style: styleBody),
-            ])
+            pw.SizedBox(width: 20), // Spacing buffer
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  if (logoImage != null) ...[
+                    pw.ClipOval(
+                      child: pw.Container(
+                        height: 50,
+                        width: 50,
+                        color: PdfColors.white,
+                        child: pw.Image(logoImage, fit: pw.BoxFit.cover),
+                      ),
+                    ),
+                    pw.SizedBox(height: 10),
+                  ],
+                  pw.Text(businessName?.toUpperCase() ?? "BUSINESS NAME",
+                      style: styleCompany, textAlign: pw.TextAlign.right),
+                  pw.SizedBox(height: 5),
+                  pw.Text(businessAddress ?? "",
+                      style: styleBody, textAlign: pw.TextAlign.right),
+                  pw.Text(displayPhoneNumber ?? "",
+                      style: styleBody, textAlign: pw.TextAlign.right),
+                ],
+              ),
+            )
           ]),
 
       pw.SizedBox(height: 25),
@@ -180,11 +240,11 @@ class PdfService {
             pw.Text(
                 "INVOICE NUMBER: #${transaction.date.millisecondsSinceEpoch.toString().substring(8)}",
                 style: styleBody.copyWith(color: PdfColors.grey700)),
-            pw.Text("DATE: ${transaction.date.toString().split(' ')[0]}",
+            pw.Text("DATE: ${DateFormat.yMMMMd().format(transaction.date)}",
                 style: styleBody.copyWith(color: PdfColors.grey700)),
             if (transaction.dueDate != null)
               pw.Text(
-                  "DUE DATE: ${transaction.dueDate.toString().split(' ')[0]}",
+                  "DUE DATE: ${DateFormat.yMMMMd().format(transaction.dueDate!)}",
                   style: styleBody.copyWith(color: PdfColors.grey700)),
           ]),
         ],
@@ -220,19 +280,17 @@ class PdfService {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                if (profile.bankName != null ||
-                    transaction.bankName != null) ...[
+                if (bankName != null || transaction.bankName != null) ...[
                   pw.Text("Payment Method",
                       style: styleLabel.copyWith(color: PdfColors.grey700)),
                   pw.SizedBox(height: 5),
-                  pw.Text(profile.bankName ?? transaction.bankName ?? '',
+                  pw.Text(bankName ?? transaction.bankName ?? '',
                       style: styleBody),
                   pw.Text(
-                      (profile.accountName ?? transaction.accountName ?? '')
+                      (accountName ?? transaction.accountName ?? '')
                           .toUpperCase(),
                       style: styleBody),
-                  pw.Text(
-                      profile.accountNumber ?? transaction.accountNumber ?? '',
+                  pw.Text(accountNumber ?? transaction.accountNumber ?? '',
                       style: styleBody),
                 ]
               ],
@@ -269,11 +327,11 @@ class PdfService {
               children: [
                 cell(item.description.toUpperCase()),
                 cell(item.quantity.toString(), align: pw.TextAlign.center),
-                cell(_formatCurrency(item.amount, profile.currencySymbol),
+                cell(_formatCurrency(item.amount, currencySymbol),
                     align: pw.TextAlign.center),
                 cell(
                     _formatCurrency(
-                        item.amount * item.quantity, profile.currencySymbol),
+                        item.amount * item.quantity, currencySymbol),
                     align: pw.TextAlign.center),
               ],
             );
@@ -302,7 +360,7 @@ class PdfService {
               pw.SizedBox(),
               pw.SizedBox(),
               cell("TAX", align: pw.TextAlign.right, bold: true),
-              cell(_formatCurrency(transaction.tax!, profile.currencySymbol),
+              cell(_formatCurrency(transaction.tax!, currencySymbol),
                   align: pw.TextAlign.center, bold: true),
             ]),
           // Grand Total
@@ -316,11 +374,8 @@ class PdfService {
                     : pw.SizedBox()),
             pw.SizedBox(),
             cell("GRAND TOTAL", align: pw.TextAlign.right, bold: true),
-            cell(
-                _formatCurrency(
-                    transaction.transactionTotal, profile.currencySymbol),
-                align: pw.TextAlign.center,
-                bold: true),
+            cell(_formatCurrency(transaction.transactionTotal, currencySymbol),
+                align: pw.TextAlign.center, bold: true),
           ]),
         ],
       ),
@@ -332,77 +387,78 @@ class PdfService {
 // GENERATE RECEIPT
   List<pw.Widget> _generateReceiptLayout(
       pw.Context context,
-      BusinessProfile profile,
       Transaction transaction,
       pw.MemoryImage? logoImage,
       PdfColor primary,
       PdfColor textColor,
       pw.Font regularFont,
-      pw.Font boldFont) {
+      pw.Font boldFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String currencySymbol) {
     final accentColor = primary; // Use primary color for accent
     const secondaryColor = PdfColors.grey600;
 
     return [
-      // --- CENTERED HEADER (Flyer Style) ---
-      pw.Center(
-        child: pw.Column(
-          children: [
-            if (logoImage != null)
-              pw.Container(
+      // --- HEADER (Left-Aligned Text, Right-Aligned Logo) ---
+      pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // Left Side: Text Details (Expanded to prevent overflowing into logo)
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  businessName?.toUpperCase() ?? 'BUSINESS NAME',
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                    color: accentColor,
+                  ),
+                ),
+                pw.SizedBox(height: 5),
+                if (businessAddress != null && businessAddress.isNotEmpty) ...[
+                  pw.Text(
+                    businessAddress,
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+                if (displayPhoneNumber != null &&
+                    displayPhoneNumber.isNotEmpty) ...[
+                  pw.Text(
+                    displayPhoneNumber,
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  'RECEIPT',
+                  style: pw.TextStyle(
+                    color: accentColor,
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(width: 20), // Spacing between text and logo
+
+          // Right Side: Logo
+          if (logoImage != null)
+            pw.ClipOval(
+              child: pw.Container(
                 height: 60,
                 width: 60,
-                child: pw.Image(logoImage),
+                color: PdfColors.white, // Ensure white background to be safe
+                child: pw.Image(logoImage, fit: pw.BoxFit.cover),
               ),
-            // else
-            //   pw.Container(
-            //     height: 50,
-            //     width: 50,
-            //     decoration: pw.BoxDecoration(
-            //       color: PdfColors.grey200,
-            //       shape: pw.BoxShape.circle,
-            //     ),
-            //     child: pw.Center(
-            //       child: pw.Text(
-            //         profile.businessName?.substring(0, 1).toUpperCase() ?? 'B',
-            //         style: pw.TextStyle(
-            //           fontSize: 20,
-            //           fontWeight: pw.FontWeight.bold,
-            //           color: accentColor,
-            //         ),
-            //       ),
-            //     ),
-            //   ),
-            pw.SizedBox(height: 10),
-            pw.Text(
-              profile.businessName?.toUpperCase() ?? 'BUSINESS NAME',
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-                color: accentColor,
-              ),
-              textAlign: pw.TextAlign.center,
             ),
-            pw.SizedBox(height: 5),
-            pw.Text(
-              profile.businessAddress ?? 'Business Address',
-              style: const pw.TextStyle(fontSize: 10),
-              textAlign: pw.TextAlign.center,
-            ),
-            pw.Text(
-              profile.displayPhoneNumber ?? profile.phoneNumber,
-              style: const pw.TextStyle(fontSize: 10),
-              textAlign: pw.TextAlign.center,
-            ),
-            pw.SizedBox(height: 10),
-            pw.Text(
-              'RECEIPT',
-              style: pw.TextStyle(
-                  color: accentColor,
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold),
-            ),
-          ],
-        ),
+        ],
       ),
 
       pw.SizedBox(height: 20),
@@ -431,7 +487,7 @@ class PdfService {
                   fontSize: 10,
                   fontWeight: pw.FontWeight.bold,
                   color: secondaryColor)),
-          pw.Text('Date: ${DateTime.now().toString().split('.')[0]}',
+          pw.Text('Date: ${DateFormat.yMMMMd().format(transaction.date)}',
               style: const pw.TextStyle(fontSize: 10)),
           pw.Text(
               'No: #${transaction.date.millisecondsSinceEpoch.toString().substring(6)}',
@@ -475,11 +531,11 @@ class PdfService {
                 _tableCell(item.description),
                 _tableCell(item.quantity.toString(),
                     alignment: pw.TextAlign.center),
-                _tableCell(_formatCurrency(item.amount, profile.currencySymbol),
+                _tableCell(_formatCurrency(item.amount, currencySymbol),
                     alignment: pw.TextAlign.right),
                 _tableCell(
                     _formatCurrency(
-                        item.amount * item.quantity, profile.currencySymbol),
+                        item.amount * item.quantity, currencySymbol),
                     alignment: pw.TextAlign.right),
               ],
             );
@@ -510,8 +566,7 @@ class PdfService {
                             style: pw.TextStyle(
                                 fontWeight: pw.FontWeight.bold, fontSize: 10)),
                         pw.Text(
-                          _formatCurrency(
-                              transaction.tax!, profile.currencySymbol),
+                          _formatCurrency(transaction.tax!, currencySymbol),
                           style: const pw.TextStyle(fontSize: 10),
                         ),
                       ],
@@ -524,7 +579,7 @@ class PdfService {
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                     pw.Text(
                       _formatCurrency(
-                          transaction.transactionTotal, profile.currencySymbol),
+                          transaction.transactionTotal, currencySymbol),
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 14),
                     ),

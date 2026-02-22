@@ -9,6 +9,9 @@ part of 'models.dart';
 BusinessProfile _$BusinessProfileFromJson(Map<String, dynamic> json) =>
     BusinessProfile(
       phoneNumber: json['phoneNumber'] as String,
+      orgId: json['orgId'] as String?,
+      role: $enumDecodeNullable(_$UserRoleEnumMap, json['role']) ??
+          UserRole.admin,
       status: $enumDecodeNullable(_$OnboardingStatusEnumMap, json['status']) ??
           OnboardingStatus.new_user,
       currentAction:
@@ -30,6 +33,8 @@ BusinessProfile _$BusinessProfileFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
     <String, dynamic>{
       'phoneNumber': instance.phoneNumber,
+      'orgId': instance.orgId,
+      'role': _$UserRoleEnumMap[instance.role],
       'status': _$OnboardingStatusEnumMap[instance.status],
       'currentAction': _$UserActionEnumMap[instance.currentAction],
       'businessName': instance.businessName,
@@ -45,8 +50,15 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
       'currencySymbol': instance.currencySymbol,
     };
 
+const _$UserRoleEnumMap = {
+  UserRole.admin: 'admin',
+  UserRole.agent: 'agent',
+};
+
 const _$OnboardingStatusEnumMap = {
   OnboardingStatus.new_user: 'new_user',
+  OnboardingStatus.awaiting_setup_choice: 'awaiting_setup_choice',
+  OnboardingStatus.awaiting_invite_code: 'awaiting_invite_code',
   OnboardingStatus.awaiting_address: 'awaiting_address',
   OnboardingStatus.awaiting_phone: 'awaiting_phone',
   OnboardingStatus.awaiting_logo: 'awaiting_logo',
@@ -122,3 +134,34 @@ const _$TransactionTypeEnumMap = {
   TransactionType.receipt: 'receipt',
   TransactionType.invoice: 'invoice',
 };
+
+Organization _$OrganizationFromJson(Map<String, dynamic> json) => Organization(
+      id: json['id'] as String,
+      inviteCode: json['inviteCode'] as String,
+      businessName: json['businessName'] as String?,
+      businessAddress: json['businessAddress'] as String?,
+      displayPhoneNumber: json['displayPhoneNumber'] as String?,
+      logoUrl: json['logoUrl'] as String?,
+      bankName: json['bankName'] as String?,
+      accountNumber: json['accountNumber'] as String?,
+      accountName: json['accountName'] as String?,
+      themeIndex: (json['themeIndex'] as num?)?.toInt(),
+      currencyCode: json['currencyCode'] as String? ?? 'NGN',
+      currencySymbol: json['currencySymbol'] as String? ?? '₦',
+    );
+
+Map<String, dynamic> _$OrganizationToJson(Organization instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'inviteCode': instance.inviteCode,
+      'businessName': instance.businessName,
+      'businessAddress': instance.businessAddress,
+      'displayPhoneNumber': instance.displayPhoneNumber,
+      'logoUrl': instance.logoUrl,
+      'bankName': instance.bankName,
+      'accountNumber': instance.accountNumber,
+      'accountName': instance.accountName,
+      'themeIndex': instance.themeIndex,
+      'currencyCode': instance.currencyCode,
+      'currencySymbol': instance.currencySymbol,
+    };
