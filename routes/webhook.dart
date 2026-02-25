@@ -203,8 +203,14 @@ Future<void> _handleMessage(
         await _firestoreService.updateOnboardingStep(
           from,
           OnboardingStatus.awaiting_logo,
-          data: {'displayPhoneNumber': text},
+          data: {'businessAddress': text},
         );
+        if (profile.orgId != null) {
+          await _firestoreService.updateOrganizationData(
+            profile.orgId!,
+            {'businessAddress': text},
+          );
+        }
         await _sendWhatsAppMessage(
           from,
           "Almost done! Please upload a transparent **PNG of your Business Logo**.\n\nType *Skip* if you don't have one, or *Cancel* to exit.",
@@ -231,6 +237,12 @@ Future<void> _handleMessage(
           );
 
           await _firestoreService.saveLogoUrl(from, publicUrl);
+          if (profile.orgId != null) {
+            await _firestoreService.updateOrganizationData(
+              profile.orgId!,
+              {'logoUrl': publicUrl},
+            );
+          }
 
           await _sendWhatsAppMessage(
             from,
@@ -333,6 +345,9 @@ Future<void> _handleActiveUser(
     case UserAction.createInvoice:
       await _processReceiptResult(from, text, profile, isInvoice: true);
       break;
+    case UserAction.selectLayout:
+      await _handleLayoutSelection(from, text, profile);
+      break;
     case UserAction.editProfileMenu:
       if (profile.role != UserRole.admin) {
         await _sendWhatsAppMessage(from, "Only Admins can edit the profile.");
@@ -361,16 +376,40 @@ Future<void> _handleActiveUser(
         await _firestoreService.updateAction(from, UserAction.selectTheme);
         await _sendWhatsAppMessage(
           from,
-          'Select a default style for your documents:\n\n1️⃣ Classic (B&W)\n2️⃣ Beige Corporate\n3️⃣ Blue Accent\n\nReply with 1, 2, or 3, or type *Cancel* to exit.',
+          'Select a new **Theme (Color)**:\n\n1️⃣ Classic (B&W)\n2️⃣ Beige Corporate\n3️⃣ Blue Accent\n\nReply with the number, or type *Cancel* to exit.',
         );
       } else if (text.contains('5')) {
+        await _firestoreService.updateAction(from, UserAction.selectLayout);
+        await _sendWhatsAppMessage(
+          from,
+          "Please select a **Layout Structure**.",
+        );
+        // Send Layout 1
+        await _sendWhatsAppMedia(from,
+            'https://dummyimage.com/600x800/fff/000.png&text=Classic', 'image',
+            caption: '1️⃣ Classic (Original standard layout)');
+        // Send Layout 2
+        await _sendWhatsAppMedia(from,
+            'https://dummyimage.com/600x800/fff/000.png&text=Modern', 'image',
+            caption: '2️⃣ Modern (Elegant script font)');
+        // Send Layout 3
+        await _sendWhatsAppMedia(from,
+            'https://dummyimage.com/600x800/fff/000.png&text=Minimal', 'image',
+            caption: '3️⃣ Minimal (Strict grid structure)');
+        // Send Layout 4
+        await _sendWhatsAppMedia(from,
+            'https://dummyimage.com/600x800/fff/000.png&text=Standard', 'image',
+            caption:
+                '4️⃣ Standard (Premium structured match)\n\nReply with 1, 2, 3, or 4.');
+      } else if (text.contains('6')) {
         await _firestoreService.updateAction(from, UserAction.editAddress);
         await _sendWhatsAppMessage(
           from,
           'Okay, send me the **New Business Address**.\n\nType *Cancel* to exit.',
         );
       } else {
-        await _sendWhatsAppMessage(from, 'Please reply with 1, 2, 3, 4, or 5.');
+        await _sendWhatsAppMessage(
+            from, 'Please reply with 1, 2, 3, 4, 5, or 6.');
       }
       break;
 
@@ -380,7 +419,7 @@ Future<void> _handleActiveUser(
 
       if (index > 0 && index <= currencies.length) {
         final selected = currencies[index - 1];
-        await _firestoreService.updateProfileData(from, {
+        await _updateProfileAndOrg(from, profile, {
           'currencyCode': selected['code'],
           'currencySymbol': selected['symbol'],
         });
@@ -405,15 +444,11 @@ Future<void> _handleActiveUser(
       try {
         final transaction = await _geminiService.parseTransaction(text);
         if (transaction.bankName != null) {
-          await _firestoreService.updateOnboardingStep(
-            from,
-            OnboardingStatus.active,
-            data: {
-              'bankName': transaction.bankName,
-              'accountNumber': transaction.accountNumber,
-              'accountName': transaction.accountName,
-            },
-          );
+          await _updateProfileAndOrg(from, profile, {
+            'bankName': transaction.bankName,
+            'accountNumber': transaction.accountNumber,
+            'accountName': transaction.accountName,
+          });
           await _sendWhatsAppMessage(from, 'Bank Details Updated! ✅');
         } else {
           await _sendWhatsAppMessage(
@@ -441,11 +476,7 @@ Future<void> _handleActiveUser(
 
     case UserAction.editName:
       if (type == 'text') {
-        await _firestoreService.updateOnboardingStep(
-          from,
-          OnboardingStatus.active,
-          data: {'businessName': text},
-        );
+        await _updateProfileAndOrg(from, profile, {'businessName': text});
         await _sendWhatsAppMessage(from, "Business Name updated to '$text'! ✅");
 
         // LOOP BACK TO MENU
@@ -461,11 +492,7 @@ Future<void> _handleActiveUser(
 
     case UserAction.editPhone:
       if (type == 'text') {
-        await _firestoreService.updateOnboardingStep(
-          from,
-          OnboardingStatus.active,
-          data: {'displayPhoneNumber': text},
-        );
+        await _updateProfileAndOrg(from, profile, {'displayPhoneNumber': text});
         await _sendWhatsAppMessage(from, "Phone Number updated to '$text'! ✅");
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
@@ -483,11 +510,7 @@ Future<void> _handleActiveUser(
 
     case UserAction.editAddress:
       if (type == 'text') {
-        await _firestoreService.updateOnboardingStep(
-          from,
-          OnboardingStatus.active,
-          data: {'businessAddress': text},
-        );
+        await _updateProfileAndOrg(from, profile, {'businessAddress': text});
         await _sendWhatsAppMessage(from, "Address updated to '$text'! ✅");
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
@@ -517,7 +540,7 @@ Future<void> _handleActiveUser(
           'image/jpeg',
         );
         await _sendWhatsAppMessage(from, 'Saving Logo...... ');
-        await _firestoreService.saveLogoUrl(from, publicUrl);
+        await _updateProfileAndOrg(from, profile, {'logoUrl': publicUrl});
         await _sendWhatsAppMessage(from, 'Logo updated successfully! 🖼️');
 
         // LOOP BACK TO MENU
@@ -648,7 +671,7 @@ Future<bool> _handleGlobalCommands(
     await _firestoreService.updateAction(from, UserAction.editProfileMenu);
     await _sendWhatsAppMessage(
       from,
-      'What would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nReply with the number, or type *Cancel* to exit.',
+      'What would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme (Color)\n5️⃣ Layout (Structure)\n6️⃣ Address\n\nReply with the number, or type *Cancel* to exit.',
     );
     return true;
   }
@@ -864,7 +887,7 @@ Future<void> _handleThemeSelection(
   }
 
   // Update Profile with new theme preference
-  await _firestoreService.updateProfileData(from, {'themeIndex': themeIndex});
+  await _updateProfileAndOrg(from, profile, {'themeIndex': themeIndex});
   profile = profile.copyWith(themeIndex: themeIndex);
 
   // If no pending transaction, this was just a profile update
@@ -882,6 +905,61 @@ Future<void> _handleThemeSelection(
   // Otherwise, continue to generate the pending receipt
   await _generateAndSendPDF(
       from, profile, profile.pendingTransaction!, themeIndex);
+}
+
+Future<void> _handleLayoutSelection(
+  String from,
+  String body,
+  BusinessProfile profile,
+) async {
+  int? layoutIndex;
+
+  final lower = body.toLowerCase();
+  if (lower.contains('1') || lower.contains('classic')) {
+    layoutIndex = 0;
+  } else if (lower.contains('2') ||
+      lower.contains('modern') ||
+      lower.contains('circle')) {
+    layoutIndex = 1;
+  } else if (lower.contains('3') ||
+      lower.contains('minimal') ||
+      lower.contains('grid')) {
+    layoutIndex = 2;
+  } else if (lower.contains('4') ||
+      lower.contains('standard') ||
+      lower.contains('premium')) {
+    layoutIndex = 3;
+  }
+
+  if (layoutIndex == null) {
+    await _sendWhatsAppMessage(
+      from,
+      'Please reply with 1, 2, 3, or 4 to select a layout structure.',
+    );
+    return;
+  }
+
+  // Update Profile with new layout preference
+  await _updateProfileAndOrg(from, profile, {'layoutIndex': layoutIndex});
+  profile = profile.copyWith(layoutIndex: layoutIndex);
+
+  // If no pending transaction, this was just a profile update
+  if (profile.pendingTransaction == null) {
+    await _sendWhatsAppMessage(from, 'Default layout updated! ✅');
+    // Go back to profile menu
+    await _firestoreService.updateAction(from, UserAction.editProfileMenu);
+    await _sendWhatsAppMessage(
+      from,
+      'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme (Color)\n5️⃣ Layout (Structure)\n6️⃣ Address\n\nType *Menu* to finish.',
+    );
+    return;
+  }
+
+  // Otherwise, continue to generate the pending receipt
+  // Wait, if they select layout during receipt creation, they might not have selected a theme yet!
+  // BUT currently, _processReceiptResult only asks for Theme. Let's redirect to PDF generation for now.
+  await _generateAndSendPDF(
+      from, profile, profile.pendingTransaction!, profile.themeIndex ?? 0);
 }
 
 Future<void> _generateAndSendPDF(
@@ -902,6 +980,7 @@ Future<void> _generateAndSendPDF(
       profile, // Still passing profile as fallback/context
       transaction,
       themeIndex: themeIndex,
+      layoutIndex: profile.layoutIndex ?? 0,
       org: org,
     );
 
@@ -918,7 +997,7 @@ Future<void> _generateAndSendPDF(
       from,
       "Here is your ${transaction.type == TransactionType.invoice ? "Invoice" : "Receipt"}! 👇",
     );
-    await _sendWhatsAppMedia(from, pdfUrl, fileName);
+    await _sendWhatsAppDocument(from, pdfUrl, fileName);
 
     await _firestoreService
         .updateProfileData(from, {'pendingTransaction': ''}); // Clear pending
@@ -988,6 +1067,44 @@ Future<List<int>> _downloadFileBytes(String url) async {
 Future<void> _sendWhatsAppMedia(
   String to,
   String mediaUrl,
+  String mediaType, {
+  String? caption,
+}) async {
+  final url =
+      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
+  final headers = {
+    'Authorization': 'Bearer $_whatsappToken',
+    'Content-Type': 'application/json',
+  };
+
+  final Map<String, dynamic> mediaPayload = {
+    'link': mediaUrl,
+  };
+
+  if (caption != null) {
+    mediaPayload['caption'] = caption;
+  }
+
+  final body = jsonEncode({
+    'messaging_product': 'whatsapp',
+    'to': to,
+    'type': mediaType,
+    mediaType: mediaPayload,
+  });
+
+  try {
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode != 200) {
+      print('Failed to send WhatsApp media: ${response.body}');
+    }
+  } catch (e) {
+    print('Error sending WhatsApp media: $e');
+  }
+}
+
+Future<void> _sendWhatsAppDocument(
+  String to,
+  String mediaUrl,
   String filename,
 ) async {
   final url =
@@ -1004,17 +1121,16 @@ Future<void> _sendWhatsAppMedia(
     'document': {
       'link': mediaUrl,
       'filename': filename,
-      // 'caption': 'Here is your document'
     },
   });
 
   try {
     final response = await http.post(url, headers: headers, body: body);
     if (response.statusCode != 200) {
-      print('Failed to send WhatsApp media: ${response.body}');
+      print('Failed to send WhatsApp document: ${response.body}');
     }
   } catch (e) {
-    print('Error sending WhatsApp media: $e');
+    print('Error sending WhatsApp document: $e');
   }
 }
 
@@ -1091,4 +1207,15 @@ Type *"Menu"* to see all options or type *"Cancel"* to stop any current action.
 Need more help? Contact support at woobackbigmlboa@gmail.com.
 ''',
   );
+}
+
+Future<void> _updateProfileAndOrg(
+  String from,
+  BusinessProfile profile,
+  Map<String, dynamic> data,
+) async {
+  await _firestoreService.updateProfileData(from, data);
+  if (profile.role == UserRole.admin && profile.orgId != null) {
+    await _firestoreService.updateOrganizationData(profile.orgId!, data);
+  }
 }

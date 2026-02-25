@@ -26,6 +26,7 @@ BusinessProfile _$BusinessProfileFromJson(Map<String, dynamic> json) =>
       accountName: json['accountName'] as String?,
       pendingTransaction: _transactionFromJson(json['pendingTransaction']),
       themeIndex: (json['themeIndex'] as num?)?.toInt(),
+      layoutIndex: (json['layoutIndex'] as num?)?.toInt() ?? 0,
       currencyCode: json['currencyCode'] as String? ?? 'NGN',
       currencySymbol: json['currencySymbol'] as String? ?? '₦',
     );
@@ -46,6 +47,7 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
       'accountName': instance.accountName,
       'pendingTransaction': instance.pendingTransaction,
       'themeIndex': instance.themeIndex,
+      'layoutIndex': instance.layoutIndex,
       'currencyCode': instance.currencyCode,
       'currencySymbol': instance.currencySymbol,
     };
@@ -146,6 +148,7 @@ Organization _$OrganizationFromJson(Map<String, dynamic> json) => Organization(
       accountNumber: json['accountNumber'] as String?,
       accountName: json['accountName'] as String?,
       themeIndex: (json['themeIndex'] as num?)?.toInt(),
+      layoutIndex: (json['layoutIndex'] as num?)?.toInt() ?? 0,
       currencyCode: json['currencyCode'] as String? ?? 'NGN',
       currencySymbol: json['currencySymbol'] as String? ?? '₦',
     );
@@ -162,6 +165,7 @@ Map<String, dynamic> _$OrganizationToJson(Organization instance) =>
       'accountNumber': instance.accountNumber,
       'accountName': instance.accountName,
       'themeIndex': instance.themeIndex,
+      'layoutIndex': instance.layoutIndex,
       'currencyCode': instance.currencyCode,
       'currencySymbol': instance.currencySymbol,
     };

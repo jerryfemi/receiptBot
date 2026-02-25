@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:math'; // For random generate 
+import 'dart:math'; // For random generate
 import 'package:googleapis/firestore/v1.dart';
 import 'package:googleapis/storage/v1.dart';
 import 'package:googleapis_auth/auth_io.dart';
@@ -355,6 +355,9 @@ class FirestoreService {
       themeIndex: fields['themeIndex']?.integerValue != null
           ? int.tryParse(fields['themeIndex']!.integerValue!)
           : null,
+      layoutIndex: fields['layoutIndex']?.integerValue != null
+          ? int.tryParse(fields['layoutIndex']!.integerValue!)
+          : null,
       currencyCode: fields['currencyCode']?.stringValue ?? 'NGN',
       currencySymbol: fields['currencySymbol']?.stringValue ?? '₦',
     );
@@ -373,6 +376,9 @@ class FirestoreService {
       accountName: fields['accountName']?.stringValue,
       themeIndex: fields['themeIndex']?.integerValue != null
           ? int.tryParse(fields['themeIndex']!.integerValue!)
+          : null,
+      layoutIndex: fields['layoutIndex']?.integerValue != null
+          ? int.tryParse(fields['layoutIndex']!.integerValue!)
           : null,
       currencyCode: fields['currencyCode']?.stringValue ?? 'NGN',
       currencySymbol: fields['currencySymbol']?.stringValue ?? '₦',

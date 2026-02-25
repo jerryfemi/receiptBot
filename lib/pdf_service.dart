@@ -12,6 +12,7 @@ class PdfService {
     BusinessProfile profile,
     Transaction transaction, {
     int themeIndex = 0, // 0: B&W, 1: Beige, 2: Blue
+    int layoutIndex = 0, // 0: Classic, 1: Modern, 2: Minimal
     Organization? org, // Optional Organization context
   }) async {
     // Load Fonts
@@ -24,6 +25,15 @@ class PdfService {
         await File('public/fonts/Roboto-VariableFont_wdth,wght.ttf')
             .readAsBytes();
     final boldFont = pw.Font.ttf(boldFontData.buffer.asByteData());
+
+    pw.Font? scriptFont;
+    try {
+      final scriptFontData =
+          await File('public/fonts/GreatVibes-Regular.ttf').readAsBytes();
+      scriptFont = pw.Font.ttf(scriptFontData.buffer.asByteData());
+    } catch (e) {
+      print('Warning: Could not load script font: $e');
+    }
 
     final pdf = pw.Document();
 
@@ -84,9 +94,9 @@ class PdfService {
           child: pw.Container(color: bg),
         ),
       ),
-      build: (context) => [
-        if (transaction.type == TransactionType.invoice)
-          ..._generateInvoiceLayout(
+      build: (context) {
+        if (transaction.type == TransactionType.invoice) {
+          return _generateInvoiceLayout(
               context,
               transaction,
               logoImage,
@@ -94,15 +104,17 @@ class PdfService {
               textColor,
               regularFont,
               boldFont,
+              scriptFont,
               usedBusinessName,
               usedBusinessAddress,
               usedDisplayPhoneNumber,
               usedBankName,
               usedAccountNumber,
               usedAccountName,
-              org?.currencySymbol ?? profile.currencySymbol)
-        else
-          ..._generateReceiptLayout(
+              org?.currencySymbol ?? profile.currencySymbol,
+              layoutIndex);
+        } else {
+          return _generateReceiptLayout(
               context,
               transaction,
               logoImage,
@@ -110,18 +122,111 @@ class PdfService {
               textColor,
               regularFont,
               boldFont,
+              scriptFont,
               usedBusinessName,
               usedBusinessAddress,
               usedDisplayPhoneNumber,
-              org?.currencySymbol ?? profile.currencySymbol)
-      ],
+              org?.currencySymbol ?? profile.currencySymbol,
+              layoutIndex);
+        }
+      },
     ));
 
     return pdf.save();
   }
 
-  // --- CORPORATE INVOICE LAYOUT ---
+  // --- INVOICE ROUTER ---
   List<pw.Widget> _generateInvoiceLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      pw.Font? scriptFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String? bankName,
+      String? accountNumber,
+      String? accountName,
+      String currencySymbol,
+      int layoutIndex) {
+    // 0: Classic, 1: Modern Left, 2: Minimal Grid, 3: Standard
+    switch (layoutIndex) {
+      case 3:
+        return _buildStandardInvoiceLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            scriptFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            bankName,
+            accountNumber,
+            accountName,
+            currencySymbol);
+      case 1:
+        return _buildModernInvoiceLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            scriptFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            bankName,
+            accountNumber,
+            accountName,
+            currencySymbol);
+      case 2:
+        return _buildMinimalInvoiceLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            bankName,
+            accountNumber,
+            accountName,
+            currencySymbol);
+      case 0:
+      default:
+        return _buildClassicInvoiceLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            bankName,
+            accountNumber,
+            accountName,
+            currencySymbol);
+    }
+  }
+
+  // --- CORPORATE INVOICE LAYOUT (CLASSIc) ---
+  List<pw.Widget> _buildClassicInvoiceLayout(
       pw.Context context,
       Transaction transaction,
       pw.MemoryImage? logoImage,
@@ -220,11 +325,18 @@ class PdfService {
                   ],
                   pw.Text(businessName?.toUpperCase() ?? "BUSINESS NAME",
                       style: styleCompany, textAlign: pw.TextAlign.right),
-                  pw.SizedBox(height: 5),
-                  pw.Text(businessAddress ?? "",
-                      style: styleBody, textAlign: pw.TextAlign.right),
-                  pw.Text(displayPhoneNumber ?? "",
-                      style: styleBody, textAlign: pw.TextAlign.right),
+                  if (businessAddress != null &&
+                      businessAddress.isNotEmpty) ...[
+                    pw.SizedBox(height: 5),
+                    pw.Text(businessAddress,
+                        style: styleBody, textAlign: pw.TextAlign.right),
+                  ],
+                  if (displayPhoneNumber != null &&
+                      displayPhoneNumber.isNotEmpty) ...[
+                    pw.SizedBox(height: 2),
+                    pw.Text(displayPhoneNumber,
+                        style: styleBody, textAlign: pw.TextAlign.right),
+                  ],
                 ],
               ),
             )
@@ -384,8 +496,83 @@ class PdfService {
     ];
   }
 
-// GENERATE RECEIPT
+// RECEIPT ROUTER
   List<pw.Widget> _generateReceiptLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      pw.Font? scriptFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String currencySymbol,
+      int layoutIndex) {
+    // 0: Classic, 1: Modern Left, 2: Minimal Grid, 3: Standard
+    switch (layoutIndex) {
+      case 3:
+        return _buildStandardReceiptLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            scriptFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            currencySymbol);
+      case 1:
+        return _buildModernReceiptLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            scriptFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            currencySymbol);
+      case 2:
+        return _buildMinimalReceiptLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            currencySymbol);
+      case 0:
+      default:
+        return _buildClassicReceiptLayout(
+            context,
+            transaction,
+            logoImage,
+            primary,
+            textColor,
+            regularFont,
+            boldFont,
+            businessName,
+            businessAddress,
+            displayPhoneNumber,
+            currencySymbol);
+    }
+  }
+
+  // --- CLASSIC RECEIPT LAYOUT ---
+  List<pw.Widget> _buildClassicReceiptLayout(
       pw.Context context,
       Transaction transaction,
       pw.MemoryImage? logoImage,
@@ -419,8 +606,8 @@ class PdfService {
                     color: accentColor,
                   ),
                 ),
-                pw.SizedBox(height: 5),
                 if (businessAddress != null && businessAddress.isNotEmpty) ...[
+                  pw.SizedBox(height: 5),
                   pw.Text(
                     businessAddress,
                     style: const pw.TextStyle(fontSize: 10),
@@ -428,6 +615,7 @@ class PdfService {
                 ],
                 if (displayPhoneNumber != null &&
                     displayPhoneNumber.isNotEmpty) ...[
+                  pw.SizedBox(height: 2),
                   pw.Text(
                     displayPhoneNumber,
                     style: const pw.TextStyle(fontSize: 10),
@@ -650,6 +838,1404 @@ class PdfService {
         style: const pw.TextStyle(fontSize: 10),
       ),
     );
+  }
+
+  // --- MODERN LEFT INVOICE LAYOUT ---
+  List<pw.Widget> _buildModernInvoiceLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      pw.Font? scriptFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String? bankName,
+      String? accountNumber,
+      String? accountName,
+      String currencySymbol) {
+    final styleLabel =
+        pw.TextStyle(font: boldFont, fontSize: 10, color: PdfColors.grey600);
+    final styleBody =
+        pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
+    // Use script font if available, fallback to a huge bold font
+    final titleStyle = scriptFont != null
+        ? pw.TextStyle(font: scriptFont, fontSize: 60, color: primary)
+        : pw.TextStyle(font: boldFont, fontSize: 40, color: primary);
+
+    return [
+      // HEADER: Massive script "Invoice" on the left, Meta on the right + Circular Logo
+      pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Expanded(
+            child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+              pw.Text("Invoice", style: titleStyle),
+              pw.SizedBox(height: 20),
+              pw.Text("BILLED TO:", style: styleLabel),
+              pw.SizedBox(height: 5),
+              pw.Text(transaction.customerName,
+                  style: styleBody.copyWith(
+                      fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              if (transaction.customerAddress != null &&
+                  transaction.customerAddress!.isNotEmpty)
+                pw.Text(transaction.customerAddress!, style: styleBody),
+              if (transaction.customerPhone != null &&
+                  transaction.customerPhone!.isNotEmpty)
+                pw.Text(transaction.customerPhone!, style: styleBody),
+              pw.SizedBox(height: 15),
+              pw.Divider(color: primary, thickness: 1),
+              pw.SizedBox(height: 15),
+              pw.Text("FROM:", style: styleLabel),
+              pw.SizedBox(height: 5),
+              pw.Text(businessName ?? "BUSINESS NAME",
+                  style: styleBody.copyWith(
+                      fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              if (businessAddress != null && businessAddress.isNotEmpty)
+                pw.Text(businessAddress, style: styleBody),
+              if (displayPhoneNumber != null && displayPhoneNumber.isNotEmpty)
+                pw.Text(displayPhoneNumber, style: styleBody),
+            ])),
+        pw.SizedBox(width: 40),
+        pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+          if (logoImage != null) ...[
+            pw.ClipOval(
+              child: pw.Container(
+                height: 100,
+                width: 100,
+                color: primary,
+                child: pw.Image(logoImage, fit: pw.BoxFit.cover),
+              ),
+            ),
+            pw.SizedBox(height: 30),
+          ],
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Text("INVOICE NO: ", style: styleLabel.copyWith(color: primary)),
+            pw.Text(
+                transaction.date.millisecondsSinceEpoch.toString().substring(8),
+                style: styleBody),
+          ]),
+          pw.SizedBox(height: 5),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Text("date: ", style: styleLabel.copyWith(color: primary)),
+            pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                style: styleBody),
+          ]),
+          if (transaction.dueDate != null) ...[
+            pw.SizedBox(height: 5),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+              pw.Text("due date: ", style: styleLabel.copyWith(color: primary)),
+              pw.Text(DateFormat('MM.dd.yyyy').format(transaction.dueDate!),
+                  style: styleBody),
+            ]),
+          ]
+        ])
+      ]),
+      pw.SizedBox(height: 40),
+
+      // AIRY TABLE: Only horizontal borders
+      pw.Table(
+          border: const pw.TableBorder(
+            top: pw.BorderSide(color: PdfColors.black, width: 1.5),
+            bottom: pw.BorderSide(color: PdfColors.black, width: 1.5),
+            horizontalInside:
+                pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+          ),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1.5),
+          },
+          children: [
+            pw.TableRow(children: [
+              _tableHeader('DESCRIPTION',
+                  alignment: pw.TextAlign.left, color: PdfColors.black),
+              _tableHeader('UNIT PRICE',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('QTY',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('TOTAL',
+                  alignment: pw.TextAlign.right, color: PdfColors.black),
+            ]),
+            ...transaction.items.map((item) {
+              return pw.TableRow(children: [
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(item.description, style: styleBody)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(_formatCurrency(item.amount, currencySymbol),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(item.quantity.toString(),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(
+                        _formatCurrency(
+                            item.amount * item.quantity, currencySymbol),
+                        style: styleBody,
+                        textAlign: pw.TextAlign.right)),
+              ]);
+            }),
+          ]),
+
+      pw.SizedBox(height: 30),
+
+      // FOOTER: Payment Method / Totals / Thank you script
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  if (bankName != null || transaction.bankName != null) ...[
+                    pw.Text("PAYMENT METHOD:",
+                        style: styleLabel.copyWith(
+                            color: PdfColors.black,
+                            fontSize: 12,
+                            fontStyle: pw.FontStyle.italic)),
+                    pw.SizedBox(height: 10),
+                    pw.Text(bankName ?? transaction.bankName ?? "",
+                        style: styleBody),
+                    pw.SizedBox(height: 3),
+                    pw.Text(accountName ?? transaction.accountName ?? "",
+                        style: styleBody),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                        "A/C: ${accountNumber ?? transaction.accountNumber}",
+                        style: styleBody),
+                  ]
+                ])),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("Subtotal", style: styleLabel),
+                pw.SizedBox(width: 30),
+                pw.Text(
+                    _formatCurrency(
+                        transaction.transactionTotal - (transaction.tax ?? 0),
+                        currencySymbol),
+                    style: styleBody),
+              ]),
+              pw.SizedBox(height: 8),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("Tax", style: styleLabel),
+                pw.SizedBox(width: 30),
+                pw.Text(_formatCurrency(transaction.tax ?? 0, currencySymbol),
+                    style: styleBody),
+              ]),
+              pw.SizedBox(height: 5),
+              pw.Container(
+                  width: 150,
+                  decoration: const pw.BoxDecoration(
+                      border: pw.Border(
+                          top: pw.BorderSide(
+                              color: PdfColors.black, width: 1.5)))),
+              pw.SizedBox(height: 8),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("TOTAL",
+                    style: styleLabel.copyWith(
+                        color: PdfColors.black, fontSize: 12)),
+                pw.SizedBox(width: 30),
+                pw.Text(
+                    _formatCurrency(
+                        transaction.transactionTotal, currencySymbol),
+                    style: styleBody.copyWith(
+                        fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              ]),
+              pw.SizedBox(height: 20),
+              if (scriptFont != null)
+                pw.Text("thank you!",
+                    style: pw.TextStyle(
+                        font: scriptFont, fontSize: 40, color: primary)),
+            ])
+          ])
+    ];
+  }
+
+  // --- MODERN LEFT RECEIPT LAYOUT ---
+  List<pw.Widget> _buildModernReceiptLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      pw.Font? scriptFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String currencySymbol) {
+    final styleLabel =
+        pw.TextStyle(font: boldFont, fontSize: 10, color: PdfColors.grey600);
+    final styleBody =
+        pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
+    // Use script font if available for the Company Name top left
+    final titleStyle = scriptFont != null
+        ? pw.TextStyle(font: scriptFont, fontSize: 48, color: primary)
+        : pw.TextStyle(font: boldFont, fontSize: 32, color: primary);
+
+    return [
+      // HEADER: Company Name script on the left, Logo right
+      pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Expanded(
+            child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+              pw.Text(businessName ?? "Business Name", style: titleStyle),
+              pw.SizedBox(height: 10),
+              if (businessAddress != null && businessAddress.isNotEmpty)
+                pw.Text(businessAddress, style: styleBody),
+              if (displayPhoneNumber != null && displayPhoneNumber.isNotEmpty)
+                pw.Text(displayPhoneNumber, style: styleBody),
+              pw.SizedBox(height: 25),
+              pw.Divider(color: primary, thickness: 1),
+              pw.SizedBox(height: 15),
+              pw.Text("BILLED TO:", style: styleLabel),
+              pw.SizedBox(height: 5),
+              pw.Text(transaction.customerName,
+                  style: styleBody.copyWith(
+                      fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              if (transaction.customerAddress != null &&
+                  transaction.customerAddress!.isNotEmpty)
+                pw.Text(transaction.customerAddress!, style: styleBody),
+              if (transaction.customerPhone != null &&
+                  transaction.customerPhone!.isNotEmpty)
+                pw.Text(transaction.customerPhone!, style: styleBody),
+            ])),
+        pw.SizedBox(width: 40),
+        pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+          if (logoImage != null) ...[
+            pw.ClipOval(
+              child: pw.Container(
+                height: 100,
+                width: 100,
+                color: primary,
+                child: pw.Image(logoImage, fit: pw.BoxFit.cover),
+              ),
+            ),
+            pw.SizedBox(height: 30),
+          ],
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Text("RECEIPT NO: ", style: styleLabel.copyWith(color: primary)),
+            pw.Text(
+                transaction.date.millisecondsSinceEpoch.toString().substring(8),
+                style: styleBody),
+          ]),
+          pw.SizedBox(height: 5),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Text("date: ", style: styleLabel.copyWith(color: primary)),
+            pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                style: styleBody),
+          ]),
+        ])
+      ]),
+      pw.SizedBox(height: 40),
+
+      // AIRY TABLE: Only horizontal borders
+      pw.Table(
+          border: const pw.TableBorder(
+            top: pw.BorderSide(color: PdfColors.black, width: 1.5),
+            bottom: pw.BorderSide(color: PdfColors.black, width: 1.5),
+            horizontalInside:
+                pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+          ),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1.5),
+          },
+          children: [
+            pw.TableRow(children: [
+              _tableHeader('DESCRIPTION',
+                  alignment: pw.TextAlign.left, color: PdfColors.black),
+              _tableHeader('UNIT PRICE',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('QTY',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('TOTAL',
+                  alignment: pw.TextAlign.right, color: PdfColors.black),
+            ]),
+            ...transaction.items.map((item) {
+              return pw.TableRow(children: [
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(item.description, style: styleBody)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(_formatCurrency(item.amount, currencySymbol),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(item.quantity.toString(),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 8),
+                    child: pw.Text(
+                        _formatCurrency(
+                            item.amount * item.quantity, currencySymbol),
+                        style: styleBody,
+                        textAlign: pw.TextAlign.right)),
+              ]);
+            }),
+          ]),
+
+      pw.SizedBox(height: 30),
+
+      // FOOTER: Totals / Thank you script
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.end,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("Subtotal", style: styleLabel),
+                pw.SizedBox(width: 30),
+                pw.Text(
+                    _formatCurrency(
+                        transaction.transactionTotal - (transaction.tax ?? 0),
+                        currencySymbol),
+                    style: styleBody),
+              ]),
+              pw.SizedBox(height: 8),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("Tax", style: styleLabel),
+                pw.SizedBox(width: 30),
+                pw.Text(_formatCurrency(transaction.tax ?? 0, currencySymbol),
+                    style: styleBody),
+              ]),
+              pw.SizedBox(height: 5),
+              pw.Container(
+                  width: 150,
+                  decoration: const pw.BoxDecoration(
+                      border: pw.Border(
+                          top: pw.BorderSide(
+                              color: PdfColors.black, width: 1.5)))),
+              pw.SizedBox(height: 8),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("TOTAL",
+                    style: styleLabel.copyWith(
+                        color: PdfColors.black, fontSize: 12)),
+                pw.SizedBox(width: 30),
+                pw.Text(
+                    _formatCurrency(
+                        transaction.transactionTotal, currencySymbol),
+                    style: styleBody.copyWith(
+                        fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              ]),
+              pw.SizedBox(height: 20),
+              if (scriptFont != null)
+                pw.Text("thank you!",
+                    style: pw.TextStyle(
+                        font: scriptFont, fontSize: 40, color: primary)),
+            ])
+          ])
+    ];
+  }
+
+  // --- MINIMAL GRID INVOICE LAYOUT ---
+  List<pw.Widget> _buildMinimalInvoiceLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String? bankName,
+      String? accountNumber,
+      String? accountName,
+      String currencySymbol) {
+    final styleLabel =
+        pw.TextStyle(font: boldFont, fontSize: 10, color: textColor);
+    final styleBody =
+        pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
+    final styleTitle =
+        pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
+
+    return [
+      // HEADER: "INVOICE" Top Left, Meta top right (in a box)
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text("INVOICE", style: styleTitle),
+            pw.Container(
+                width: 150,
+                decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.black, width: 1)),
+                child: pw.Column(children: [
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("INVOICE NO.", style: styleLabel),
+                            pw.Text(
+                                transaction.date.millisecondsSinceEpoch
+                                    .toString()
+                                    .substring(8),
+                                style: styleBody),
+                          ])),
+                  pw.Divider(color: PdfColors.black, thickness: 1, height: 1),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("DATE", style: styleLabel),
+                            pw.Text(
+                                DateFormat('MM/dd/yyyy')
+                                    .format(transaction.date),
+                                style: styleBody),
+                          ])),
+                ]))
+          ]),
+      pw.SizedBox(height: 30),
+
+      // ADDRESSES: FROM and BILLED TO underneath (split screen)
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // FROM
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text("FROM :", style: styleTitle.copyWith(fontSize: 14)),
+                  pw.SizedBox(height: 10),
+                  pw.Container(
+                      width: 200,
+                      decoration: const pw.BoxDecoration(
+                          border: pw.Border(
+                              bottom: pw.BorderSide(
+                                  color: PdfColors.black, width: 1)))),
+                  pw.SizedBox(height: 5),
+                  pw.Text(businessName?.toUpperCase() ?? "BUSINESS NAME",
+                      style: styleBody),
+                  pw.Container(
+                      width: 200,
+                      decoration: const pw.BoxDecoration(
+                          border: pw.Border(
+                              bottom: pw.BorderSide(
+                                  color: PdfColors.black, width: 1)))),
+                  pw.SizedBox(height: 5),
+                  if (businessAddress != null &&
+                      businessAddress.isNotEmpty) ...[
+                    pw.Text(businessAddress, style: styleBody),
+                    pw.Container(
+                        width: 200,
+                        decoration: const pw.BoxDecoration(
+                            border: pw.Border(
+                                bottom: pw.BorderSide(
+                                    color: PdfColors.black, width: 1)))),
+                  ],
+                  pw.SizedBox(height: 5),
+                  if (displayPhoneNumber != null &&
+                      displayPhoneNumber.isNotEmpty) ...[
+                    pw.Text(displayPhoneNumber, style: styleBody),
+                    pw.Container(
+                        width: 200,
+                        decoration: const pw.BoxDecoration(
+                            border: pw.Border(
+                                bottom: pw.BorderSide(
+                                    color: PdfColors.black, width: 1)))),
+                  ]
+                ])),
+            pw.SizedBox(width: 20),
+            // BILLED TO
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text("BILLED TO :",
+                      style: styleTitle.copyWith(fontSize: 14)),
+                  pw.SizedBox(height: 10),
+                  pw.Container(
+                      width: 200,
+                      decoration: const pw.BoxDecoration(
+                          border: pw.Border(
+                              bottom: pw.BorderSide(
+                                  color: PdfColors.black, width: 1)))),
+                  pw.SizedBox(height: 5),
+                  pw.Text(transaction.customerName.toUpperCase(),
+                      style: styleBody),
+                  pw.Container(
+                      width: 200,
+                      decoration: const pw.BoxDecoration(
+                          border: pw.Border(
+                              bottom: pw.BorderSide(
+                                  color: PdfColors.black, width: 1)))),
+                  pw.SizedBox(height: 5),
+                  if (transaction.customerAddress != null &&
+                      transaction.customerAddress!.isNotEmpty) ...[
+                    pw.Text(transaction.customerAddress!, style: styleBody),
+                    pw.Container(
+                        width: 200,
+                        decoration: const pw.BoxDecoration(
+                            border: pw.Border(
+                                bottom: pw.BorderSide(
+                                    color: PdfColors.black, width: 1)))),
+                  ],
+                  pw.SizedBox(height: 5),
+                  if (transaction.customerPhone != null &&
+                      transaction.customerPhone!.isNotEmpty) ...[
+                    pw.Text(transaction.customerPhone!, style: styleBody),
+                    pw.Container(
+                        width: 200,
+                        decoration: const pw.BoxDecoration(
+                            border: pw.Border(
+                                bottom: pw.BorderSide(
+                                    color: PdfColors.black, width: 1)))),
+                  ]
+                ]))
+          ]),
+      pw.SizedBox(height: 30),
+
+      // TABLE: STRICT GRIDS
+      pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1.2),
+            3: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            pw.TableRow(children: [
+              _tableHeader('Description',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('Qty.',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('Unit Price',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('Amount',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+            ]),
+            ...transaction.items.map((item) {
+              return pw.TableRow(children: [
+                _tableCell(item.description, alignment: pw.TextAlign.left),
+                _tableCell(item.quantity.toString(),
+                    alignment: pw.TextAlign.center),
+                _tableCell(_formatCurrency(item.amount, currencySymbol),
+                    alignment: pw.TextAlign.center),
+                _tableCell(
+                    _formatCurrency(
+                        item.amount * item.quantity, currencySymbol),
+                    alignment: pw.TextAlign.center),
+              ]);
+            }),
+          ]),
+
+      // FOOTER TOTAL BOX (Bottom Right strict grid)
+      pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+        pw.Container(
+            width: 200,
+            child: pw.Table(
+                border: pw.TableBorder(
+                  left: const pw.BorderSide(color: PdfColors.black, width: 1),
+                  right: const pw.BorderSide(color: PdfColors.black, width: 1),
+                  bottom: const pw.BorderSide(color: PdfColors.black, width: 1),
+                  verticalInside:
+                      const pw.BorderSide(color: PdfColors.black, width: 1),
+                  horizontalInside:
+                      const pw.BorderSide(color: PdfColors.black, width: 1),
+                ),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1),
+                  1: const pw.FlexColumnWidth(1),
+                },
+                children: [
+                  pw.TableRow(children: [
+                    _tableHeader('Sub Total',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        _formatCurrency(
+                            transaction.transactionTotal -
+                                (transaction.tax ?? 0),
+                            currencySymbol),
+                        alignment: pw.TextAlign.right),
+                  ]),
+                  pw.TableRow(children: [
+                    _tableHeader('Tax',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        _formatCurrency(transaction.tax ?? 0, currencySymbol),
+                        alignment: pw.TextAlign.right),
+                  ]),
+                  pw.TableRow(children: [
+                    _tableHeader('Total Amount',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        _formatCurrency(
+                            transaction.transactionTotal, currencySymbol),
+                        alignment: pw.TextAlign.right),
+                  ]),
+                ]))
+      ]),
+
+      pw.SizedBox(height: 30),
+
+      // PAYMENT DETAILS (Bottom Left)
+      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text("PAYMENT METHOD:", style: styleTitle.copyWith(fontSize: 14)),
+        pw.SizedBox(height: 10),
+        if (bankName != null || transaction.bankName != null) ...[
+          pw.Text("Bank Name: ${bankName ?? transaction.bankName}",
+              style: styleBody),
+          pw.SizedBox(height: 3),
+          pw.Text("Account Name: ${accountName ?? transaction.accountName}",
+              style: styleBody),
+          pw.SizedBox(height: 3),
+          pw.Text(
+              "Account Number: ${accountNumber ?? transaction.accountNumber}",
+              style: styleBody),
+        ]
+      ]),
+    ];
+  }
+
+  // --- MINIMAL GRID RECEIPT LAYOUT ---
+  List<pw.Widget> _buildMinimalReceiptLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String currencySymbol) {
+    final styleLabel =
+        pw.TextStyle(font: boldFont, fontSize: 10, color: textColor);
+    final styleBody =
+        pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
+    final styleTitle =
+        pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
+
+    return [
+      // HEADER: Company Name/Address Top Left, Logo Top Right
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text(businessName?.toUpperCase() ?? "BUSINESS NAME",
+                      style: styleTitle.copyWith(fontSize: 22)),
+                  pw.SizedBox(height: 5),
+                  if (businessAddress != null && businessAddress.isNotEmpty)
+                    pw.Text(businessAddress, style: styleBody),
+                  pw.SizedBox(height: 2),
+                  if (displayPhoneNumber != null &&
+                      displayPhoneNumber.isNotEmpty)
+                    pw.Text(displayPhoneNumber, style: styleBody),
+                ])),
+            if (logoImage != null)
+              pw.ClipOval(
+                child: pw.Container(
+                  height: 50,
+                  width: 50,
+                  color: PdfColors.white,
+                  child: pw.Image(logoImage, fit: pw.BoxFit.cover),
+                ),
+              ),
+          ]),
+      pw.SizedBox(height: 30),
+
+      // RECEIPT TITLE AND META
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Text("RECEIPT", style: styleTitle),
+            pw.Container(
+                width: 150,
+                decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.black, width: 1)),
+                child: pw.Column(children: [
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("RECEIPT NO.", style: styleLabel),
+                            pw.Text(
+                                transaction.date.millisecondsSinceEpoch
+                                    .toString()
+                                    .substring(8),
+                                style: styleBody),
+                          ])),
+                  pw.Divider(color: PdfColors.black, thickness: 1, height: 1),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("DATE", style: styleLabel),
+                            pw.Text(
+                                DateFormat('MM/dd/yyyy')
+                                    .format(transaction.date),
+                                style: styleBody),
+                          ])),
+                ]))
+          ]),
+      pw.SizedBox(height: 30),
+
+      // BILLED TO (No From field)
+      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text("BILLED TO :", style: styleTitle.copyWith(fontSize: 14)),
+        pw.SizedBox(height: 10),
+        pw.Container(
+            width: 200,
+            decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                    bottom: pw.BorderSide(color: PdfColors.black, width: 1)))),
+        pw.SizedBox(height: 5),
+        pw.Text(transaction.customerName.toUpperCase(), style: styleBody),
+        pw.Container(
+            width: 200,
+            decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                    bottom: pw.BorderSide(color: PdfColors.black, width: 1)))),
+        pw.SizedBox(height: 5),
+        if (transaction.customerAddress != null &&
+            transaction.customerAddress!.isNotEmpty) ...[
+          pw.Text(transaction.customerAddress!, style: styleBody),
+          pw.Container(
+              width: 200,
+              decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                      bottom:
+                          pw.BorderSide(color: PdfColors.black, width: 1)))),
+        ],
+        pw.SizedBox(height: 5),
+        if (transaction.customerPhone != null &&
+            transaction.customerPhone!.isNotEmpty) ...[
+          pw.Text(transaction.customerPhone!, style: styleBody),
+          pw.Container(
+              width: 200,
+              decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                      bottom:
+                          pw.BorderSide(color: PdfColors.black, width: 1)))),
+        ]
+      ]),
+      pw.SizedBox(height: 30),
+
+      // TABLE: STRICT GRIDS
+      pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1.2),
+            3: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            pw.TableRow(children: [
+              _tableHeader('Description',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('Qty.',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('Unit Price',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+              _tableHeader('Amount',
+                  alignment: pw.TextAlign.center, color: PdfColors.black),
+            ]),
+            ...transaction.items.map((item) {
+              return pw.TableRow(children: [
+                _tableCell(item.description, alignment: pw.TextAlign.left),
+                _tableCell(item.quantity.toString(),
+                    alignment: pw.TextAlign.center),
+                _tableCell(_formatCurrency(item.amount, currencySymbol),
+                    alignment: pw.TextAlign.center),
+                _tableCell(
+                    _formatCurrency(
+                        item.amount * item.quantity, currencySymbol),
+                    alignment: pw.TextAlign.center),
+              ]);
+            }),
+          ]),
+
+      // FOOTER TOTAL BOX
+      pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+        pw.Container(
+            width: 200,
+            child: pw.Table(
+                border: pw.TableBorder(
+                  left: const pw.BorderSide(color: PdfColors.black, width: 1),
+                  right: const pw.BorderSide(color: PdfColors.black, width: 1),
+                  bottom: const pw.BorderSide(color: PdfColors.black, width: 1),
+                  verticalInside:
+                      const pw.BorderSide(color: PdfColors.black, width: 1),
+                  horizontalInside:
+                      const pw.BorderSide(color: PdfColors.black, width: 1),
+                ),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1),
+                  1: const pw.FlexColumnWidth(1),
+                },
+                children: [
+                  pw.TableRow(children: [
+                    _tableHeader('Sub Total',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        _formatCurrency(
+                            transaction.transactionTotal -
+                                (transaction.tax ?? 0),
+                            currencySymbol),
+                        alignment: pw.TextAlign.right),
+                  ]),
+                  pw.TableRow(children: [
+                    _tableHeader('Tax',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        _formatCurrency(transaction.tax ?? 0, currencySymbol),
+                        alignment: pw.TextAlign.right),
+                  ]),
+                  pw.TableRow(children: [
+                    _tableHeader('Total Amount',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        _formatCurrency(
+                            transaction.transactionTotal, currencySymbol),
+                        alignment: pw.TextAlign.right),
+                  ]),
+                ]))
+      ]),
+      pw.SizedBox(height: 30),
+    ];
+  }
+
+  // --- STANDARD INVOICE LAYOUT (IMAGE 1 MATCH) ---
+  List<pw.Widget> _buildStandardInvoiceLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      pw.Font? scriptFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String? bankName,
+      String? accountNumber,
+      String? accountName,
+      String currencySymbol) {
+    final styleLabel =
+        pw.TextStyle(font: boldFont, fontSize: 10, color: textColor);
+    final styleBody =
+        pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
+    final styleTitle =
+        pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
+
+    final headerBgColor = PdfColor.fromHex(
+        '#F4F1E9'); // Light beige fill color closely matching Image 1
+
+    return [
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text((businessName ?? "YOUR COMPANY NAME").toUpperCase(),
+                      style: styleTitle.copyWith(fontSize: 24)),
+                  pw.SizedBox(height: 5),
+                  pw.Text(businessAddress ?? "YOUR BUSINESS ADDRESS",
+                      style: styleBody.copyWith(fontSize: 12)),
+                ])),
+            if (logoImage != null)
+              pw.ClipOval(
+                child: pw.Container(
+                  height: 80,
+                  width: 80,
+                  color: headerBgColor,
+                  child: pw.Image(logoImage, fit: pw.BoxFit.cover),
+                ),
+              )
+          ]),
+      pw.SizedBox(height: 30),
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text("BILLED TO:",
+                      style: styleLabel.copyWith(fontSize: 12)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(transaction.customerName,
+                      style: styleBody.copyWith(fontSize: 12)),
+                  if (transaction.customerAddress != null &&
+                      transaction.customerAddress!.isNotEmpty)
+                    pw.Text(transaction.customerAddress!, style: styleBody),
+                  if (transaction.customerPhone != null &&
+                      transaction.customerPhone!.isNotEmpty)
+                    pw.Text(transaction.customerPhone!, style: styleBody),
+                ]),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+              pw.Row(children: [
+                pw.Text("INVOICE NO: ",
+                    style: styleLabel.copyWith(fontSize: 12)),
+                pw.Text(
+                    "INV-${transaction.date.millisecondsSinceEpoch.toString().substring(8)}",
+                    style: styleBody.copyWith(fontSize: 12)),
+              ]),
+              pw.SizedBox(height: 4),
+              pw.Row(children: [
+                pw.Text("DATE: ", style: styleLabel.copyWith(fontSize: 12)),
+                pw.Text(DateFormat.yMMMMd().format(transaction.date),
+                    style: styleBody
+                        .copyWith(fontSize: 12)
+                        .copyWith(color: PdfColors.grey700)),
+              ]),
+            ])
+          ]),
+      pw.SizedBox(height: 30),
+      pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            pw.TableRow(
+                decoration: pw.BoxDecoration(color: headerBgColor),
+                children: [
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("ITEM DESCRIPTION",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("PRICE",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("QTY",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("TOTAL",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                ]),
+            ...transaction.items.map((item) {
+              return pw.TableRow(children: [
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(item.description,
+                        style: styleBody, textAlign: pw.TextAlign.left)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(_formatCurrency(item.amount, currencySymbol),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(item.quantity.toString(),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(
+                        _formatCurrency(
+                            item.amount * item.quantity, currencySymbol),
+                        style: styleBody,
+                        textAlign: pw.TextAlign.center)),
+              ]);
+            }),
+          ]),
+      pw.SizedBox(height: 20),
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text("PAYMENT METHOD:", style: styleLabel),
+                  pw.Text(bankName ?? "Bank Transfer", style: styleBody),
+                  pw.SizedBox(height: 10),
+                  pw.Text("ACCOUNT NO:", style: styleLabel),
+                  pw.Text(accountNumber ?? "Pending", style: styleBody),
+                  pw.SizedBox(height: 20),
+                  pw.Text(
+                      "Thank you for your business. We appreciate your prompt payment!",
+                      style: styleBody),
+                ])),
+            pw.SizedBox(width: 40),
+            pw.Container(
+                width: 200,
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Table(
+                          border: pw.TableBorder.all(
+                              color: PdfColors.black, width: 0.5),
+                          columnWidths: {
+                            0: const pw.FlexColumnWidth(1),
+                            1: const pw.FlexColumnWidth(1),
+                          },
+                          children: [
+                            pw.TableRow(
+                                decoration:
+                                    pw.BoxDecoration(color: headerBgColor),
+                                children: [
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text("SUBTOTAL :",
+                                          style: styleLabel)),
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text(
+                                          _formatCurrency(
+                                              transaction.transactionTotal -
+                                                  (transaction.tax ?? 0),
+                                              currencySymbol),
+                                          style: styleBody,
+                                          textAlign: pw.TextAlign.right)),
+                                ]),
+                            pw.TableRow(
+                                decoration:
+                                    pw.BoxDecoration(color: headerBgColor),
+                                children: [
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child:
+                                          pw.Text("TAX :", style: styleLabel)),
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text(
+                                          _formatCurrency(transaction.tax ?? 0,
+                                              currencySymbol),
+                                          style: styleBody,
+                                          textAlign: pw.TextAlign.right)),
+                                ]),
+                            pw.TableRow(
+                                decoration:
+                                    pw.BoxDecoration(color: headerBgColor),
+                                children: [
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text("TOTAL :",
+                                          style: styleLabel)),
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text(
+                                          _formatCurrency(
+                                              transaction.transactionTotal,
+                                              currencySymbol),
+                                          style: styleBody,
+                                          textAlign: pw.TextAlign.right)),
+                                ]),
+                          ]),
+                      pw.SizedBox(height: 40),
+                      pw.Text("AUTHORIZED BY:", style: styleLabel),
+                      pw.SizedBox(height: 10),
+                      if (scriptFont != null) ...[
+                        pw.Text(businessName ?? "Signature",
+                            style:
+                                pw.TextStyle(font: scriptFont, fontSize: 24)),
+                        pw.Container(
+                            width: 150,
+                            decoration: const pw.BoxDecoration(
+                                border: pw.Border(
+                                    top: pw.BorderSide(
+                                        color: PdfColors.black, width: 1))))
+                      ] else ...[
+                        pw.Container(
+                            width: 150,
+                            decoration: const pw.BoxDecoration(
+                                border: pw.Border(
+                                    top: pw.BorderSide(
+                                        color: PdfColors.black, width: 1))))
+                      ]
+                    ]))
+          ])
+    ];
+  }
+
+  // --- STANDARD RECEIPT LAYOUT (IMAGE 1 MATCH) ---
+  List<pw.Widget> _buildStandardReceiptLayout(
+      pw.Context context,
+      Transaction transaction,
+      pw.MemoryImage? logoImage,
+      PdfColor primary,
+      PdfColor textColor,
+      pw.Font regularFont,
+      pw.Font boldFont,
+      pw.Font? scriptFont,
+      String? businessName,
+      String? businessAddress,
+      String? displayPhoneNumber,
+      String currencySymbol) {
+    final styleLabel =
+        pw.TextStyle(font: boldFont, fontSize: 10, color: textColor);
+    final styleBody =
+        pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
+    final styleTitle =
+        pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
+
+    final headerBgColor = PdfColor.fromHex(
+        '#F4F1E9'); // Light beige fill color closely matching Image 1
+
+    return [
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text((businessName ?? "YOUR COMPANY NAME").toUpperCase(),
+                      style: styleTitle.copyWith(fontSize: 24)),
+                  pw.SizedBox(height: 5),
+                  pw.Text(businessAddress ?? "YOUR BUSINESS ADDRESS",
+                      style: styleBody.copyWith(fontSize: 12)),
+                ])),
+            if (logoImage != null)
+              pw.ClipOval(
+                child: pw.Container(
+                  height: 80,
+                  width: 80,
+                  color: headerBgColor,
+                  child: pw.Image(logoImage, fit: pw.BoxFit.cover),
+                ),
+              )
+          ]),
+      pw.SizedBox(height: 30),
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text("BILLED TO:",
+                      style: styleLabel.copyWith(fontSize: 12)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(transaction.customerName,
+                      style: styleBody.copyWith(fontSize: 12)),
+                  if (transaction.customerAddress != null &&
+                      transaction.customerAddress!.isNotEmpty)
+                    pw.Text(transaction.customerAddress!, style: styleBody),
+                  if (transaction.customerPhone != null &&
+                      transaction.customerPhone!.isNotEmpty)
+                    pw.Text(transaction.customerPhone!, style: styleBody),
+                ]),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+              pw.Row(children: [
+                pw.Text("RECEIPT NO: ",
+                    style: styleLabel.copyWith(fontSize: 12)),
+                pw.Text(
+                    "R${transaction.date.millisecondsSinceEpoch.toString().substring(8)}",
+                    style: styleBody.copyWith(fontSize: 12)),
+              ]),
+              pw.SizedBox(height: 4),
+              pw.Row(children: [
+                pw.Text("PAYMENT DATE: ",
+                    style: styleLabel.copyWith(fontSize: 12)),
+                pw.Text(DateFormat.yMMMMd().format(transaction.date),
+                    style: styleBody
+                        .copyWith(fontSize: 12)
+                        .copyWith(color: PdfColors.grey700)),
+              ]),
+            ])
+          ]),
+      pw.SizedBox(height: 30),
+      pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            pw.TableRow(
+                decoration: pw.BoxDecoration(color: headerBgColor),
+                children: [
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("ITEM DESCRIPTION",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("PRICE",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("QTY",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text("TOTAL",
+                          style: styleLabel, textAlign: pw.TextAlign.center)),
+                ]),
+            ...transaction.items.map((item) {
+              return pw.TableRow(children: [
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(item.description,
+                        style: styleBody, textAlign: pw.TextAlign.left)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(_formatCurrency(item.amount, currencySymbol),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(item.quantity.toString(),
+                        style: styleBody, textAlign: pw.TextAlign.center)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text(
+                        _formatCurrency(
+                            item.amount * item.quantity, currencySymbol),
+                        style: styleBody,
+                        textAlign: pw.TextAlign.center)),
+              ]);
+            }),
+          ]),
+      pw.SizedBox(height: 20),
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text("PAYMENT METHOD:", style: styleLabel),
+                  pw.Text("CASH/TRANSFER", style: styleBody),
+                  pw.SizedBox(height: 20),
+                  pw.Text(
+                      "Thank you for your purchase from ${businessName ?? "our company"}. We appreciate your business.",
+                      style: styleBody),
+                ])),
+            pw.SizedBox(width: 40),
+            pw.Container(
+                width: 200,
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Table(
+                          border: pw.TableBorder.all(
+                              color: PdfColors.black, width: 0.5),
+                          columnWidths: {
+                            0: const pw.FlexColumnWidth(1),
+                            1: const pw.FlexColumnWidth(1),
+                          },
+                          children: [
+                            pw.TableRow(
+                                decoration:
+                                    pw.BoxDecoration(color: headerBgColor),
+                                children: [
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text("SUBTOTAL :",
+                                          style: styleLabel)),
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text(
+                                          _formatCurrency(
+                                              transaction.transactionTotal -
+                                                  (transaction.tax ?? 0),
+                                              currencySymbol),
+                                          style: styleBody,
+                                          textAlign: pw.TextAlign.right)),
+                                ]),
+                            pw.TableRow(
+                                decoration:
+                                    pw.BoxDecoration(color: headerBgColor),
+                                children: [
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child:
+                                          pw.Text("TAX :", style: styleLabel)),
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text(
+                                          _formatCurrency(transaction.tax ?? 0,
+                                              currencySymbol),
+                                          style: styleBody,
+                                          textAlign: pw.TextAlign.right)),
+                                ]),
+                            pw.TableRow(
+                                decoration:
+                                    pw.BoxDecoration(color: headerBgColor),
+                                children: [
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text("TOTAL :",
+                                          style: styleLabel)),
+                                  pw.Padding(
+                                      padding: const pw.EdgeInsets.all(6),
+                                      child: pw.Text(
+                                          _formatCurrency(
+                                              transaction.transactionTotal,
+                                              currencySymbol),
+                                          style: styleBody,
+                                          textAlign: pw.TextAlign.right)),
+                                ]),
+                          ]),
+                      pw.SizedBox(height: 40),
+                      pw.Text("AUTHORIZED BY:", style: styleLabel),
+                      pw.SizedBox(height: 10),
+                      if (scriptFont != null) ...[
+                        pw.Text(businessName ?? "Signature",
+                            style:
+                                pw.TextStyle(font: scriptFont, fontSize: 24)),
+                        pw.Container(
+                            width: 150,
+                            decoration: const pw.BoxDecoration(
+                                border: pw.Border(
+                                    top: pw.BorderSide(
+                                        color: PdfColors.black, width: 1))))
+                      ] else ...[
+                        pw.Container(
+                            width: 150,
+                            decoration: const pw.BoxDecoration(
+                                border: pw.Border(
+                                    top: pw.BorderSide(
+                                        color: PdfColors.black, width: 1))))
+                      ]
+                    ]))
+          ])
+    ];
   }
 }
 

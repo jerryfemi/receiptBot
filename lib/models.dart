@@ -26,8 +26,9 @@ enum UserAction {
   createInvoice,
   editBankDetails,
   selectTheme,
+  selectLayout, // New Action
   editProfileMenu,
-  selectCurrency, // New Action
+  selectCurrency,
 }
 
 enum TransactionType {
@@ -55,6 +56,7 @@ class BusinessProfile {
       pendingTransaction; // Temporary storage for theme selection
 
   final int? themeIndex; // Changed to nullable
+  final int? layoutIndex; // New field for physical layout structure
   final String currencyCode; // e.g. NGN, USD, GBP
   final String currencySymbol; // e.g. ₦, $, £
 
@@ -73,6 +75,7 @@ class BusinessProfile {
     this.accountName,
     this.pendingTransaction,
     this.themeIndex, // Default is null
+    this.layoutIndex = 0, // Default to layout 0
     this.currencyCode = 'NGN',
     this.currencySymbol = '₦',
   });
@@ -97,6 +100,7 @@ class BusinessProfile {
     String? accountName,
     Transaction? pendingTransaction,
     int? themeIndex,
+    int? layoutIndex,
     String? currencyCode,
     String? currencySymbol,
   }) {
@@ -115,6 +119,7 @@ class BusinessProfile {
       accountName: accountName ?? this.accountName,
       pendingTransaction: pendingTransaction ?? this.pendingTransaction,
       themeIndex: themeIndex ?? this.themeIndex,
+      layoutIndex: layoutIndex ?? this.layoutIndex,
       currencyCode: currencyCode ?? this.currencyCode,
       currencySymbol: currencySymbol ?? this.currencySymbol,
     );
@@ -206,6 +211,7 @@ class Organization {
   final String? accountNumber;
   final String? accountName;
   final int? themeIndex;
+  final int? layoutIndex; // New field for physical layout structure
   final String currencyCode;
   final String currencySymbol;
 
@@ -220,6 +226,7 @@ class Organization {
     this.accountNumber,
     this.accountName,
     this.themeIndex,
+    this.layoutIndex = 0, // Default to layout 0
     this.currencyCode = 'NGN',
     this.currencySymbol = '₦',
   });
@@ -228,4 +235,34 @@ class Organization {
       _$OrganizationFromJson(json);
 
   Map<String, dynamic> toJson() => _$OrganizationToJson(this);
+
+  Organization copyWith({
+    String? businessName,
+    String? businessAddress,
+    String? displayPhoneNumber,
+    String? logoUrl,
+    String? bankName,
+    String? accountNumber,
+    String? accountName,
+    int? themeIndex,
+    int? layoutIndex,
+    String? currencyCode,
+    String? currencySymbol,
+  }) {
+    return Organization(
+      id: id,
+      inviteCode: inviteCode,
+      businessName: businessName ?? this.businessName,
+      businessAddress: businessAddress ?? this.businessAddress,
+      displayPhoneNumber: displayPhoneNumber ?? this.displayPhoneNumber,
+      logoUrl: logoUrl ?? this.logoUrl,
+      bankName: bankName ?? this.bankName,
+      accountNumber: accountNumber ?? this.accountNumber,
+      accountName: accountName ?? this.accountName,
+      themeIndex: themeIndex ?? this.themeIndex,
+      layoutIndex: layoutIndex ?? this.layoutIndex,
+      currencyCode: currencyCode ?? this.currencyCode,
+      currencySymbol: currencySymbol ?? this.currencySymbol,
+    );
+  }
 }
