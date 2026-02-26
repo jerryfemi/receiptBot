@@ -31,6 +31,7 @@ class GeminiService {
     String currencySymbol = '₦',
     String currencyCode = 'NGN',
   }) async {
+    final today = DateTime.now().toIso8601String().split('T')[0];
     final prompt = '''
     You are an expert receipt and invoice parser. The user's currency is $currencyCode ($currencySymbol).
     COnvert any amount to $currencyCode.
@@ -45,9 +46,9 @@ class GeminiService {
     - quantity (int): Default to 1 if not specified.
     - totalAmount (double): The sum of all items. Calculate it carefully.
     - amountInWords (String): The total amount written in words (e.g. "One Thousand Two Hundred $currencyCode Only").
-    - date (String): Current date in ISO 8601 format if not specified.
+    - date (String): The date of the transaction in ISO 8601 format. If not specified, default to today's date: $today.
     - type (String): "invoice" if the user mentions "invoice", "due date", "bank name", "account number", or asks for payment later. "receipt" otherwise.
-    - dueDate (String?): If it is an invoice, extract the due date in ISO 8601.
+    - dueDate (String?): If it is an invoice, extract the due date in ISO 8601. Default to 14 days from today if not specified.
     - bankName (String?): If mentioned, the bank name for payment.
     - accountNumber (String?): If mentioned, the account number.
     - accountName (String?): If mentioned, the account name.
@@ -118,6 +119,7 @@ class GeminiService {
     String currencySymbol = '₦',
     String currencyCode = 'NGN',
   }) async {
+    final today = DateTime.now().toIso8601String().split('T')[0];
     final prompt = TextPart('''
       You are an expert receipt parser.
       Look at this image of a receipt, invoice, or handwritten note.
@@ -126,10 +128,10 @@ class GeminiService {
       RULES:
       1. Default currency is $currencyCode ($currencySymbol).
       2. If you see a total, use it. If not, sum the items.
-      3. If you see a date, use it.
+      3. If you see a date, use it. If not, default to today's date: $today.
       4. If items are listed without total, calculate the total.
       5. Determine "type": "invoice" if the image contains "Invoice" or "Bank Name", "Bill To", or has a Due Date. "receipt" otherwise.
-      3. CRITICAL: For `items`, ensure `amount` is the UNIT PRICE.
+      6. CRITICAL: For `items`, ensure `amount` is the UNIT PRICE.
       
       Return ONLY valid JSON matching this schema:
       {

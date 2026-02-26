@@ -77,6 +77,13 @@ Future<Response> onRequest(RequestContext context) async {
           text = message['text']['body'] as String;
         } else if (type == 'image') {
           text = (message['caption'] ?? '') as String;
+        } else if (type == 'interactive') {
+          final interactive = message['interactive'] as Map<String, dynamic>;
+          if (interactive['type'] == 'button_reply') {
+            text = interactive['button_reply']['id'] as String;
+          } else if (interactive['type'] == 'list_reply') {
+            text = interactive['list_reply']['id'] as String;
+          }
         }
 
         _handleMessage(from, text, type, message as Map<String, dynamic>)
@@ -131,8 +138,14 @@ Future<void> _handleMessage(
     // 2. State Machine
     switch (profile.status ?? OnboardingStatus.new_user) {
       case OnboardingStatus.new_user:
-        await _sendWhatsAppMessage(from,
-            "Welcome! \n\nI can help you generate professional Receipts & Invoices internally.\n\nAre you here to:\n1️⃣ Create your own Business Profile\n2️⃣ Join a Team via Invite Code\n\nReply with 1 or 2.");
+        await _sendWhatsAppInteractiveButtons(
+          from,
+          "Welcome! \n\nI can help you generate professional Receipts & Invoices internally.\n\nAre you here to:",
+          [
+            {'id': '1', 'title': '🏢 Create Profile'},
+            {'id': '2', 'title': '🤝 Join Team'},
+          ],
+        );
         await _firestoreService.updateOnboardingStep(
             from, OnboardingStatus.awaiting_setup_choice);
         break;
@@ -154,8 +167,14 @@ Future<void> _handleMessage(
           await _sendWhatsAppMessage(from,
               "Great! Please reply with the 6-character Invite Code your admin gave you.\n\nType *Cancel* to exit.");
         } else {
-          await _sendWhatsAppMessage(
-              from, "Please reply with 1 or 2 to proceed.");
+          await _sendWhatsAppInteractiveButtons(
+            from,
+            "Please make a selection to proceed:",
+            [
+              {'id': '1', 'title': '🏢 Create Profile'},
+              {'id': '2', 'title': '🤝 Join Team'},
+            ],
+          );
         }
         break;
 
@@ -317,8 +336,15 @@ Future<void> _handleActiveUser(
           'currentAction': UserAction.selectTheme.name
         });
 
-        await _sendWhatsAppMessage(from,
-            "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:\n1️⃣ *Classic*\n2️⃣ *Beige*\n3️⃣ *Blue*\n\nType *Cancel* to exit.");
+        await _sendWhatsAppInteractiveButtons(
+          from,
+          "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:",
+          [
+            {'id': '1', 'title': 'Classic'},
+            {'id': '2', 'title': 'Beige'},
+            {'id': '3', 'title': 'Blue'},
+          ],
+        );
       } catch (e) {
         print("Image Scan Error: $e");
         await _sendWhatsAppMessage(from,
@@ -328,8 +354,8 @@ Future<void> _handleActiveUser(
     }
   }
 
-  // 2. TEXT COMMANDS (Global)
-  if (type == 'text') {
+  // 2. TEXT & INTERACTIVE COMMANDS (Global)
+  if (type == 'text' || type == 'interactive') {
     final lower = text.toLowerCase().trim();
 
     // Global Command Handler
@@ -374,9 +400,14 @@ Future<void> _handleActiveUser(
         );
       } else if (text.contains('4')) {
         await _firestoreService.updateAction(from, UserAction.selectTheme);
-        await _sendWhatsAppMessage(
+        await _sendWhatsAppInteractiveButtons(
           from,
-          'Select a new **Theme (Color)**:\n\n1️⃣ Classic (B&W)\n2️⃣ Beige Corporate\n3️⃣ Blue Accent\n\nReply with the number, or type *Cancel* to exit.',
+          "Select a new **Theme (Color)**:",
+          [
+            {'id': '1', 'title': 'Classic'},
+            {'id': '2', 'title': 'Beige'},
+            {'id': '3', 'title': 'Blue'},
+          ],
         );
       } else if (text.contains('5')) {
         await _firestoreService.updateAction(from, UserAction.selectLayout);
@@ -419,20 +450,27 @@ Future<void> _handleActiveUser(
 
       if (index > 0 && index <= currencies.length) {
         final selected = currencies[index - 1];
-        await _updateProfileAndOrg(from, profile, {
-          'currencyCode': selected['code'],
-          'currencySymbol': selected['symbol'],
-        });
+        try {
+          await _updateProfileAndOrg(from, profile, {
+            'currencyCode': selected['code'],
+            'currencySymbol': selected['symbol'],
+          });
 
-        // Update local profile instance for immediate use if needed (though we return idle next)
-        profile = profile.copyWith(
-          currencyCode: selected['code'],
-          currencySymbol: selected['symbol'],
-        );
+          // Update local profile instance for immediate use if needed (though we return idle next)
+          profile = profile.copyWith(
+            currencyCode: selected['code'],
+            currencySymbol: selected['symbol'],
+          );
 
-        await _firestoreService.updateAction(from, UserAction.idle);
-        await _sendWhatsAppMessage(from,
-            'Currency updated to ${selected['code']} (${selected['symbol']})! ✅');
+          await _firestoreService.updateAction(from, UserAction.idle);
+          await _sendWhatsAppMessage(from,
+              'Currency updated to ${selected['code']} (${selected['symbol']})! ✅');
+        } catch (e) {
+          print('Error updating currency: $e');
+          await _sendWhatsAppMessage(
+              from, 'Failed to update currency. Please try again later.');
+          await _firestoreService.updateAction(from, UserAction.idle);
+        }
       } else {
         await _sendWhatsAppMessage(
             from, 'Please reply with a valid number from the list.');
@@ -441,6 +479,7 @@ Future<void> _handleActiveUser(
 
     case UserAction.editBankDetails:
       // Use Gemini to parse bank details
+      await _sendTypingIndicator(from);
       try {
         final transaction = await _geminiService.parseTransaction(text);
         if (transaction.bankName != null) {
@@ -458,9 +497,19 @@ Future<void> _handleActiveUser(
         }
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppMessage(
+        await _sendWhatsAppInteractiveList(
           from,
-          'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
+          'What else would you like to update? 👇',
+          'View Options',
+          'Edit Profile',
+          [
+            {'id': 'btn_edit_name', 'title': 'Business Name'},
+            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+            {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_address', 'title': 'Business Address'},
+          ],
         );
       } catch (e) {
         await _sendWhatsAppMessage(
@@ -476,14 +525,31 @@ Future<void> _handleActiveUser(
 
     case UserAction.editName:
       if (type == 'text') {
-        await _updateProfileAndOrg(from, profile, {'businessName': text});
-        await _sendWhatsAppMessage(from, "Business Name updated to '$text'! ✅");
+        try {
+          await _updateProfileAndOrg(from, profile, {'businessName': text});
+          await _sendWhatsAppMessage(
+              from, "Business Name updated to '$text'! ✅");
+        } catch (e) {
+          print('Error updating business name: $e');
+          await _sendWhatsAppMessage(
+              from, 'Failed to update business name. Please try again.');
+        }
 
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppMessage(
+        await _sendWhatsAppInteractiveList(
           from,
-          'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
+          'What else would you like to update? 👇',
+          'View Options',
+          'Edit Profile',
+          [
+            {'id': 'btn_edit_name', 'title': 'Business Name'},
+            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+            {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_address', 'title': 'Business Address'},
+          ],
         );
       } else {
         await _sendWhatsAppMessage(from, 'Please send text for the name.');
@@ -492,13 +558,31 @@ Future<void> _handleActiveUser(
 
     case UserAction.editPhone:
       if (type == 'text') {
-        await _updateProfileAndOrg(from, profile, {'displayPhoneNumber': text});
-        await _sendWhatsAppMessage(from, "Phone Number updated to '$text'! ✅");
+        try {
+          await _updateProfileAndOrg(
+              from, profile, {'displayPhoneNumber': text});
+          await _sendWhatsAppMessage(
+              from, "Phone Number updated to '$text'! ✅");
+        } catch (e) {
+          print('Error updating phone number: $e');
+          await _sendWhatsAppMessage(
+              from, 'Failed to update phone number. Please try again.');
+        }
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppMessage(
+        await _sendWhatsAppInteractiveList(
           from,
-          'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
+          'What else would you like to update? 👇',
+          'View Options',
+          'Edit Profile',
+          [
+            {'id': 'btn_edit_name', 'title': 'Business Name'},
+            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+            {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_address', 'title': 'Business Address'},
+          ],
         );
       } else {
         await _sendWhatsAppMessage(
@@ -510,13 +594,29 @@ Future<void> _handleActiveUser(
 
     case UserAction.editAddress:
       if (type == 'text') {
-        await _updateProfileAndOrg(from, profile, {'businessAddress': text});
-        await _sendWhatsAppMessage(from, "Address updated to '$text'! ✅");
+        try {
+          await _updateProfileAndOrg(from, profile, {'businessAddress': text});
+          await _sendWhatsAppMessage(from, "Address updated to '$text'! ✅");
+        } catch (e) {
+          print('Error updating address: $e');
+          await _sendWhatsAppMessage(
+              from, 'Failed to update address. Please try again.');
+        }
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppMessage(
+        await _sendWhatsAppInteractiveList(
           from,
-          'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
+          'What else would you like to update? 👇',
+          'View Options',
+          'Edit Profile',
+          [
+            {'id': 'btn_edit_name', 'title': 'Business Name'},
+            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+            {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_address', 'title': 'Business Address'},
+          ],
         );
       } else {
         await _sendWhatsAppMessage(
@@ -528,26 +628,43 @@ Future<void> _handleActiveUser(
 
     case UserAction.editLogo:
       if (type == 'image' || type == 'document') {
-        final mediaId = type == 'image'
-            ? messageData['image']['id']
-            : messageData['document']['id'];
-        final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
+        try {
+          final mediaId = type == 'image'
+              ? messageData['image']['id']
+              : messageData['document']['id'];
+          final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
 
-        final bytes = await _downloadFileBytes(tempUrl);
-        final publicUrl = await _firestoreService.uploadFile(
-          'logos/$from.jpg',
-          bytes,
-          'image/jpeg',
-        );
-        await _sendWhatsAppMessage(from, 'Saving Logo...... ');
-        await _updateProfileAndOrg(from, profile, {'logoUrl': publicUrl});
-        await _sendWhatsAppMessage(from, 'Logo updated successfully! 🖼️');
+          await _sendTypingIndicator(from);
+          final bytes = await _downloadFileBytes(tempUrl);
+          final publicUrl = await _firestoreService.uploadFile(
+            'logos/$from.jpg',
+            bytes,
+            'image/jpeg',
+          );
+          await _sendWhatsAppMessage(from, 'Saving Logo...... ');
+          await _updateProfileAndOrg(from, profile, {'logoUrl': publicUrl});
+          await _sendWhatsAppMessage(from, 'Logo updated successfully! 🖼️');
+        } catch (e) {
+          print('Error updating logo: $e');
+          await _sendWhatsAppMessage(
+              from, 'Failed to save logo. Please try again.');
+        }
 
         // LOOP BACK TO MENU
         await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppMessage(
+        await _sendWhatsAppInteractiveList(
           from,
-          'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
+          'What else would you like to update? 👇',
+          'View Options',
+          'Edit Profile',
+          [
+            {'id': 'btn_edit_name', 'title': 'Business Name'},
+            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+            {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_address', 'title': 'Business Address'},
+          ],
         );
       } else {
         await _sendWhatsAppMessage(from, 'Please send an image or document.');
@@ -632,7 +749,7 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower.contains('create receipt')) {
+  if (lower.contains('create receipt') || lower == 'btn_create_receipt') {
     await _firestoreService.updateAction(from, UserAction.createReceipt);
     await _sendWhatsAppMessage(
       from,
@@ -641,7 +758,7 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower.contains('create invoice')) {
+  if (lower.contains('create invoice') || lower == 'btn_create_invoice') {
     await _firestoreService.updateAction(from, UserAction.createInvoice);
     // Check if bank details exist
     final hasBankDetails =
@@ -660,7 +777,7 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower == 'edit profile') {
+  if (lower == 'edit profile' || lower == 'btn_edit_profile') {
     if (profile.role != UserRole.admin) {
       await _sendWhatsAppMessage(
         from,
@@ -669,14 +786,48 @@ Future<bool> _handleGlobalCommands(
       return true;
     }
     await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-    await _sendWhatsAppMessage(
+    await _sendWhatsAppInteractiveList(
       from,
-      'What would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme (Color)\n5️⃣ Layout (Structure)\n6️⃣ Address\n\nReply with the number, or type *Cancel* to exit.',
+      'What would you like to update? 👇',
+      'View Options',
+      'Edit Profile',
+      [
+        {
+          'id': 'btn_edit_name',
+          'title': 'Business Name',
+          'description': 'Change your company name'
+        },
+        {
+          'id': 'btn_edit_phone',
+          'title': 'Phone Number',
+          'description': 'Change contact number'
+        },
+        {
+          'id': 'btn_edit_bank',
+          'title': 'Bank Details',
+          'description': 'Update payment info'
+        },
+        {
+          'id': 'btn_edit_theme',
+          'title': 'Theme (Color)',
+          'description': 'Change receipt colors'
+        },
+        {
+          'id': 'btn_edit_layout',
+          'title': 'Layout Structure',
+          'description': 'Change receipt design'
+        },
+        {
+          'id': 'btn_edit_address',
+          'title': 'Business Address',
+          'description': 'Update location'
+        },
+      ],
     );
     return true;
   }
 
-  if (lower == 'invite team member') {
+  if (lower == 'invite team member' || lower == 'btn_invite_team') {
     if (profile.role != UserRole.admin) {
       await _sendWhatsAppMessage(
         from,
@@ -846,13 +997,15 @@ Future<void> _processReceiptResult(
       'currentAction': UserAction.selectTheme.name,
     });
 
-    await _sendWhatsAppMessage(
-        from,
-        "Got it! 🧾\n\nSelect a style for your ${isInvoice ? 'Invoice' : 'Receipt'}:\n\n"
-        '1️⃣ *Classic (B&W)*\n'
-        '2️⃣ *Beige Corporate*\n'
-        '3️⃣ *Blue Accent*\n\n'
-        'Reply with 1, 2, or 3.');
+    await _sendWhatsAppInteractiveButtons(
+      from,
+      "Got it! 🧾\n\nSelect a style for your ${isInvoice ? 'Invoice' : 'Receipt'}:",
+      [
+        {'id': '1', 'title': 'Classic'},
+        {'id': '2', 'title': 'Beige'},
+        {'id': '3', 'title': 'Blue'},
+      ],
+    );
   } catch (e) {
     print('Error generating receipt: $e');
     await _sendWhatsAppMessage(
@@ -895,10 +1048,18 @@ Future<void> _handleThemeSelection(
     await _sendWhatsAppMessage(from, 'Default theme updated! ✅');
     // Go back to profile menu
     await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-    await _sendWhatsAppMessage(
-      from,
-      'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme / Style\n5️⃣ Address\n\nType *Menu* to finish.',
-    );
+    await _sendWhatsAppInteractiveList(
+        from,
+        'What else would you like to update? 👇',
+        'View Options',
+        'Edit Profile', [
+      {'id': 'btn_edit_name', 'title': 'Business Name'},
+      {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+      {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+      {'id': 'btn_edit_theme', 'title': 'Theme'},
+      {'id': 'btn_edit_layout', 'title': 'Layout'},
+      {'id': 'btn_edit_address', 'title': 'Business Address'},
+    ]);
     return;
   }
 
@@ -948,10 +1109,18 @@ Future<void> _handleLayoutSelection(
     await _sendWhatsAppMessage(from, 'Default layout updated! ✅');
     // Go back to profile menu
     await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-    await _sendWhatsAppMessage(
-      from,
-      'What else would you like to update?\n\n1️⃣ Business Name\n2️⃣ Phone Number\n3️⃣ Bank Details\n4️⃣ Theme (Color)\n5️⃣ Layout (Structure)\n6️⃣ Address\n\nType *Menu* to finish.',
-    );
+    await _sendWhatsAppInteractiveList(
+        from,
+        'What else would you like to update? 👇',
+        'View Options',
+        'Edit Profile', [
+      {'id': 'btn_edit_name', 'title': 'Business Name'},
+      {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+      {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+      {'id': 'btn_edit_theme', 'title': 'Theme'},
+      {'id': 'btn_edit_layout', 'title': 'Layout'},
+      {'id': 'btn_edit_address', 'title': 'Business Address'},
+    ]);
     return;
   }
 
@@ -968,6 +1137,7 @@ Future<void> _generateAndSendPDF(
   Transaction transaction,
   int themeIndex,
 ) async {
+  await _sendTypingIndicator(from);
   await _sendWhatsAppMessage(from, 'Generating PDF... ⏳');
 
   try {
@@ -1143,38 +1313,137 @@ Future<void> _sendTypingIndicator(String to) async {
   };
   final body = jsonEncode({
     'messaging_product': 'whatsapp',
-    'recipient_type': 'individual',
     'to': to,
+    'type': 'system', // or absent, but action below is required
+    'recipient_type': 'individual',
     'sender_action': 'typing_on', // This triggers the typing bubble
   });
 
   try {
-    await http.post(url, headers: headers, body: body);
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode != 200) {
+      print(
+          'Failed to send typing indicator: ${response.statusCode} - ${response.body}');
+    }
   } catch (e) {
     print('Error sending typing indicator: $e');
+  }
+}
+
+Future<void> _sendWhatsAppInteractiveButtons(
+  String to,
+  String bodyText,
+  List<Map<String, String>> buttons,
+) async {
+  final url =
+      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
+  final headers = {
+    'Authorization': 'Bearer $_whatsappToken',
+    'Content-Type': 'application/json',
+  };
+
+  final actionButtons = buttons.map((b) {
+    return {
+      'type': 'reply',
+      'reply': {
+        'id': b['id'],
+        'title': b['title'],
+      }
+    };
+  }).toList();
+
+  final body = jsonEncode({
+    'messaging_product': 'whatsapp',
+    'to': to,
+    'type': 'interactive',
+    'interactive': {
+      'type': 'button',
+      'body': {'text': bodyText},
+      'action': {
+        'buttons': actionButtons,
+      }
+    }
+  });
+
+  try {
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode != 200) {
+      print('Failed to send interactive buttons: ${response.body}');
+    }
+  } catch (e) {
+    print('Error sending interactive buttons: $e');
+  }
+}
+
+Future<void> _sendWhatsAppInteractiveList(
+  String to,
+  String bodyText,
+  String buttonText,
+  String listTitle,
+  List<Map<String, String>> rows,
+) async {
+  final url =
+      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
+  final headers = {
+    'Authorization': 'Bearer $_whatsappToken',
+    'Content-Type': 'application/json',
+  };
+
+  final listRows = rows.map((r) {
+    return {
+      'id': r['id'],
+      'title': r['title'],
+      if (r['description'] != null) 'description': r['description'],
+    };
+  }).toList();
+
+  final body = jsonEncode({
+    'messaging_product': 'whatsapp',
+    'to': to,
+    'type': 'interactive',
+    'interactive': {
+      'type': 'list',
+      'body': {'text': bodyText},
+      'action': {
+        'button': buttonText,
+        'sections': [
+          {
+            'title': listTitle,
+            'rows': listRows,
+          }
+        ]
+      }
+    }
+  });
+
+  try {
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode != 200) {
+      print('Failed to send interactive list: ${response.body}');
+    }
+  } catch (e) {
+    print('Error sending interactive list: $e');
   }
 }
 
 Future<void> _sendWelcomeMessage(String to, BusinessProfile profile) async {
   await _firestoreService.updateAction(to, UserAction.idle);
 
-  String menuText = 'Hey! What can I do for you? 🤖\n\n'
-      'Type any of these commands:\n'
-      '🔹 *Create Receipt*\n'
-      '🔹 *Create Invoice*\n';
-
-  if (profile.role == UserRole.admin) {
-    menuText += '🔹 *Edit Profile* (Name, Address, Bank, Theme)\n'
-        '🔹 *Upload Logo*\n'
-        '🔹 *Invite Team Member*\n';
-  }
-
-  menuText += '🔹 *Change Currency* (${profile.currencyCode})\n'
-      '🔹 *Help*\n'
-      '🔹 *Cancel*\n\n'
+  const  String bodyText = 'Hey! What can I do for you? 🤖\n\n'
       '_Or just send me the details of a sale to quickly generate a receipt!_';
 
-  await _sendWhatsAppMessage(to, menuText);
+  final List<Map<String, String>> buttons = [
+    {'id': 'btn_create_receipt', 'title': '🧾 Receipt'},
+    {'id': 'btn_create_invoice', 'title': '📄 Invoice'},
+  ];
+
+  if (profile.role == UserRole.admin) {
+    buttons.add({'id': 'btn_settings', 'title': '⚙️ Settings'});
+  } else {
+    buttons.add({'id': 'help', 'title': '❓ Help'});
+  }
+
+  await _sendWhatsAppInteractiveButtons(to, bodyText, buttons);
 }
 
 Future<void> _sendHelpMessage(String to) async {
