@@ -77,8 +77,10 @@ const _$UserActionEnumMap = {
   UserAction.createInvoice: 'createInvoice',
   UserAction.editBankDetails: 'editBankDetails',
   UserAction.selectTheme: 'selectTheme',
+  UserAction.selectLayout: 'selectLayout',
   UserAction.editProfileMenu: 'editProfileMenu',
   UserAction.selectCurrency: 'selectCurrency',
+  UserAction.awaitingInvoiceBankDetails: 'awaitingInvoiceBankDetails',
 };
 
 ReceiptItem _$ReceiptItemFromJson(Map<String, dynamic> json) => ReceiptItem(

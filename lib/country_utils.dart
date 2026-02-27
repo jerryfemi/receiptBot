@@ -1,3 +1,5 @@
+import 'package:receipt_bot/models/models.dart';
+
 class CountryUtils {
   /// Returns a tuple of (currencyCode, currencySymbol) based on the phone number.
   /// Defaults to ('USD', '$') if the country code is not recognized.
@@ -46,3 +48,17 @@ class CountryUtils {
     {'code': 'INR', 'symbol': '₹', 'name': 'Indian Rupee'},
   ];
 }
+
+
+extension TransactionTotal on Transaction {
+  double get transactionTotal {
+    final double subtotal =
+        items.fold(0, (sum, item) => sum + (item.amount * item.quantity));
+    return subtotal + (tax ?? 0);
+  }
+}
+
+  String formatCurrency(double amount, String symbol) {
+    // Basic comma formatting
+    return '$symbol${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  }

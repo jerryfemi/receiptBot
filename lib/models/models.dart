@@ -29,6 +29,7 @@ enum UserAction {
   selectLayout, // New Action
   editProfileMenu,
   selectCurrency,
+  awaitingInvoiceBankDetails,
 }
 
 enum TransactionType {

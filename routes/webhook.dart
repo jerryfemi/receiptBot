@@ -10,10 +10,10 @@ import 'dart:typed_data';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:http/http.dart' as http;
 import 'package:receipt_bot/country_utils.dart';
-import 'package:receipt_bot/firestore_service.dart';
-import 'package:receipt_bot/gemini_service.dart';
-import 'package:receipt_bot/models.dart';
-import 'package:receipt_bot/pdf_service.dart';
+import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/services/firestore_service.dart';
+import 'package:receipt_bot/services/gemini_service.dart';
+import 'package:receipt_bot/services/pdf_service.dart';
 
 // Configuration
 final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
@@ -380,25 +380,34 @@ Future<void> _handleActiveUser(
         await _firestoreService.updateAction(from, UserAction.idle);
         return;
       }
-      if (text.contains('1')) {
+      final lowerText = text.toLowerCase().trim();
+      if (lowerText == '1' ||
+          lowerText == 'btn_edit_name' ||
+          lowerText == 'business name') {
         await _firestoreService.updateAction(from, UserAction.editName);
         await _sendWhatsAppMessage(
           from,
           'Okay, send me the **New Business Name**.\n\nType *Cancel* to exit.',
         );
-      } else if (text.contains('2')) {
+      } else if (lowerText == '2' ||
+          lowerText == 'btn_edit_phone' ||
+          lowerText == 'phone number') {
         await _firestoreService.updateAction(from, UserAction.editPhone);
         await _sendWhatsAppMessage(
           from,
           'Okay, send me the **New Phone Number**.\n\nType *Cancel* to exit.',
         );
-      } else if (text.contains('3')) {
+      } else if (lowerText == '3' ||
+          lowerText == 'btn_edit_bank' ||
+          lowerText == 'bank details') {
         await _firestoreService.updateAction(from, UserAction.editBankDetails);
         await _sendWhatsAppMessage(
           from,
           'Okay, send me your **Bank Details**:\n\nBank Name, Account Number, Account Name\n\nType *Cancel* to exit.',
         );
-      } else if (text.contains('4')) {
+      } else if (lowerText == '4' ||
+          lowerText == 'btn_edit_theme' ||
+          lowerText == 'theme') {
         await _firestoreService.updateAction(from, UserAction.selectTheme);
         await _sendWhatsAppInteractiveButtons(
           from,
@@ -409,7 +418,9 @@ Future<void> _handleActiveUser(
             {'id': '3', 'title': 'Blue'},
           ],
         );
-      } else if (text.contains('5')) {
+      } else if (lowerText == '5' ||
+          lowerText == 'btn_edit_layout' ||
+          lowerText == 'layout') {
         await _firestoreService.updateAction(from, UserAction.selectLayout);
         await _sendWhatsAppMessage(
           from,
@@ -432,15 +443,17 @@ Future<void> _handleActiveUser(
             'https://dummyimage.com/600x800/fff/000.png&text=Standard', 'image',
             caption:
                 '4️⃣ Standard (Premium structured match)\n\nReply with 1, 2, 3, or 4.');
-      } else if (text.contains('6')) {
+      } else if (lowerText == '6' ||
+          lowerText == 'btn_edit_address' ||
+          lowerText == 'address') {
         await _firestoreService.updateAction(from, UserAction.editAddress);
         await _sendWhatsAppMessage(
           from,
           'Okay, send me the **New Business Address**.\n\nType *Cancel* to exit.',
         );
       } else {
-        await _sendWhatsAppMessage(
-            from, 'Please reply with 1, 2, 3, 4, 5, or 6.');
+        await _sendWhatsAppMessage(from,
+            'Please select an option from the list or reply with a number (1-6).');
       }
       break;
 
@@ -479,7 +492,6 @@ Future<void> _handleActiveUser(
 
     case UserAction.editBankDetails:
       // Use Gemini to parse bank details
-      await _sendTypingIndicator(from);
       try {
         final transaction = await _geminiService.parseTransaction(text);
         if (transaction.bankName != null) {
@@ -511,6 +523,65 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
+      } catch (e) {
+        await _sendWhatsAppMessage(
+          from,
+          'Error parsing details. Please try again.',
+        );
+      }
+      break;
+
+    case UserAction.awaitingInvoiceBankDetails:
+      try {
+        final transactionInfo = await _geminiService.parseTransaction(text);
+        if (transactionInfo.bankName != null) {
+          await _updateProfileAndOrg(from, profile, {
+            'bankName': transactionInfo.bankName,
+            'accountNumber': transactionInfo.accountNumber,
+            'accountName': transactionInfo.accountName,
+          });
+
+          profile = profile.copyWith(
+            bankName: transactionInfo.bankName,
+            accountNumber: transactionInfo.accountNumber,
+            accountName: transactionInfo.accountName,
+          );
+
+          await _sendWhatsAppMessage(from, 'Bank Details Saved! ✅');
+
+          if (profile.pendingTransaction != null) {
+            final pendingTx = profile.pendingTransaction!;
+
+            if (profile.themeIndex != null) {
+              await _generateAndSendPDF(
+                from,
+                profile,
+                pendingTx,
+                profile.themeIndex!,
+              );
+            } else {
+              await _sendWhatsAppInteractiveButtons(
+                from,
+                "Got it! 🧾\n\nSelect a style for your Invoice:",
+                [
+                  {'id': '1', 'title': 'Classic'},
+                  {'id': '2', 'title': 'Beige'},
+                  {'id': '3', 'title': 'Blue'},
+                ],
+              );
+              await _firestoreService.updateAction(
+                  from, UserAction.selectTheme);
+            }
+          } else {
+            // Unlikely fallback
+            await _firestoreService.updateAction(from, UserAction.idle);
+          }
+        } else {
+          await _sendWhatsAppMessage(
+            from,
+            "I couldn't find bank details. Please try again (e.g. Bank, 0123456789, Name). Type *Cancel* to exit.",
+          );
+        }
       } catch (e) {
         await _sendWhatsAppMessage(
           from,
@@ -634,7 +705,6 @@ Future<void> _handleActiveUser(
               : messageData['document']['id'];
           final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
 
-          await _sendTypingIndicator(from);
           final bytes = await _downloadFileBytes(tempUrl);
           final publicUrl = await _firestoreService.uploadFile(
             'logos/$from.jpg',
@@ -673,7 +743,6 @@ Future<void> _handleActiveUser(
 
     case UserAction.idle:
       // CONVERSATIONAL ROUTER
-      await _sendTypingIndicator(from);
 
       try {
         final intentResult = await _geminiService.determineUserIntent(text);
@@ -777,6 +846,42 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
+  if (lower == 'settings' ||
+      lower == 'btn_settings' ||
+      lower == '⚙️ settings') {
+    if (profile.role != UserRole.admin) {
+      await _sendWhatsAppMessage(
+        from,
+        'Only Admins can access settings.',
+      );
+      return true;
+    }
+    await _sendWhatsAppInteractiveList(
+      from,
+      '⚙️ *Settings Menu*\nWhat would you like to configure? 👇',
+      'View Options',
+      'Settings',
+      [
+        {
+          'id': 'btn_edit_profile',
+          'title': 'Edit Profile',
+          'description': 'Update business details'
+        },
+        {
+          'id': 'btn_invite_team',
+          'title': 'Invite Team Member',
+          'description': 'Share access with staff'
+        },
+        {
+          'id': 'help',
+          'title': 'Help & Support',
+          'description': 'View guide or contact'
+        },
+      ],
+    );
+    return true;
+  }
+
   if (lower == 'edit profile' || lower == 'btn_edit_profile') {
     if (profile.role != UserRole.admin) {
       await _sendWhatsAppMessage(
@@ -822,6 +927,16 @@ Future<bool> _handleGlobalCommands(
           'title': 'Business Address',
           'description': 'Update location'
         },
+        {
+          'id': 'btn_edit_logo',
+          'title': 'Upload Logo',
+          'description': 'Update business logo'
+        },
+        {
+          'id': 'btn_change_currency',
+          'title': 'Change Currency',
+          'description': 'Update default currency'
+        },
       ],
     );
     return true;
@@ -859,7 +974,7 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower == 'change currency') {
+  if (lower == 'change currency' || lower == 'btn_change_currency') {
     await _firestoreService.updateAction(from, UserAction.selectCurrency);
 
     const currencies = CountryUtils.supportedCurrencies;
@@ -874,7 +989,7 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower == 'upload logo') {
+  if (lower == 'upload logo' || lower == 'btn_edit_logo') {
     if (profile.role != UserRole.admin) {
       await _sendWhatsAppMessage(
         from,
@@ -888,7 +1003,9 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower == 'cancel') {
+  if (lower.startsWith('cancel') ||
+      lower == 'exit' ||
+      lower.startsWith('quit')) {
     await _firestoreService.updateAction(from, UserAction.idle);
     await _sendWhatsAppMessage(from, 'Action cancelled.');
     return true;
@@ -930,7 +1047,6 @@ Future<void> _processReceiptResult(
   print(
       'DEBUG: Processing receipt with Currency: ${profile.currencyCode} (${profile.currencySymbol})');
 
-  await _sendTypingIndicator(from);
   try {
     // AI Parsing
     final transaction = await _geminiService.parseTransaction(
@@ -970,6 +1086,24 @@ Future<void> _processReceiptResult(
           accountNumber: transaction.accountNumber ?? profile.accountNumber,
           accountName: transaction.accountName ?? profile.accountName,
         );
+      }
+    }
+
+    // Phase B check: Handle missing bank details for Invoices
+    if (isInvoice) {
+      final hasBankDetails =
+          profile.bankName != null && profile.accountNumber != null;
+      if (!hasBankDetails) {
+        await _firestoreService.updateProfileData(from, {
+          'pendingTransaction': jsonEncode(transaction.toJson()),
+          'currentAction': UserAction.awaitingInvoiceBankDetails.name,
+        });
+
+        await _sendWhatsAppMessage(
+          from,
+          "I have your invoice details ready! However, you haven't added your payment/bank details to your profile yet.\n\nPlease reply with your **Bank Name, Account Number, and Account Name** so I can add them to this invoice and save them for next time.\n\nType *Cancel* to exit.",
+        );
+        return; // Pause flow here
       }
     }
 
@@ -1022,12 +1156,12 @@ Future<void> _handleThemeSelection(
 ) async {
   int? themeIndex;
 
-  final lower = body.toLowerCase();
-  if (lower.contains('1') || lower.contains('classic')) {
+  final lower = body.toLowerCase().trim();
+  if (lower == '1' || lower == 'classic') {
     themeIndex = 0;
-  } else if (lower.contains('2') || lower.contains('beige')) {
+  } else if (lower == '2' || lower == 'beige') {
     themeIndex = 1;
-  } else if (lower.contains('3') || lower.contains('blue')) {
+  } else if (lower == '3' || lower == 'blue') {
     themeIndex = 2;
   }
 
@@ -1075,20 +1209,14 @@ Future<void> _handleLayoutSelection(
 ) async {
   int? layoutIndex;
 
-  final lower = body.toLowerCase();
-  if (lower.contains('1') || lower.contains('classic')) {
+  final lower = body.toLowerCase().trim();
+  if (lower == '1' || lower == 'classic') {
     layoutIndex = 0;
-  } else if (lower.contains('2') ||
-      lower.contains('modern') ||
-      lower.contains('circle')) {
+  } else if (lower == '2' || lower == 'modern' || lower == 'circle') {
     layoutIndex = 1;
-  } else if (lower.contains('3') ||
-      lower.contains('minimal') ||
-      lower.contains('grid')) {
+  } else if (lower == '3' || lower == 'minimal' || lower == 'grid') {
     layoutIndex = 2;
-  } else if (lower.contains('4') ||
-      lower.contains('standard') ||
-      lower.contains('premium')) {
+  } else if (lower == '4' || lower == 'standard' || lower == 'premium') {
     layoutIndex = 3;
   }
 
@@ -1124,9 +1252,6 @@ Future<void> _handleLayoutSelection(
     return;
   }
 
-  // Otherwise, continue to generate the pending receipt
-  // Wait, if they select layout during receipt creation, they might not have selected a theme yet!
-  // BUT currently, _processReceiptResult only asks for Theme. Let's redirect to PDF generation for now.
   await _generateAndSendPDF(
       from, profile, profile.pendingTransaction!, profile.themeIndex ?? 0);
 }
@@ -1137,7 +1262,6 @@ Future<void> _generateAndSendPDF(
   Transaction transaction,
   int themeIndex,
 ) async {
-  await _sendTypingIndicator(from);
   await _sendWhatsAppMessage(from, 'Generating PDF... ⏳');
 
   try {
@@ -1304,31 +1428,7 @@ Future<void> _sendWhatsAppDocument(
   }
 }
 
-Future<void> _sendTypingIndicator(String to) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'system', // or absent, but action below is required
-    'recipient_type': 'individual',
-    'sender_action': 'typing_on', // This triggers the typing bubble
-  });
 
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print(
-          'Failed to send typing indicator: ${response.statusCode} - ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending typing indicator: $e');
-  }
-}
 
 Future<void> _sendWhatsAppInteractiveButtons(
   String to,
@@ -1429,7 +1529,7 @@ Future<void> _sendWhatsAppInteractiveList(
 Future<void> _sendWelcomeMessage(String to, BusinessProfile profile) async {
   await _firestoreService.updateAction(to, UserAction.idle);
 
-  const  String bodyText = 'Hey! What can I do for you? 🤖\n\n'
+  const String bodyText = 'Hey! What can I do for you? 🙋‍♂️\n\n'
       '_Or just send me the details of a sale to quickly generate a receipt!_';
 
   final List<Map<String, String>> buttons = [

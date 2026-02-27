@@ -1,5 +1,5 @@
 import 'package:receipt_bot/country_utils.dart';
-import 'package:receipt_bot/gemini_service.dart';
+import 'package:receipt_bot/services/gemini_service.dart';
 
 // Mock values for manual testing
 const String _apiKey =

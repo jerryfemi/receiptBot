@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:receipt_bot/gemini_service.dart';
+import 'package:receipt_bot/services/gemini_service.dart';
 
 const String _geminiApiKey = 'AIzaSyDcuu0IKF1plTMAHaOs4y7ipG__EfeWQkc';
 

@@ -4,7 +4,7 @@ import 'package:googleapis/firestore/v1.dart';
 import 'package:googleapis/storage/v1.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
-import 'package:receipt_bot/models.dart';
+import 'package:receipt_bot/models/models.dart';
 import 'package:uuid/uuid.dart';
 
 class FirestoreService {

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:receipt_bot/models.dart';
+import 'package:receipt_bot/models/models.dart';
 
 /// Service to interact with Google Gemini API for receipt parsing.
 class GeminiService {
