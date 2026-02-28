@@ -413,9 +413,8 @@ Future<void> _handleActiveUser(
           from,
           "Select a new **Theme (Color)**:",
           [
-            {'id': '1', 'title': 'Classic'},
-            {'id': '2', 'title': 'Beige'},
-            {'id': '3', 'title': 'Blue'},
+            {'id': 'theme_classic', 'title': 'B&W (Classic)'},
+            {'id': 'theme_beige', 'title': 'Beige'},
           ],
         );
       } else if (lowerText == '5' ||
@@ -564,9 +563,8 @@ Future<void> _handleActiveUser(
                 from,
                 "Got it! 🧾\n\nSelect a style for your Invoice:",
                 [
-                  {'id': '1', 'title': 'Classic'},
-                  {'id': '2', 'title': 'Beige'},
-                  {'id': '3', 'title': 'Blue'},
+                  {'id': 'theme_classic', 'title': 'B&W (Classic)'},
+                  {'id': 'theme_beige', 'title': 'Beige'},
                 ],
               );
               await _firestoreService.updateAction(
@@ -1135,9 +1133,8 @@ Future<void> _processReceiptResult(
       from,
       "Got it! 🧾\n\nSelect a style for your ${isInvoice ? 'Invoice' : 'Receipt'}:",
       [
-        {'id': '1', 'title': 'Classic'},
-        {'id': '2', 'title': 'Beige'},
-        {'id': '3', 'title': 'Blue'},
+        {'id': 'theme_classic', 'title': 'B&W (Classic)'},
+        {'id': 'theme_beige', 'title': 'Beige'},
       ],
     );
   } catch (e) {
@@ -1157,18 +1154,19 @@ Future<void> _handleThemeSelection(
   int? themeIndex;
 
   final lower = body.toLowerCase().trim();
-  if (lower == '1' || lower == 'classic') {
+  if (lower == 'theme_classic' ||
+      lower == '1' ||
+      lower == 'classic' ||
+      lower == 'b&w (classic)') {
     themeIndex = 0;
-  } else if (lower == '2' || lower == 'beige') {
+  } else if (lower == 'theme_beige' || lower == '2' || lower == 'beige') {
     themeIndex = 1;
-  } else if (lower == '3' || lower == 'blue') {
-    themeIndex = 2;
   }
 
   if (themeIndex == null) {
     await _sendWhatsAppMessage(
       from,
-      'Please reply with 1, 2, or 3 to select a style.',
+      'Please select an option from the menu, or reply with Classic or Beige.',
     );
     return;
   }
@@ -1427,8 +1425,6 @@ Future<void> _sendWhatsAppDocument(
     print('Error sending WhatsApp document: $e');
   }
 }
-
-
 
 Future<void> _sendWhatsAppInteractiveButtons(
   String to,

@@ -17,7 +17,7 @@ class PdfService {
     Transaction transaction, {
     int themeIndex = 0, // 0: B&W, 1: Beige, 2: Blue
     int layoutIndex = 0, // 0: Classic, 1: Modern, 2: Minimal
-    Organization? org, 
+    Organization? org,
   }) async {
     // Load Fonts
     final regularFontData =
@@ -85,10 +85,6 @@ class PdfService {
         bg = PdfColor.fromHex('#EFE9DB');
         primary = PdfColor.fromHex('#D73138');
         break;
-      case 2: // Blue
-        bg = PdfColor.fromHex('#E3F2FD'); // Light Blue
-        primary = PdfColor.fromHex('#1565C0'); // Dark Blue
-        break;
       case 0: // B&W (Default)
       default:
         bg = layoutIndex == 1 ? PdfColor.fromHex('#FAF7F2') : PdfColors.white;
@@ -100,7 +96,7 @@ class PdfService {
       pageTheme: pw.PageTheme(
         theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
         pageFormat: PdfPageFormat.a5,
-        margin: const pw.EdgeInsets.all(20), 
+        margin: const pw.EdgeInsets.all(20),
         buildBackground: (context) => pw.FullPage(
           ignoreMargins: true,
           child: pw.Container(color: bg),
@@ -117,7 +113,7 @@ class PdfService {
               regularFont,
               boldFont,
               scriptFont,
-              serifFont, 
+              serifFont,
               usedBusinessName,
               usedBusinessAddress,
               usedDisplayPhoneNumber,
@@ -136,7 +132,7 @@ class PdfService {
               regularFont,
               boldFont,
               scriptFont,
-              serifFont, 
+              serifFont,
               usedBusinessName,
               usedBusinessAddress,
               usedDisplayPhoneNumber,
@@ -321,9 +317,5 @@ class PdfService {
             currencySymbol);
     }
   }
-
-  // --- CLASSIC RECEIPT LAYOUT ---
-
-
 
 }
