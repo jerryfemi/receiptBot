@@ -27,7 +27,7 @@ List<pw.Widget> defaultInvoiceLayout(
 
   // Font Sizes
   const double fsTitle = 38; // "INVOICE"
-  const double fsCompany = 18; // Company Name
+  const double fsCompany = 24; // Company Name
   const double fsHeader = 10; // Table Headers / Section Titles
   const double fsBody = 10; // Normal Text
 
@@ -153,7 +153,7 @@ List<pw.Widget> defaultInvoiceLayout(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text("INVOICE NUMBER: #$uniqueId",
+          pw.Text("INVOICE NUMBER: INV-$uniqueId",
               style: styleBody.copyWith(color: PdfColors.grey700)),
           pw.Text("DATE: ${DateFormat('MM.dd.yyyy').format(transaction.date)}",
               style: styleBody.copyWith(color: PdfColors.grey700)),
@@ -179,13 +179,13 @@ List<pw.Widget> defaultInvoiceLayout(
               pw.Text("Bill To:",
                   style: styleLabel.copyWith(color: PdfColors.grey700)),
               pw.SizedBox(height: 5),
-              pw.Text(transaction.customerName.toUpperCase(), style: styleBody),
+              pw.Text(transaction.customerName.toUpperCase(), style: styleBody.copyWith(font: serifFont)),
               if (transaction.customerAddress != null)
                 pw.Text(transaction.customerAddress!,
-                    style: styleBody.copyWith(color: PdfColors.grey700)),
+                    style: styleBody.copyWith(color: PdfColors.grey700,font: serifFont)),
               if (transaction.customerPhone != null)
                 pw.Text(transaction.customerPhone!,
-                    style: styleBody.copyWith(color: PdfColors.grey700)),
+                    style: styleBody.copyWith(color: PdfColors.grey700,font: serifFont)),
             ],
           ),
         ),
@@ -199,13 +199,13 @@ List<pw.Widget> defaultInvoiceLayout(
                     style: styleLabel.copyWith(color: PdfColors.grey700)),
                 pw.SizedBox(height: 5),
                 pw.Text(bankName ?? transaction.bankName ?? '',
-                    style: styleBody),
+                    style: styleBody.copyWith(font: serifFont)),
                 pw.Text(
                     (accountName ?? transaction.accountName ?? '')
                         .toUpperCase(),
-                    style: styleBody),
+                    style: styleBody.copyWith(font: serifFont)),
                 pw.Text(accountNumber ?? transaction.accountNumber ?? '',
-                    style: styleBody),
+                    style: styleBody.copyWith(font: serifFont)),
               ]
             ],
           ),
@@ -333,12 +333,12 @@ List<pw.Widget> defaultReceiptLayout(
                 style: serifFont != null
                     ? pw.TextStyle(
                         font: serifFont,
-                        fontSize: 18,
+                        fontSize: 24,
                         fontWeight: pw.FontWeight.bold,
                         color: accentColor,
                       )
                     : pw.TextStyle(
-                        fontSize: 18,
+                        fontSize: 24,
                         fontWeight: pw.FontWeight.bold,
                         color: accentColor,
                       ),
@@ -380,9 +380,10 @@ List<pw.Widget> defaultReceiptLayout(
     pw.SizedBox(height: 20),
 
     // --- TRANSACTIONS  ---
-    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
       pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text('BILL TO:',
+        pw.Text('BILLED TO:',
             style: pw.TextStyle(
                 fontSize: 10,
                 fontWeight: pw.FontWeight.bold,
@@ -402,6 +403,7 @@ List<pw.Widget> defaultReceiptLayout(
                 fontSize: 10,
                 fontWeight: pw.FontWeight.bold,
                 color: secondaryColor)),
+        pw.SizedBox(height: 4),
         pw.Text('Date: ${DateFormat('MM.dd.yyyy').format(transaction.date)}',
             style: const pw.TextStyle(fontSize: 10)),
         pw.Text('No: #R-$uniqueId', style: const pw.TextStyle(fontSize: 10)),
@@ -409,12 +411,14 @@ List<pw.Widget> defaultReceiptLayout(
     ]),
 
     pw.SizedBox(height: 10),
-    pw.Text(
-      'RECEIPT',
-      style: pw.TextStyle(
-        color: accentColor,
-        fontSize: 14,
-        fontWeight: pw.FontWeight.bold,
+    pw.Center(
+      child: pw.Text(
+        'RECEIPT',
+        style: pw.TextStyle(
+          color: secondaryColor,
+          fontSize: 10,
+          fontWeight: pw.FontWeight.bold,
+        ),
       ),
     ),
 

@@ -12,6 +12,14 @@ import 'package:receipt_bot/layouts/simple_layout.dart';
 import 'package:receipt_bot/models/models.dart';
 
 class PdfService {
+  // Static Caches for Fonts and Logos
+  static Uint8List? _regularFontData;
+  static Uint8List? _boldFontData;
+  static Uint8List? _scriptFontData;
+  static Uint8List? _serifFontData;
+  static Uint8List? _notoFontData;
+  static final Map<String, Uint8List> _logoCache = {};
+
   Future<Uint8List> generateReceipt(
     BusinessProfile profile,
     Transaction transaction, {
@@ -19,31 +27,32 @@ class PdfService {
     int layoutIndex = 0, // 0: Classic, 1: Modern, 2: Minimal
     Organization? org,
   }) async {
-    // Load Fonts
-    final regularFontData =
-        await File('public/fonts/Roboto-VariableFont_wdth,wght.ttf')
-            .readAsBytes();
-    final regularFont = pw.Font.ttf(regularFontData.buffer.asByteData());
+    // Load Fonts (with Caching)
+    _regularFontData ??=
+        await File('public/fonts/Roboto-Regular.ttf').readAsBytes();
+    final regularFont = pw.Font.ttf(_regularFontData!.buffer.asByteData());
 
-    final boldFontData =
-        await File('public/fonts/Roboto-VariableFont_wdth,wght.ttf')
-            .readAsBytes();
-    final boldFont = pw.Font.ttf(boldFontData.buffer.asByteData());
+    _boldFontData ??= await File('public/fonts/Roboto-Bold.ttf').readAsBytes();
+    final boldFont = pw.Font.ttf(_boldFontData!.buffer.asByteData());
+
+    _notoFontData ??=
+        await File('public/fonts/NotoSans-Regular.ttf').readAsBytes();
+    final notoFont = pw.Font.ttf(_notoFontData!.buffer.asByteData());
 
     pw.Font? scriptFont;
     try {
-      final scriptFontData =
-          await File('public/fonts/GreatVibes-Regular.ttf').readAsBytes();
-      scriptFont = pw.Font.ttf(scriptFontData.buffer.asByteData());
+      _scriptFontData ??=
+          await File('public/fonts/DancingScript-Bold.ttf').readAsBytes();
+      scriptFont = pw.Font.ttf(_scriptFontData!.buffer.asByteData());
     } catch (e) {
       print('Warning: Could not load script font: $e');
     }
 
     pw.Font? serifFont;
     try {
-      final serifFontData =
-          await File('public/fonts/Lora-Regular.ttf').readAsBytes();
-      serifFont = pw.Font.ttf(serifFontData.buffer.asByteData());
+      _serifFontData ??=
+          await File('public/fonts/PlayfairDisplay-SemiBold.ttf').readAsBytes();
+      serifFont = pw.Font.ttf(_serifFontData!.buffer.asByteData());
     } catch (e) {
       print('Warning: Could not load serif font: $e');
     }
@@ -60,18 +69,30 @@ class PdfService {
     final usedAccountNumber = org?.accountNumber ?? profile.accountNumber;
     final usedAccountName = org?.accountName ?? profile.accountName;
 
-    // 1. Load Logo
+    // 1. Load Logo (with Caching)
     pw.MemoryImage? logoImage;
-    if (usedLogoUrl != null) {
-      try {
-        final response = await http
-            .get(Uri.parse(usedLogoUrl))
-            .timeout(const Duration(seconds: 5));
-        if (response.statusCode == 200) {
-          logoImage = pw.MemoryImage(response.bodyBytes);
+    if (usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
+      if (_logoCache.containsKey(usedLogoUrl)) {
+        logoImage = pw.MemoryImage(_logoCache[usedLogoUrl]!);
+      } else {
+        try {
+          if (usedLogoUrl.startsWith('http')) {
+            final response = await http
+                .get(Uri.parse(usedLogoUrl))
+                .timeout(const Duration(seconds: 15));
+            if (response.statusCode == 200) {
+              _logoCache[usedLogoUrl] = response.bodyBytes;
+              logoImage = pw.MemoryImage(response.bodyBytes);
+            }
+          } else {
+            // Local file fallback
+            final bytes = await File(usedLogoUrl).readAsBytes();
+            _logoCache[usedLogoUrl] = bytes;
+            logoImage = pw.MemoryImage(bytes);
+          }
+        } catch (e) {
+          print('Error loading logo: $e');
         }
-      } catch (e) {
-        print('Error loading logo: $e');
       }
     }
 
@@ -94,7 +115,11 @@ class PdfService {
 
     pdf.addPage(pw.MultiPage(
       pageTheme: pw.PageTheme(
-        theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
+        theme: pw.ThemeData.withFont(
+          base: regularFont,
+          bold: boldFont,
+          fontFallback: [notoFont],
+        ),
         pageFormat: PdfPageFormat.a5,
         margin: const pw.EdgeInsets.all(20),
         buildBackground: (context) => pw.FullPage(
@@ -317,5 +342,4 @@ class PdfService {
             currencySymbol);
     }
   }
-
 }

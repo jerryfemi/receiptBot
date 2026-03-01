@@ -427,21 +427,21 @@ Future<void> _handleActiveUser(
         );
         // Send Layout 1
         await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Classic', 'image',
-            caption: '1️⃣ Classic (Original standard layout)');
+            'https://dummyimage.com/600x800/fff/000.png&text=Default', 'image',
+            caption: '1️⃣ Default (Original standard layout)');
         // Send Layout 2
         await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Modern', 'image',
-            caption: '2️⃣ Modern (Elegant script font)');
+            'https://dummyimage.com/600x800/fff/000.png&text=Signature', 'image',
+            caption: '2️⃣ Signature (Elegant script font)');
         // Send Layout 3
         await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Minimal', 'image',
-            caption: '3️⃣ Minimal (Strict grid structure)');
+            'https://dummyimage.com/600x800/fff/000.png&text=Simple', 'image',
+            caption: '3️⃣ Simple (Strict grid structure)');
         // Send Layout 4
         await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Standard', 'image',
+            'https://dummyimage.com/600x800/fff/000.png&text=Corporate', 'image',
             caption:
-                '4️⃣ Standard (Premium structured match)\n\nReply with 1, 2, 3, or 4.');
+                '4️⃣ Corporate (Premium structured match)\n\nReply with 1, 2, 3, or 4.');
       } else if (lowerText == '6' ||
           lowerText == 'btn_edit_address' ||
           lowerText == 'address') {
@@ -450,9 +450,32 @@ Future<void> _handleActiveUser(
           from,
           'Okay, send me the **New Business Address**.\n\nType *Cancel* to exit.',
         );
+      } else if (lowerText == '7' ||
+          lowerText == 'btn_edit_currency' ||
+          lowerText == 'currency') {
+        await _firestoreService.updateAction(from, UserAction.selectCurrency);
+
+        const currencies = CountryUtils.supportedCurrencies;
+        final listOptions = currencies
+            .asMap()
+            .entries
+            .map((e) => {
+                  'id': (e.key + 1).toString(),
+                  'title': '${e.value['code']} (${e.value['symbol']})',
+                  'description': e.value['name'].toString(),
+                })
+            .toList();
+
+        await _sendWhatsAppInteractiveList(
+          from,
+          'Select your **Currency**:',
+          'Select Currency',
+          'Currencies',
+          listOptions,
+        );
       } else {
         await _sendWhatsAppMessage(from,
-            'Please select an option from the list or reply with a number (1-6).');
+            'Please select an option from the list or reply with a number (1-7).');
       }
       break;
 
@@ -477,6 +500,25 @@ Future<void> _handleActiveUser(
           await _firestoreService.updateAction(from, UserAction.idle);
           await _sendWhatsAppMessage(from,
               'Currency updated to ${selected['code']} (${selected['symbol']})! ✅');
+
+          // LOOP BACK TO MENU
+          await _firestoreService.updateAction(
+              from, UserAction.editProfileMenu);
+          await _sendWhatsAppInteractiveList(
+            from,
+            'What else would you like to update? 👇',
+            'View Options',
+            'Edit Profile',
+            [
+              {'id': 'btn_edit_name', 'title': 'Business Name'},
+              {'id': 'btn_edit_phone', 'title': 'Phone Number'},
+              {'id': 'btn_edit_bank', 'title': 'Bank Details'},
+              {'id': 'btn_edit_theme', 'title': 'Theme'},
+              {'id': 'btn_edit_layout', 'title': 'Layout'},
+              {'id': 'btn_edit_currency', 'title': 'Currency'},
+              {'id': 'btn_edit_address', 'title': 'Business Address'},
+            ],
+          );
         } catch (e) {
           print('Error updating currency: $e');
           await _sendWhatsAppMessage(
@@ -519,6 +561,7 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_bank', 'title': 'Bank Details'},
             {'id': 'btn_edit_theme', 'title': 'Theme'},
             {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_currency', 'title': 'Currency'},
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
@@ -973,18 +1016,8 @@ Future<bool> _handleGlobalCommands(
   }
 
   if (lower == 'change currency' || lower == 'btn_change_currency') {
-    await _firestoreService.updateAction(from, UserAction.selectCurrency);
-
-    const currencies = CountryUtils.supportedCurrencies;
-    String message = 'Select your currency:\n\n';
-    for (int i = 0; i < currencies.length; i++) {
-      message +=
-          '${i + 1}️⃣ ${currencies[i]['code']} (${currencies[i]['symbol']}) - ${currencies[i]['name']}\n';
-    }
-    message += '\nReply with the number, or type *Cancel* to exit.';
-
-    await _sendWhatsAppMessage(from, message);
-    return true;
+    // Handled in the edit profile section now
+    return false;
   }
 
   if (lower == 'upload logo' || lower == 'btn_edit_logo') {
@@ -1047,11 +1080,15 @@ Future<void> _processReceiptResult(
 
   try {
     // AI Parsing
+    print('DEBUG: Starting Gemini Parse...');
+    final swGemini = Stopwatch()..start();
     final transaction = await _geminiService.parseTransaction(
       text,
       currencySymbol: profile.currencySymbol,
       currencyCode: profile.currencyCode,
     );
+    swGemini.stop();
+    print('DEBUG: Gemini Parse took ${swGemini.elapsedMilliseconds} ms');
 
     // Validate Transaction
     if (transaction.items.isEmpty && transaction.totalAmount == 0) {
@@ -1190,6 +1227,7 @@ Future<void> _handleThemeSelection(
       {'id': 'btn_edit_bank', 'title': 'Bank Details'},
       {'id': 'btn_edit_theme', 'title': 'Theme'},
       {'id': 'btn_edit_layout', 'title': 'Layout'},
+      {'id': 'btn_edit_currency', 'title': 'Currency'},
       {'id': 'btn_edit_address', 'title': 'Business Address'},
     ]);
     return;
@@ -1245,6 +1283,7 @@ Future<void> _handleLayoutSelection(
       {'id': 'btn_edit_bank', 'title': 'Bank Details'},
       {'id': 'btn_edit_theme', 'title': 'Theme'},
       {'id': 'btn_edit_layout', 'title': 'Layout'},
+      {'id': 'btn_edit_currency', 'title': 'Currency'},
       {'id': 'btn_edit_address', 'title': 'Business Address'},
     ]);
     return;
@@ -1268,6 +1307,8 @@ Future<void> _generateAndSendPDF(
       org = await _firestoreService.getOrganization(profile.orgId!);
     }
 
+    print('DEBUG: Starting PDF Generation...');
+    final swPdf = Stopwatch()..start();
     final pdfBytes = await _pdfService.generateReceipt(
       profile, // Still passing profile as fallback/context
       transaction,
@@ -1275,27 +1316,40 @@ Future<void> _generateAndSendPDF(
       layoutIndex: profile.layoutIndex ?? 0,
       org: org,
     );
+    swPdf.stop();
+    print('DEBUG: PDF generation took ${swPdf.elapsedMilliseconds} ms');
 
     // Upload and Send
     final fileName =
         '${transaction.type == TransactionType.invoice ? "invoice" : "receipt"}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+    print('DEBUG: Starting Upload to Firebase Storage...');
+    final swUpload = Stopwatch()..start();
     final pdfUrl = await _firestoreService.uploadFile(
       'receipts/$from/$fileName',
       pdfBytes,
       'application/pdf',
     );
+    swUpload.stop();
+    print('DEBUG: Firebase upload took ${swUpload.elapsedMilliseconds} ms');
 
     await _sendWhatsAppMessage(
       from,
       "Here is your ${transaction.type == TransactionType.invoice ? "Invoice" : "Receipt"}! 👇",
     );
+
+    print('DEBUG: Sending WhatsApp Document...');
+    final swSend = Stopwatch()..start();
     await _sendWhatsAppDocument(from, pdfUrl, fileName);
+    swSend.stop();
+    print(
+        'DEBUG: WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms');
 
     await _firestoreService
         .updateProfileData(from, {'pendingTransaction': ''}); // Clear pending
     await _firestoreService.updateAction(from, UserAction.idle);
-  } catch (e) {
-    print('Error generating PDF: $e');
+  } catch (e, stackTrace) {
+    print('Error generating PDF: $e\nStack trace:\n$stackTrace');
     await _sendWhatsAppMessage(
       from,
       'Failed to generate PDF. Please try again.',
@@ -1546,7 +1600,7 @@ Future<void> _sendHelpMessage(String to) async {
   await _sendWhatsAppMessage(
     to,
     '''
-*How to use Remi* 🤖🧾
+*How to use Remi* 
 
 I can help you create professional Receipts and Invoices quickly!
 

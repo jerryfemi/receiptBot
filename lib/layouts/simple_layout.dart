@@ -65,11 +65,24 @@ List<pw.Widget> simpleInvoice(
                               DateFormat('MM.dd.yyyy').format(transaction.date),
                               style: styleBody),
                         ])),
+                if (transaction.dueDate != null) ...[
+                  pw.Divider(color: PdfColors.black, thickness: 1, height: 1),
+                  pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("DUE DATE", style: styleLabel),
+                            pw.Text(
+                                DateFormat('MM.dd.yyyy')
+                                    .format(transaction.dueDate!),
+                                style: styleBody),
+                          ])),
+                ]
               ]))
         ]),
     pw.SizedBox(height: 30),
 
-    // ADDRESSES: FROM and BILLED TO underneath (split screen)
     pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -84,7 +97,7 @@ List<pw.Widget> simpleInvoice(
                 pw.Text(businessName?.toUpperCase() ?? "BUSINESS NAME",
                     style: serifFont != null
                         ? pw.TextStyle(
-                            font: serifFont, fontSize: 14, color: textColor)
+                            font: serifFont, fontSize: 12, color: textColor)
                         : styleBody),
                 pw.SizedBox(height: 5),
                 if (businessAddress != null && businessAddress.isNotEmpty) ...[
@@ -110,28 +123,30 @@ List<pw.Widget> simpleInvoice(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                pw.Text("BILLED TO :",
-                    style: styleTitle.copyWith(fontSize: 14)),
+                pw.Text("BILL TO :",
+                    style: styleTitle.copyWith(fontSize: 12)),
                 pw.SizedBox(height: 10),
                 pw.Text(transaction.customerName.toUpperCase(),
-                    style: styleBody),
+                    style: serifFont != null
+                    ? pw.TextStyle(font: serifFont,fontSize: 10)
+                    : styleBody),
                 pw.SizedBox(height: 5),
                 if (transaction.customerAddress != null &&
                     transaction.customerAddress!.isNotEmpty) ...[
-                  pw.Text(transaction.customerAddress ?? "", style: styleBody),
+                  pw.Text(transaction.customerAddress ?? "", style:  serifFont != null
+                    ? pw.TextStyle(font: serifFont,fontSize: 10)
+                    :styleBody),
                 ],
                 pw.SizedBox(height: 5),
                 if (transaction.customerPhone != null &&
                     transaction.customerPhone!.isNotEmpty) ...[
-                  pw.Text(transaction.customerPhone ?? "", style: styleBody),
+                  pw.Text(transaction.customerPhone ?? "", style: serifFont != null
+                    ? pw.TextStyle(font: serifFont,fontSize: 10)
+                    :styleBody),
                 ]
               ]))
         ]),
     pw.SizedBox(height: 30),
-
-    pw.Text("ITEMS",
-        style: styleTitle.copyWith(fontSize: 16, color: PdfColors.grey700)),
-    pw.SizedBox(height: 10),
 
     // TABLE: STRICT GRIDS
     pw.Table(
@@ -300,8 +315,8 @@ List<pw.Widget> simpleReceipt(
                       businessName?.toUpperCase() ?? "BUSINESS NAME",
                       style: serifFont != null
                           ? pw.TextStyle(
-                              font: serifFont, fontSize: 32, color: primary)
-                          : styleTitle.copyWith(fontSize: 24),
+                              font: serifFont, fontSize: 26, color: primary)
+                          : styleTitle.copyWith(fontSize: 26),
                     ),
                     if (businessAddress != null &&
                         businessAddress.isNotEmpty) ...[
@@ -331,8 +346,28 @@ List<pw.Widget> simpleReceipt(
             ],
           ),
         ),
-        pw.SizedBox(width: 20),
-        // Right: Receipt Meta
+      ],
+    ),
+    pw.SizedBox(height: 30),
+
+    // BILLED TO Section
+    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text("BILLED TO :", style: styleTitle.copyWith(fontSize: 12)),
+        pw.SizedBox(height: 10),
+        pw.Text(transaction.customerName.toUpperCase(), style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+        pw.SizedBox(height: 5),
+        if (transaction.customerAddress != null &&
+            transaction.customerAddress!.isNotEmpty) ...[
+          pw.Text(transaction.customerAddress ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+        ],
+        pw.SizedBox(height: 5),
+        if (transaction.customerPhone != null &&
+            transaction.customerPhone!.isNotEmpty) ...[
+          pw.Text(transaction.customerPhone ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+        ]
+      ]),// Right: Receipt Meta
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
@@ -356,25 +391,6 @@ List<pw.Widget> simpleReceipt(
             ),
           ],
         ),
-      ],
-    ),
-    pw.SizedBox(height: 30),
-
-    // BILLED TO Section
-    pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text("BILLED TO :", style: styleTitle.copyWith(fontSize: 14)),
-      pw.SizedBox(height: 10),
-      pw.Text(transaction.customerName.toUpperCase(), style: styleBody),
-      pw.SizedBox(height: 5),
-      if (transaction.customerAddress != null &&
-          transaction.customerAddress!.isNotEmpty) ...[
-        pw.Text(transaction.customerAddress ?? "", style: styleBody),
-      ],
-      pw.SizedBox(height: 5),
-      if (transaction.customerPhone != null &&
-          transaction.customerPhone!.isNotEmpty) ...[
-        pw.Text(transaction.customerPhone ?? "", style: styleBody),
-      ]
     ]),
     pw.SizedBox(height: 30),
 

@@ -50,7 +50,7 @@ List<pw.Widget> corporateInvoice(
                     style: serifFont != null
                         ? pw.TextStyle(
                             font: serifFont,
-                            fontSize: 32,
+                            fontSize: 24,
                             color: PdfColors.black)
                         : styleTitle.copyWith(fontSize: 24)),
                 pw.SizedBox(height: 5),
@@ -72,39 +72,64 @@ List<pw.Widget> corporateInvoice(
     pw.SizedBox(height: 30),
     pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text("BILLED TO:", style: styleLabel.copyWith(fontSize: 12)),
+            pw.Text("BILL TO:",
+                style: serifFont != null
+                    ? pw.TextStyle(font: serifFont)
+                    : styleLabel.copyWith(
+                        fontSize: 12,
+                      )),
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
-                style: styleBody.copyWith(fontSize: 12)),
+                style: serifFont != null
+                    ? pw.TextStyle(font: serifFont,fontSize: 10)
+                    : styleBody.copyWith(fontSize: 10)),
             if (transaction.customerAddress != null &&
                 transaction.customerAddress!.isNotEmpty)
-              pw.Text(transaction.customerAddress!, style: styleBody),
+              pw.Text(transaction.customerAddress!,
+                  style: serifFont != null
+                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      : styleBody),
             if (transaction.customerPhone != null &&
                 transaction.customerPhone!.isNotEmpty)
-              pw.Text(transaction.customerPhone!, style: styleBody),
+              pw.Text(transaction.customerPhone!,
+                  style: serifFont != null
+                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      : styleBody),
           ]),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
               pw.Text("INVOICE NO: ", style: styleLabel.copyWith(fontSize: 12)),
-              pw.Text("INV-$uniqueId", style: styleBody.copyWith(fontSize: 12)),
+              pw.Text("INV-$uniqueId",
+                  style: styleBody.copyWith(
+                      fontSize: 10, color: PdfColors.grey700)),
             ]),
             pw.SizedBox(height: 4),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
               pw.Text("DATE: ", style: styleLabel.copyWith(fontSize: 12)),
               pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
                   style: styleBody
-                      .copyWith(fontSize: 12)
+                      .copyWith(fontSize: 10)
                       .copyWith(color: PdfColors.grey700)),
             ]),
+            if (transaction.dueDate != null) ...[
+              pw.SizedBox(height: 4),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("DUE-DATE: ", style: styleLabel.copyWith(fontSize: 12)),
+                pw.Text(DateFormat('MM.dd.yyyy').format(transaction.dueDate!),
+                    style: styleBody
+                        .copyWith(fontSize: 10)
+                        .copyWith(color: PdfColors.grey700)),
+              ]),
+            ]
           ])
         ]),
     pw.SizedBox(height: 30),
     pw.Center(
       child: pw.Text("INVOICE",
-          style: styleTitle.copyWith(fontSize: 14, color: PdfColors.grey600)),
+          style: styleTitle.copyWith(fontSize: 10, color: PdfColors.grey600)),
     ),
     pw.SizedBox(height: 10),
     pw.Table(
@@ -224,19 +249,23 @@ List<pw.Widget> corporateInvoice(
       pw.Text("PAYMENT METHOD:", style: styleLabel),
       pw.SizedBox(height: 5),
       pw.Text("Bank Name: ${bankName ?? transaction.bankName ?? ''}",
-          style: styleBody),
+          style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 2),
-      pw.Text("Account No: ${accountNumber ?? transaction.accountNumber ?? ''}",
-          style: styleBody),
+      pw.Text(
+          "Account Number: ${accountNumber ?? transaction.accountNumber ?? ''}",
+          style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 2),
       pw.Text("Account Name: ${accountName ?? transaction.accountName ?? ''}",
-          style: styleBody),
+          style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 20),
     ] else ...[
       // Default Payment options if missing
-      pw.Text("PAYMENT METHOD:", style: styleLabel),
+      pw.Text("PAYMENT METHOD:",
+          style:
+              serifFont != null ? pw.TextStyle(font: serifFont) : styleLabel),
       pw.SizedBox(height: 5),
-      pw.Text("Cash / Card / Other applicable method", style: styleBody),
+      pw.Text("Cash / Card / Other applicable method",
+          style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 20),
     ],
   ];
@@ -302,7 +331,7 @@ List<pw.Widget> corporateReceipt(
                       businessName?.toUpperCase() ?? "BUSINESS NAME",
                       style: serifFont != null
                           ? pw.TextStyle(
-                              font: serifFont, fontSize: 32, color: primary)
+                              font: serifFont, fontSize: 24, color: primary)
                           : pw.TextStyle(
                               font: boldFont, fontSize: 24, color: primary),
                     ),
@@ -322,31 +351,6 @@ List<pw.Widget> corporateReceipt(
             ],
           ),
         ),
-        pw.SizedBox(width: 20),
-        // Right: Receipt Meta
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.end,
-          children: [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text("RECEIPT NO: ",
-                    style: styleLabel.copyWith(color: PdfColors.black)),
-                pw.Text("R-$uniqueId", style: styleBody),
-              ],
-            ),
-            pw.SizedBox(height: 5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text("date: ",
-                    style: styleLabel.copyWith(color: PdfColors.black)),
-                pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
-                    style: styleBody),
-              ],
-            ),
-          ],
-        ),
       ],
     ),
     pw.SizedBox(height: 30),
@@ -354,25 +358,58 @@ List<pw.Widget> corporateReceipt(
     // BILLED TO Section
     pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text("BILLED TO:", style: styleLabel.copyWith(fontSize: 12)),
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
-                style: styleBody.copyWith(fontSize: 12)),
+                style: serifFont != null
+                    ? pw.TextStyle(font: serifFont, fontSize: 10)
+                    : styleBody.copyWith(fontSize: 10)),
             if (transaction.customerAddress != null &&
                 transaction.customerAddress!.isNotEmpty)
-              pw.Text(transaction.customerAddress ?? "", style: styleBody),
+              pw.Text(transaction.customerAddress ?? "",
+                  style: serifFont != null
+                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      : styleBody),
             if (transaction.customerPhone != null &&
                 transaction.customerPhone!.isNotEmpty)
-              pw.Text(transaction.customerPhone ?? "", style: styleBody),
+              pw.Text(transaction.customerPhone ?? "",
+                  style: serifFont != null
+                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      : styleBody),
           ]),
+
+          // receipt number
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text("RECEIPT NO: ",
+                      style: styleLabel.copyWith(color: PdfColors.black)),
+                  pw.Text("R-$uniqueId", style: styleBody),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text("date: ",
+                      style: styleLabel.copyWith(color: PdfColors.black)),
+                  pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                      style: styleBody),
+                ],
+              ),
+            ],
+          ),
         ]),
     pw.SizedBox(height: 30),
     pw.Center(
       child: pw.Text("RECEIPT",
-          style: styleTitle.copyWith(fontSize: 14, color: PdfColors.grey600)),
+          style: styleTitle.copyWith(fontSize: 10, color: PdfColors.grey600)),
     ),
     pw.SizedBox(height: 10),
     pw.Table(
@@ -485,10 +522,7 @@ List<pw.Widget> corporateReceipt(
                     ]),
               ]))
     ]),
-    pw.SizedBox(height: 30),
-    pw.Text("PAYMENT METHOD:", style: styleLabel),
-    pw.SizedBox(height: 5),
-    pw.Text("CASH/TRANSFER", style: styleBody),
+
     pw.SizedBox(height: 20),
     pw.Center(
         child: pw.Text("Thank you for shopping with ${businessName ?? "us"}.",

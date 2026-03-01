@@ -47,7 +47,6 @@ List<pw.Widget> signatureReceipt(
                   child: pw.Container(
                     height: 80,
                     width: 80,
-                    color: PdfColors.white,
                     child: pw.Image(logoImage, fit: pw.BoxFit.cover),
                   ),
                 ),
@@ -62,7 +61,7 @@ List<pw.Widget> signatureReceipt(
                       style: serifFont != null
                           ? pw.TextStyle(
                               font: serifFont,
-                              fontSize: 32, // Adjusted size for stacked layout
+                              fontSize: 24, // Adjusted size for stacked layout
                               color: primary)
                           : pw.TextStyle(
                               font: boldFont, fontSize: 24, color: primary),
@@ -83,60 +82,74 @@ List<pw.Widget> signatureReceipt(
             ],
           ),
         ),
-        pw.SizedBox(width: 20),
-        // Right: Receipt Meta
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.end,
-          children: [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text("RECEIPT NO: ",
-                    style: styleLabel.copyWith(color: PdfColors.black)),
-                pw.Text(uniqueId, style: styleBody),
-              ],
-            ),
-            pw.SizedBox(height: 5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text("date: ",
-                    style: styleLabel.copyWith(color: PdfColors.black)),
-                pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
-                    style: styleBody),
-              ],
-            ),
-          ],
-        ),
       ],
     ),
     pw.SizedBox(height: 30),
 
     // BILLED TO Section
-    pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text("BILLED TO:", style: styleLabel),
-      pw.SizedBox(height: 5),
-      pw.Text(transaction.customerName,
-          style:
-              styleBody.copyWith(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-      if (transaction.customerAddress != null &&
-          transaction.customerAddress!.isNotEmpty)
-        pw.Text(transaction.customerAddress ?? "",
-            style: styleBody.copyWith(color: PdfColors.grey700)),
-      if (transaction.customerPhone != null &&
-          transaction.customerPhone!.isNotEmpty)
-        pw.Text(transaction.customerPhone ?? "",
-            style: styleBody.copyWith(color: PdfColors.grey700)),
-    ]),
+    pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text("BILLED TO:", style: styleLabel),
+            pw.SizedBox(height: 5),
+            pw.Text(transaction.customerName,
+                style: serifFont != null
+                    ? pw.TextStyle(font: serifFont)
+                    : styleBody.copyWith(
+                        fontWeight: pw.FontWeight.bold, fontSize: 10)),
+            if (transaction.customerAddress != null &&
+                transaction.customerAddress!.isNotEmpty)
+              pw.Text(transaction.customerAddress ?? "",
+                  style: serifFont != null
+                      ? pw.TextStyle(font: serifFont, fontSize: 10)
+                      : styleBody.copyWith(color: PdfColors.grey700)),
+            if (transaction.customerPhone != null &&
+                transaction.customerPhone!.isNotEmpty)
+              pw.Text(transaction.customerPhone ?? "",
+                  style: serifFont != null
+                      ? pw.TextStyle(font: serifFont, fontSize: 10)
+                      : styleBody.copyWith(color: PdfColors.grey700)),
+          ]),
 
-    pw.SizedBox(height: 40),
+          // Right: Receipt Meta
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text("RECEIPT NO: ",
+                      style: styleLabel.copyWith(color: PdfColors.black)),
+                  pw.Text(' R-$uniqueId', style: styleBody),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text("date: ",
+                      style: styleLabel.copyWith(color: PdfColors.black)),
+                  pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                      style: styleBody),
+                ],
+              ),
+            ],
+          ),
+        ]),
 
-    // AIRY TABLE: Only horizontal borders
+    pw.SizedBox(height: 30),
+
+    // TABLE:
     pw.Table(
       border: const pw.TableBorder(
-        top: pw.BorderSide(color: PdfColors.black, width: 1.5),
-        bottom: pw.BorderSide(color: PdfColors.black, width: 1.5),
-        horizontalInside: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        top: pw.BorderSide.none,
+        bottom: pw.BorderSide.none,
+        left: pw.BorderSide.none,
+        right: pw.BorderSide.none,
+        horizontalInside: pw.BorderSide.none,
+        verticalInside: pw.BorderSide.none,
       ),
       columnWidths: {
         0: const pw.FlexColumnWidth(3),
@@ -145,22 +158,39 @@ List<pw.Widget> signatureReceipt(
         3: const pw.FlexColumnWidth(1.5),
       },
       children: [
-        pw.TableRow(children: [
-          _tableHeader('DESCRIPTION',
-              alignment: pw.TextAlign.left, color: PdfColors.black),
-          _tableHeader('UNIT PRICE',
-              alignment: pw.TextAlign.center, color: PdfColors.black),
-          _tableHeader('QTY',
-              alignment: pw.TextAlign.center, color: PdfColors.black),
-          _tableHeader('TOTAL',
-              alignment: pw.TextAlign.right, color: PdfColors.black),
-        ]),
-        ...transaction.items.map((item) {
-          return pw.TableRow(
+        pw.TableRow(
             decoration: const pw.BoxDecoration(
               border: pw.Border(
-                  bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.5)),
+                top: pw.BorderSide(
+                    color: PdfColors.black,
+                    width: 1.5,
+                    style: pw.BorderStyle.solid),
+                bottom: pw.BorderSide(
+                    color: PdfColors.black,
+                    width: 1.5,
+                    style: pw.BorderStyle.solid),
+              ),
             ),
+            children: [
+              pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                  child: _tableHeader('DESCRIPTION',
+                      alignment: pw.TextAlign.left, color: PdfColors.black)),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                  child: _tableHeader('PRICE',
+                      alignment: pw.TextAlign.center, color: PdfColors.black)),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                  child: _tableHeader('QTY',
+                      alignment: pw.TextAlign.center, color: PdfColors.black)),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                  child: _tableHeader('TOTAL',
+                      alignment: pw.TextAlign.right, color: PdfColors.black)),
+            ]),
+        ...transaction.items.map((item) {
+          return pw.TableRow(
             children: [
               pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(
@@ -190,25 +220,33 @@ List<pw.Widget> signatureReceipt(
       ],
     ),
 
-    pw.SizedBox(height: 30),
+    pw.SizedBox(height: 5),
 
     pw.Container(
         decoration: const pw.BoxDecoration(
             border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.black, width: 1.5),
+          top: pw.BorderSide(
+              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.solid),
+          bottom: pw.BorderSide(
+              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.solid),
         )),
         padding: const pw.EdgeInsets.symmetric(vertical: 10),
         child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text("SUBTOTAL",
-                  style: styleLabel.copyWith(color: PdfColors.black)),
-              pw.Text(
-                  formatCurrency(
-                      transaction.transactionTotal - (transaction.tax ?? 0),
-                      currencySymbol),
-                  style: styleBody.copyWith(
-                      fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 8),
+                  child: pw.Text("SUBTOTAL",
+                      style: styleLabel.copyWith(color: PdfColors.black))),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.only(right: 8),
+                  child: pw.Text(
+                      formatCurrency(
+                          transaction.transactionTotal - (transaction.tax ?? 0),
+                          currencySymbol),
+                      style: styleBody.copyWith(
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.black))),
             ])),
     pw.SizedBox(height: 15),
 
@@ -238,13 +276,12 @@ List<pw.Widget> signatureReceipt(
           ])
         ]),
     pw.SizedBox(height: 40),
-    if (scriptFont != null) ...[
+    if (scriptFont != null)
       pw.Center(
-        child: pw.Text("thank you!",
+        child: pw.Text("thank you for shopping $businessName",
             style:
-                pw.TextStyle(font: scriptFont, fontSize: 40, color: primary)),
+                pw.TextStyle(font: scriptFont, fontSize: 10, color: primary)),
       )
-    ]
   ];
 }
 
@@ -270,8 +307,8 @@ List<pw.Widget> signatureInvoice(
   final styleBody =
       pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
   final titleStyle = scriptFont != null
-      ? pw.TextStyle(font: scriptFont, fontSize: 60, color: primary)
-      : pw.TextStyle(font: boldFont, fontSize: 40, color: primary);
+      ? pw.TextStyle(font: scriptFont, fontSize: 26, color: primary)
+      : pw.TextStyle(font: boldFont, fontSize: 26, color: primary);
 
   final uniqueId =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
@@ -289,19 +326,23 @@ List<pw.Widget> signatureInvoice(
             pw.Text("INVOICE",
                 style: titleStyle.copyWith(color: PdfColors.black)),
             pw.SizedBox(height: 20),
-            pw.Text("BILLED TO:", style: styleLabel),
+            pw.Text("BILL TO:", style: styleLabel),
             pw.SizedBox(height: 5),
             pw.Text(transaction.customerName,
                 style: styleBody.copyWith(
-                    fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 10,
+                    font: serifFont)),
             if (transaction.customerAddress != null &&
                 transaction.customerAddress!.isNotEmpty)
               pw.Text(transaction.customerAddress ?? "",
-                  style: styleBody.copyWith(color: PdfColors.grey700)),
+                  style: styleBody.copyWith(
+                      color: PdfColors.grey700, fontSize: 10, font: serifFont)),
             if (transaction.customerPhone != null &&
                 transaction.customerPhone!.isNotEmpty)
               pw.Text(transaction.customerPhone ?? "",
-                  style: styleBody.copyWith(color: PdfColors.grey700)),
+                  style: styleBody.copyWith(
+                      color: PdfColors.grey700, fontSize: 10, font: serifFont)),
             pw.SizedBox(height: 15),
             pw.Container(
                 width: 200,
@@ -340,7 +381,7 @@ List<pw.Widget> signatureInvoice(
       pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
           pw.Text("INVOICE NO: ", style: styleLabel.copyWith(color: primary)),
-          pw.Text(uniqueId, style: styleBody),
+          pw.Text('INV-$uniqueId', style: styleBody),
         ]),
         pw.SizedBox(height: 5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -371,10 +412,12 @@ List<pw.Widget> signatureInvoice(
     pw.SizedBox(height: 40),
     pw.Table(
         border: const pw.TableBorder(
-          top: pw.BorderSide(
-              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.dashed),
-          bottom: pw.BorderSide(
-              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.dashed),
+          top: pw.BorderSide.none,
+          bottom: pw.BorderSide.none,
+          left: pw.BorderSide.none,
+          right: pw.BorderSide.none,
+          horizontalInside: pw.BorderSide.none,
+          verticalInside: pw.BorderSide.none,
         ),
         columnWidths: {
           0: const pw.FlexColumnWidth(3),
@@ -383,43 +426,58 @@ List<pw.Widget> signatureInvoice(
           3: const pw.FlexColumnWidth(1.5),
         },
         children: [
-          pw.TableRow(children: [
-            pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: _tableHeader('DESCRIPTION',
-                    alignment: pw.TextAlign.left, color: PdfColors.black)),
-            pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: _tableHeader('UNIT PRICE',
-                    alignment: pw.TextAlign.center, color: PdfColors.black)),
-            pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: _tableHeader('QTY',
-                    alignment: pw.TextAlign.center, color: PdfColors.black)),
-            pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: _tableHeader('TOTAL',
-                    alignment: pw.TextAlign.right, color: PdfColors.black)),
-          ]),
+          pw.TableRow(
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  top: pw.BorderSide(
+                      color: PdfColors.black,
+                      width: 1.5,
+                      style: pw.BorderStyle.solid),
+                  bottom: pw.BorderSide(
+                      color: PdfColors.black,
+                      width: 1.5,
+                      style: pw.BorderStyle.solid),
+                ),
+              ),
+              children: [
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                    child: _tableHeader('DESCRIPTION',
+                        alignment: pw.TextAlign.left, color: PdfColors.black)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                    child: _tableHeader('PRICE',
+                        alignment: pw.TextAlign.center,
+                        color: PdfColors.black)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                    child: _tableHeader('QTY',
+                        alignment: pw.TextAlign.center,
+                        color: PdfColors.black)),
+                pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                    child: _tableHeader('TOTAL',
+                        alignment: pw.TextAlign.right, color: PdfColors.black)),
+              ]),
           ...transaction.items.map((item) {
             return pw.TableRow(children: [
               pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 0),
+                      vertical: 12, horizontal: 8),
                   child: pw.Text(item.description, style: styleBody)),
               pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 0),
+                      vertical: 12, horizontal: 8),
                   child: pw.Text(formatCurrency(item.amount, currencySymbol),
                       style: styleBody, textAlign: pw.TextAlign.center)),
               pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 0),
+                      vertical: 12, horizontal: 8),
                   child: pw.Text(item.quantity.toString(),
                       style: styleBody, textAlign: pw.TextAlign.center)),
               pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 0),
+                      vertical: 12, horizontal: 8),
                   child: pw.Text(
                       formatCurrency(
                           item.amount * item.quantity, currencySymbol),
@@ -428,24 +486,32 @@ List<pw.Widget> signatureInvoice(
             ]);
           }),
         ]),
+    pw.SizedBox(height: 5),
     pw.Container(
         decoration: const pw.BoxDecoration(
             border: pw.Border(
+          top: pw.BorderSide(
+              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.solid),
           bottom: pw.BorderSide(
-              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.dashed),
+              color: PdfColors.black, width: 1.5, style: pw.BorderStyle.solid),
         )),
         padding: const pw.EdgeInsets.symmetric(vertical: 10),
         child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text("SUBTOTAL",
-                  style: styleLabel.copyWith(color: PdfColors.black)),
-              pw.Text(
-                  formatCurrency(
-                      transaction.transactionTotal - (transaction.tax ?? 0),
-                      currencySymbol),
-                  style: styleBody.copyWith(
-                      fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 8),
+                  child: pw.Text("SUBTOTAL",
+                      style: styleLabel.copyWith(color: PdfColors.black))),
+              pw.Padding(
+                  padding: const pw.EdgeInsets.only(right: 8),
+                  child: pw.Text(
+                      formatCurrency(
+                          transaction.transactionTotal - (transaction.tax ?? 0),
+                          currencySymbol),
+                      style: styleBody.copyWith(
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.black))),
             ])),
     pw.SizedBox(height: 15),
     pw.Row(
@@ -456,6 +522,7 @@ List<pw.Widget> signatureInvoice(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
+                pw.SizedBox(height: 30),
                 if (bankName != null || transaction.bankName != null) ...[
                   pw.Text("PAYMENT OPTIONS:",
                       style: styleLabel.copyWith(
@@ -463,10 +530,12 @@ List<pw.Widget> signatureInvoice(
                           fontSize: 12,
                           fontStyle: pw.FontStyle.italic)),
                   pw.SizedBox(height: 10),
-                  pw.Text(bankName ?? transaction.bankName ?? "",
+                  pw.Text(
+                      'Bank Name: ${bankName ?? transaction.bankName ?? ""}',
                       style: styleBody),
                   pw.SizedBox(height: 3),
-                  pw.Text(accountName ?? transaction.accountName ?? "",
+                  pw.Text(
+                      'Account Name: ${accountName ?? transaction.accountName ?? ""}',
                       style: styleBody),
                   pw.SizedBox(height: 3),
                   pw.Text(
@@ -501,7 +570,7 @@ List<pw.Widget> signatureInvoice(
         children: [
           pw.Text("thank you!",
               style:
-                  pw.TextStyle(font: scriptFont, fontSize: 40, color: primary)),
+                  pw.TextStyle(font: scriptFont, fontSize: 14, color: primary)),
         ],
       )
     ]
