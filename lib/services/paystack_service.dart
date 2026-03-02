@@ -1,0 +1,79 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+
+class PaystackService {
+  final String secretKey;
+  final String baseUrl = 'https://api.paystack.co';
+
+  PaystackService({String? key})
+      : secretKey = key ?? Platform.environment['PAYSTACK_SECRET_KEY'] ?? '' {
+    if (secretKey.isEmpty) {
+      print('Warning: PAYSTACK_SECRET_KEY is missing.');
+    }
+  }
+
+  /// Initializes a transaction and returns the checkout URL and reference.
+  Future<Map<String, String>> initializeTransaction({
+    required String email,
+    required double amount, // Amount in major currency (e.g. NGN)
+    String currency = 'NGN',
+  }) async {
+    final url = Uri.parse('$baseUrl/transaction/initialize');
+
+    // Paystack expects amount in the lowest denomination (e.g., kobo for NGN)
+    final amountInKobo = (amount * 100).toInt();
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $secretKey',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'email': email,
+        'amount': amountInKobo,
+        'currency': currency,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == true) {
+        return {
+          'authorization_url': data['data']['authorization_url'] as String,
+          'reference': data['data']['reference'] as String,
+        };
+      } else {
+        throw Exception(
+            "Paystack API returned false status: ${data['message']}");
+      }
+    } else {
+      throw Exception(
+          'Failed to initialize Paystack transaction: ${response.statusCode} - ${response.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyTransaction(String reference) async {
+    final url = Uri.parse('$baseUrl/transaction/verify/$reference');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $secretKey',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      if (json['status'] == true) {
+        return json['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception("Paystack verify false status: ${json['message']}");
+      }
+    } else {
+      throw Exception(
+          'Failed to verify Paystack transaction: ${response.statusCode}');
+    }
+  }
+}

@@ -87,6 +87,43 @@ class FirestoreService {
     }
   }
 
+  Future<String?> findUserByPaymentReference(String reference) async {
+    await _ensureInitialized();
+
+    final query = RunQueryRequest(
+      structuredQuery: StructuredQuery(
+        from: [CollectionSelector(collectionId: 'users')],
+        where: Filter(
+          fieldFilter: FieldFilter(
+            field: FieldReference(fieldPath: 'pendingPaymentReference'),
+            op: 'EQUAL',
+            value: Value(stringValue: reference),
+          ),
+        ),
+        limit: 1,
+      ),
+    );
+
+    try {
+      final results =
+          await _firestoreApi!.projects.databases.documents.runQuery(
+        query,
+        'projects/$projectId/databases/(default)/documents',
+      );
+
+      for (final result in results) {
+        if (result.document != null) {
+          final namePaths = result.document!.name!.split('/');
+          return namePaths.last;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error finding user by payment reference: $e');
+      return null;
+    }
+  }
+
   // --- ORGANIZATION METHODS ---
 
   Future<Organization?> getOrganization(String orgId) async {
@@ -360,6 +397,12 @@ class FirestoreService {
           : null,
       currencyCode: fields['currencyCode']?.stringValue ?? 'NGN',
       currencySymbol: fields['currencySymbol']?.stringValue ?? '₦',
+      isPremium: fields['isPremium']?.booleanValue ?? false,
+      premiumExpiresAt: fields['premiumExpiresAt']?.timestampValue != null
+          ? DateTime.tryParse(fields['premiumExpiresAt']!.timestampValue!)
+          : null,
+      email: fields['email']?.stringValue,
+      pendingPaymentReference: fields['pendingPaymentReference']?.stringValue,
     );
   }
 
@@ -382,6 +425,10 @@ class FirestoreService {
           : null,
       currencyCode: fields['currencyCode']?.stringValue ?? 'NGN',
       currencySymbol: fields['currencySymbol']?.stringValue ?? '₦',
+      isPremium: fields['isPremium']?.booleanValue ?? false,
+      premiumExpiresAt: fields['premiumExpiresAt']?.timestampValue != null
+          ? DateTime.tryParse(fields['premiumExpiresAt']!.timestampValue!)
+          : null,
     );
   }
 }

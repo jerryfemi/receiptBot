@@ -29,13 +29,22 @@ BusinessProfile _$BusinessProfileFromJson(Map<String, dynamic> json) =>
       layoutIndex: (json['layoutIndex'] as num?)?.toInt() ?? 0,
       currencyCode: json['currencyCode'] as String? ?? 'NGN',
       currencySymbol: json['currencySymbol'] as String? ?? '₦',
+      isPremium: json['isPremium'] as bool? ?? false,
+      premiumExpiresAt: json['premiumExpiresAt'] == null
+          ? null
+          : DateTime.parse(json['premiumExpiresAt'] as String),
+      email: json['email'] as String?,
+      pendingPaymentReference: json['pendingPaymentReference'] as String?,
+      pendingSubscriptionTier: json['pendingSubscriptionTier'] as String?,
+      receiptCount: (json['receiptCount'] as num?)?.toInt() ?? 0,
+      lastReceiptMonth: json['lastReceiptMonth'] as String?,
     );
 
 Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
     <String, dynamic>{
       'phoneNumber': instance.phoneNumber,
       'orgId': instance.orgId,
-      'role': _$UserRoleEnumMap[instance.role],
+      'role': _$UserRoleEnumMap[instance.role]!,
       'status': _$OnboardingStatusEnumMap[instance.status],
       'currentAction': _$UserActionEnumMap[instance.currentAction],
       'businessName': instance.businessName,
@@ -50,6 +59,13 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
       'layoutIndex': instance.layoutIndex,
       'currencyCode': instance.currencyCode,
       'currencySymbol': instance.currencySymbol,
+      'isPremium': instance.isPremium,
+      'premiumExpiresAt': instance.premiumExpiresAt?.toIso8601String(),
+      'email': instance.email,
+      'pendingPaymentReference': instance.pendingPaymentReference,
+      'pendingSubscriptionTier': instance.pendingSubscriptionTier,
+      'receiptCount': instance.receiptCount,
+      'lastReceiptMonth': instance.lastReceiptMonth,
     };
 
 const _$UserRoleEnumMap = {
@@ -81,6 +97,8 @@ const _$UserActionEnumMap = {
   UserAction.editProfileMenu: 'editProfileMenu',
   UserAction.selectCurrency: 'selectCurrency',
   UserAction.awaitingInvoiceBankDetails: 'awaitingInvoiceBankDetails',
+  UserAction.awaitingEmailForUpgrade: 'awaitingEmailForUpgrade',
+  UserAction.selectingSubscriptionPlan: 'selectingSubscriptionPlan',
 };
 
 ReceiptItem _$ReceiptItemFromJson(Map<String, dynamic> json) => ReceiptItem(
@@ -126,7 +144,7 @@ Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
       'totalAmount': instance.totalAmount,
       'amountInWords': instance.amountInWords,
       'date': instance.date.toIso8601String(),
-      'type': _$TransactionTypeEnumMap[instance.type],
+      'type': _$TransactionTypeEnumMap[instance.type]!,
       'dueDate': instance.dueDate?.toIso8601String(),
       'bankName': instance.bankName,
       'accountNumber': instance.accountNumber,
@@ -153,6 +171,10 @@ Organization _$OrganizationFromJson(Map<String, dynamic> json) => Organization(
       layoutIndex: (json['layoutIndex'] as num?)?.toInt() ?? 0,
       currencyCode: json['currencyCode'] as String? ?? 'NGN',
       currencySymbol: json['currencySymbol'] as String? ?? '₦',
+      isPremium: json['isPremium'] as bool? ?? false,
+      premiumExpiresAt: json['premiumExpiresAt'] == null
+          ? null
+          : DateTime.parse(json['premiumExpiresAt'] as String),
     );
 
 Map<String, dynamic> _$OrganizationToJson(Organization instance) =>
@@ -170,4 +192,6 @@ Map<String, dynamic> _$OrganizationToJson(Organization instance) =>
       'layoutIndex': instance.layoutIndex,
       'currencyCode': instance.currencyCode,
       'currencySymbol': instance.currencySymbol,
+      'isPremium': instance.isPremium,
+      'premiumExpiresAt': instance.premiumExpiresAt?.toIso8601String(),
     };

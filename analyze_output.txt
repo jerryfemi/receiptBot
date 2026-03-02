@@ -1,0 +1,8 @@
+﻿Analyzing receipt_bot...
+
+  error - routes\webhook.dart:368:3 - The type 'UserAction' isn't exhaustively matched by the switch cases since it doesn't match the pattern 'UserAction.changeCurrency'. Try adding a default case or cases that match 'UserAction.changeCurrency'. - non_exhaustive_switch_statement
+   info - generate_previews.dart:83:14 - Use of an async 'dart:io' method. Try using the synchronous version of the method. - avoid_slow_async_io
+   info - lib\models\models.g.dart:45:47 - Unnecessary use of a null check ('!'). Try removing the null check. - unnecessary_null_checks
+   info - lib\models\models.g.dart:144:54 - Unnecessary use of a null check ('!'). Try removing the null check. - unnecessary_null_checks
+
+4 issues found.

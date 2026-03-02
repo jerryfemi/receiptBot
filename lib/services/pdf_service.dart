@@ -59,6 +59,11 @@ class PdfService {
 
     final pdf = pw.Document();
 
+    // 0. Enforce Freemium Restrictions
+    if (!profile.isPremium) {
+      layoutIndex = 3; // Force Corporate layout for free tier
+    }
+
     // Determine values correctly from org or fallback
     final usedLogoUrl = org?.logoUrl ?? profile.logoUrl;
     final usedBusinessName = org?.businessName ?? profile.businessName;
@@ -69,9 +74,9 @@ class PdfService {
     final usedAccountNumber = org?.accountNumber ?? profile.accountNumber;
     final usedAccountName = org?.accountName ?? profile.accountName;
 
-    // 1. Load Logo (with Caching)
+    // 1. Load Logo (with Caching) - ONLY for Premium users
     pw.MemoryImage? logoImage;
-    if (usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
+    if (profile.isPremium && usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
       if (_logoCache.containsKey(usedLogoUrl)) {
         logoImage = pw.MemoryImage(_logoCache[usedLogoUrl]!);
       } else {

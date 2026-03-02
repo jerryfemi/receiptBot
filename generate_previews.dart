@@ -12,7 +12,7 @@ void main() async {
   final BusinessProfile profile = BusinessProfile(
     phoneNumber: '1234567890',
     currencyCode: 'USD',
-    currencySymbol: '\$',
+    currencySymbol: r'$',
   );
 
   // We will recreate this object in the loop to pass the layoutIndex
@@ -36,19 +36,19 @@ void main() async {
     ReceiptItem(
         description: 'Installation Service (Hourly)',
         quantity: 4,
-        amount: 75.00),
+        amount: 75),
     ReceiptItem(
         description: 'Extended Warranty - 1 Year', quantity: 1, amount: 99.50),
-    ReceiptItem(description: 'Shipping & Handling', quantity: 1, amount: 15.00),
+    ReceiptItem(description: 'Shipping & Handling', quantity: 1, amount: 15),
   ];
 
   // Calculate total
   double subTotal = 0;
-  for (var i in items) {
+  for (final i in items) {
     subTotal += i.quantity * i.amount;
   }
-  double tax = subTotal * 0.08; // 8% tax
-  double total = subTotal + tax;
+  final tax = subTotal * 0.08; // 8% tax
+  final total = subTotal + tax;
 
   // Create dummy Receipt
   final Transaction receipt = Transaction(

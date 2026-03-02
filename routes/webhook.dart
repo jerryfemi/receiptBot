@@ -3,7 +3,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'dart:convert';
-
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -13,6 +12,7 @@ import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
+import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 
 // Configuration
@@ -27,6 +27,7 @@ final String _geminiApiKey = Platform.environment['GEMINI_API_KEY'] ?? '';
 final _firestoreService = FirestoreService(projectId: _projectId);
 late final GeminiService _geminiService;
 final _pdfService = PdfService();
+final _paystackService = PaystackService();
 bool _servicesInitialized = false;
 
 Future<Response> onRequest(RequestContext context) async {
@@ -304,6 +305,41 @@ Future<void> _handleActiveUser(
   Map<String, dynamic> messageData,
   BusinessProfile profile,
 ) async {
+  // --- HELPER FUNC: FREEMIUM PRE-CHECK ---
+  Future<bool> checkLimit() async {
+    if (profile.isPremium) return true;
+    final now = DateTime.now();
+    final currentMonthStr =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}";
+    int currentCount = profile.receiptCount;
+
+    if (profile.lastReceiptMonth != currentMonthStr) {
+      currentCount = 0;
+    }
+
+    if (currentCount >= 5) {
+      await _firestoreService.updateAction(from, UserAction.idle);
+      await _sendWhatsAppInteractiveList(
+          from,
+          "🚫 **Monthly Limit Reached**\n\nYou have generated 5 free receipts/invoices this month. Tap below to unlock unlimited generations!",
+          "View Plans",
+          "Select Plan", [
+        {
+          'id': 'btn_monthly',
+          'title': 'Monthly Plan',
+          'description': 'Unlimited (₦3,500/mo)'
+        },
+        {
+          'id': 'btn_yearly',
+          'title': 'Annual Plan',
+          'description': 'Save ₦7,000! (₦35,000/yr)'
+        },
+      ]);
+      return false;
+    }
+    return true;
+  }
+
   // 1. IMAGE HANDLING
   if (type == 'image') {
     // A. Priority: Check if we are in a specific flow that needs an image (e.g. Logo Upload)
@@ -313,6 +349,8 @@ Future<void> _handleActiveUser(
     }
     // B. Otherwise: Default to Image Scanning (Receipt Parsing)
     else {
+      if (!(await checkLimit())) return;
+
       await _sendWhatsAppMessage(from, "Scanning image... 🔎");
 
       try {
@@ -374,6 +412,66 @@ Future<void> _handleActiveUser(
     case UserAction.selectLayout:
       await _handleLayoutSelection(from, text, profile);
       break;
+    case UserAction.selectingSubscriptionPlan:
+      final lowerText = text.toLowerCase().trim();
+      if (lowerText != 'btn_monthly' && lowerText != 'btn_yearly') {
+        await _sendWhatsAppMessage(from,
+            "Please select a valid plan using the buttons provided, or type *Cancel* to exit.");
+        return;
+      }
+
+      final plan = lowerText == 'btn_monthly' ? 'monthly' : 'yearly';
+      final priceStr = plan == 'monthly' ? '₦3,500' : '₦35,000';
+
+      await _firestoreService.updateProfileData(from, {
+        'pendingSubscriptionTier': plan,
+        'currentAction': UserAction.awaitingEmailForUpgrade.name,
+      });
+
+      await _sendWhatsAppMessage(from,
+          "Great choice! You've selected the **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan** ($priceStr).\n\nPlease send me your **Email Address** to generate your secure payment link.\n\nType *Cancel* to exit.");
+      break;
+
+    case UserAction.awaitingEmailForUpgrade:
+      final email = text.trim();
+      if (!email.contains('@')) {
+        await _sendWhatsAppMessage(from,
+            "That doesn't look like a valid email. Please reply with a valid email address, or type *Cancel* to exit.");
+        return;
+      }
+      await _sendWhatsAppMessage(
+          from, "Generating your secure payment link... ⏳");
+      try {
+        final plan = profile.pendingSubscriptionTier ?? 'monthly';
+        final amount = plan == 'monthly' ? 3500.0 : 35000.0;
+
+        final result = await _paystackService.initializeTransaction(
+            email: email, amount: amount, currency: 'NGN');
+        final checkoutUrl = result['authorization_url']!;
+        final reference = result['reference']!;
+
+        // Save the reference and email
+        await _firestoreService.updateProfileData(from, {
+          'email': email,
+          'pendingPaymentReference': reference,
+          'currentAction': UserAction
+              .idle.name, // Reset action since they will pay on the web
+        });
+
+        await _sendWhatsAppInteractiveButtons(
+          from,
+          "Click the link below to securely complete your upgrade to Premium! 🚀\n\n$checkoutUrl\n\nOnce paid, you will be automatically upgraded. If it doesn't happen instantly, tap the button below.",
+          [
+            {'id': 'btn_verify_payment', 'title': '✅ Verify Payment'},
+          ],
+        );
+      } catch (e) {
+        print("Paystack initialization error: $e");
+        await _sendWhatsAppMessage(from,
+            "Sorry, there was an issue generating your payment link. Please try again later.");
+        await _firestoreService.updateAction(from, UserAction.idle);
+      }
+      break;
     case UserAction.editProfileMenu:
       if (profile.role != UserRole.admin) {
         await _sendWhatsAppMessage(from, "Only Admins can edit the profile.");
@@ -420,6 +518,17 @@ Future<void> _handleActiveUser(
       } else if (lowerText == '5' ||
           lowerText == 'btn_edit_layout' ||
           lowerText == 'layout') {
+        if (!profile.isPremium) {
+          await _sendWhatsAppMessage(
+            from,
+            "💎 **Premium Feature**\n\nCustom layouts (Modern, Minimal, Signature) are only available for Premium users!\n\nType *Upgrade* to unlock ALL layouts today!",
+          );
+          // Loop back to menu so they aren't stuck
+          await _firestoreService.updateAction(
+              from, UserAction.editProfileMenu);
+          return;
+        }
+
         await _firestoreService.updateAction(from, UserAction.selectLayout);
         await _sendWhatsAppMessage(
           from,
@@ -474,7 +583,7 @@ Future<void> _handleActiveUser(
           'Okay, send me the **New Business Address**.\n\nType *Cancel* to exit.',
         );
       } else if (lowerText == '7' ||
-          lowerText == 'btn_edit_currency' ||
+          lowerText == 'btn_change_currency' ||
           lowerText == 'currency') {
         await _firestoreService.updateAction(from, UserAction.selectCurrency);
 
@@ -498,7 +607,7 @@ Future<void> _handleActiveUser(
         );
       } else {
         await _sendWhatsAppMessage(from,
-            'Please select an option from the list or reply with a number (1-7).');
+            'Please select an option from the list or reply with a number (1-8).');
       }
       break;
 
@@ -520,7 +629,6 @@ Future<void> _handleActiveUser(
             currencySymbol: selected['symbol'],
           );
 
-          await _firestoreService.updateAction(from, UserAction.idle);
           await _sendWhatsAppMessage(from,
               'Currency updated to ${selected['code']} (${selected['symbol']})! ✅');
 
@@ -538,8 +646,9 @@ Future<void> _handleActiveUser(
               {'id': 'btn_edit_bank', 'title': 'Bank Details'},
               {'id': 'btn_edit_theme', 'title': 'Theme'},
               {'id': 'btn_edit_layout', 'title': 'Layout'},
-              {'id': 'btn_edit_currency', 'title': 'Currency'},
               {'id': 'btn_edit_address', 'title': 'Business Address'},
+              {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
+              {'id': 'btn_change_currency', 'title': 'Change Currency'},
             ],
           );
         } catch (e) {
@@ -882,6 +991,118 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
+  if (lower == 'premium' ||
+      lower == 'upgrade' ||
+      lower == 'btn_upgrade' ||
+      lower == '⭐ upgrade to premium') {
+    if (profile.role != UserRole.admin) {
+      await _sendWhatsAppMessage(
+        from,
+        'Only Admins can upgrade the business profile.',
+      );
+      return true;
+    }
+
+    await _firestoreService.updateAction(
+        from, UserAction.selectingSubscriptionPlan);
+
+    await _sendWhatsAppInteractiveList(
+      from,
+      '💎 *Upgrade to Premium*\nUnlock pro layouts, remove watermarks, and get monthly sales reports!\n\nSelect a plan below: 👇',
+      'View Plans',
+      'Select Plan',
+      [
+        {
+          'id': 'btn_monthly',
+          'title': 'Monthly Plan',
+          'description': 'Flexible (₦3,500/mo)'
+        },
+        {
+          'id': 'btn_yearly',
+          'title': 'Annual Plan',
+          'description': 'Save ₦7,000! (₦35,000/yr)'
+        },
+      ],
+    );
+    return true;
+  }
+
+  // Handle Subscription Status check
+  if (lower == 'btn_sub_status' || lower == '💎 subscription status') {
+    if (profile.role != UserRole.admin) {
+      await _sendWhatsAppMessage(from, "Only Admins can view this info.");
+      return true;
+    }
+
+    if (profile.isPremium) {
+      if (profile.premiumExpiresAt != null) {
+        final expiry = profile.premiumExpiresAt!;
+        final daysLeft = expiry.difference(DateTime.now()).inDays;
+        final dateStr = "${expiry.day}/${expiry.month}/${expiry.year}";
+
+        await _sendWhatsAppMessage(from,
+            "💎 **Subscription Active**\n\nYou are currently on the Premium tier.\nYour access expires on *$dateStr* ($daysLeft days remaining).\n\nIf you'd like to extend your time, type *Upgrade*.");
+      } else {
+        await _sendWhatsAppMessage(from,
+            "💎 **Subscription Active**\n\nYou are currently on the Premium tier, however your expiration date could not be read.");
+      }
+    } else {
+      await _sendWhatsAppMessage(from,
+          "You are currently on the **Free Tier**. Upgrade today to unlock pro layouts and remove limits!");
+    }
+    return true;
+  }
+
+  if (lower == 'verify payment' || lower == 'btn_verify_payment') {
+    if (profile.pendingPaymentReference == null ||
+        profile.pendingPaymentReference!.isEmpty) {
+      await _sendWhatsAppMessage(
+        from,
+        "You don't have any pending payments. Type *Upgrade* to start one!",
+      );
+      return true;
+    }
+
+    await _sendWhatsAppMessage(from, "Checking your payment status... ⏳");
+    try {
+      final verifyData = await _paystackService
+          .verifyTransaction(profile.pendingPaymentReference!);
+      final status = verifyData['status'];
+      final amountInKobo = verifyData['amount'] as num;
+
+      if (status == 'success' && amountInKobo >= 200000) {
+        await _firestoreService.updateProfileData(from, {
+          'isPremium': true,
+          'premiumExpiresAt':
+              DateTime.now().add(const Duration(days: 30)).toIso8601String(),
+          'pendingPaymentReference': '',
+        });
+        await _sendWhatsAppMessage(
+          from,
+          "🎉 **Payment Successful!** 🎉\n\nYou are now a Premium user! Enjoy advanced layouts and watermark-free receipts!",
+        );
+      } else if (status == 'success') {
+        final amountNgn = amountInKobo / 100;
+        await _sendWhatsAppMessage(
+          from,
+          "⚠️ **Partial Payment Received** ⚠️\n\nWe received a payment of ₦$amountNgn, but Premium upgrade requires ₦2000. Please contact support to resolve this.",
+        );
+      } else {
+        await _sendWhatsAppMessage(
+          from,
+          "Your payment is still pending or was not successful.\n\nIf you just paid, please wait a minute and try again. If you haven't paid yet, you can still use the payment link provided earlier.",
+        );
+      }
+    } catch (e) {
+      print("Manual verify error: $e");
+      await _sendWhatsAppMessage(
+        from,
+        "Sorry, I couldn't verify your payment right now. Please try again later.",
+      );
+    }
+    return true;
+  }
+
   if (lower.contains('create receipt') || lower == 'btn_create_receipt') {
     await _firestoreService.updateAction(from, UserAction.createReceipt);
     await _sendWhatsAppMessage(
@@ -927,6 +1148,11 @@ Future<bool> _handleGlobalCommands(
       'Settings',
       [
         {
+          'id': 'btn_sub_status',
+          'title': '💎 Subscription Status',
+          'description': 'View plan & expiry'
+        },
+        {
           'id': 'btn_edit_profile',
           'title': 'Edit Profile',
           'description': 'Update business details'
@@ -936,6 +1162,12 @@ Future<bool> _handleGlobalCommands(
           'title': 'Invite Team Member',
           'description': 'Share access with staff'
         },
+        if (!profile.isPremium)
+          {
+            'id': 'btn_upgrade',
+            'title': '⭐ Upgrade to Premium',
+            'description': 'Unlock advanced features'
+          },
         {
           'id': 'help',
           'title': 'Help & Support',
@@ -1093,6 +1325,39 @@ Future<void> _processReceiptResult(
     }
   }
 
+  // --- FREEMIUM CHECK ---
+  if (!profile.isPremium) {
+    final now = DateTime.now();
+    final currentMonthStr =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}";
+    int currentCount = profile.receiptCount;
+
+    if (profile.lastReceiptMonth != currentMonthStr) {
+      currentCount = 0;
+    }
+
+    if (currentCount >= 5) {
+      await _firestoreService.updateAction(from, UserAction.idle);
+      await _sendWhatsAppInteractiveList(
+          from,
+          "🚫 **Monthly Limit Reached**\n\nYou have generated 5 free receipts/invoices this month. Tap below to unlock unlimited generations!",
+          "View Plans",
+          "Select Plan", [
+        {
+          'id': 'btn_monthly',
+          'title': 'Monthly Plan',
+          'description': 'Unlimited (₦3,500/mo)'
+        },
+        {
+          'id': 'btn_yearly',
+          'title': 'Annual Plan',
+          'description': 'Save ₦7,000! (₦35,000/yr)'
+        },
+      ]);
+      return;
+    }
+  }
+
   await _sendWhatsAppMessage(
     from,
     'Generating ${isInvoice ? "Invoice" : "Receipt"}... ⏳',
@@ -1168,11 +1433,7 @@ Future<void> _processReceiptResult(
     // Phase B check: If we have a theme preference, use it.
     if (profile.themeIndex != null) {
       // Direct Generation
-      transaction.type.index; // Just to access it
-      // Note: We might want to mutate the transaction type if isInvoice is true
-      // But transaction already has type from Gemini.
-      // Let's rely on Gemini or force it if needed.
-      // But for now, let's just generate.
+      transaction.type.index;
 
       await _generateAndSendPDF(
         from,
@@ -1376,6 +1637,46 @@ Future<void> _generateAndSendPDF(
     swSend.stop();
     print(
         'DEBUG: WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms');
+
+    // --- FREEMIUM INCREMENT & WARNING ---
+    if (!profile.isPremium) {
+      final now = DateTime.now();
+      final currentMonthStr =
+          "${now.year}-${now.month.toString().padLeft(2, '0')}";
+      final int newCount = (profile.lastReceiptMonth == currentMonthStr)
+          ? profile.receiptCount + 1
+          : 1;
+
+      await _firestoreService.updateProfileData(from, {
+        'receiptCount': newCount,
+        'lastReceiptMonth': currentMonthStr,
+      });
+
+      if (newCount == 4) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        await _sendWhatsAppMessage(from,
+            "⚠️ **Notice:** You have exactly 1 free generation left this month. Type *Upgrade* to unlock unlimited access.");
+      } else if (newCount >= 5) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        await _sendWhatsAppInteractiveList(
+            from,
+            "🎉 You just used your last free receipt for this month!\n\nTo continue generating unlimited professional receipts, tap below to unlock Premium.",
+            "View Plans",
+            "Select Plan", [
+          {
+            'id': 'btn_monthly',
+            'title': 'Monthly Plan',
+            'description': 'Unlimited (₦3,500/mo)'
+          },
+          {
+            'id': 'btn_yearly',
+            'title': 'Annual Plan',
+            'description': 'Save ₦7,000! (₦35,000/yr)'
+          },
+        ]);
+      }
+    }
+    // ------------------------------------
 
     await _firestoreService
         .updateProfileData(from, {'pendingTransaction': ''}); // Clear pending
@@ -1594,6 +1895,16 @@ Future<void> _sendWhatsAppInteractiveList(
     };
   }).toList();
 
+  // --- GLOBAL CANCEL BUTTON ---
+  final hasCancel = listRows.any((r) => r['id'] == 'btn_cancel');
+  if (!hasCancel && listRows.length < 10) {
+    listRows.add({
+      'id': 'btn_cancel',
+      'title': '❌ Cancel',
+      'description': 'Exit to main menu'
+    });
+  }
+
   final body = jsonEncode({
     'messaging_product': 'whatsapp',
     'to': to,
@@ -1635,7 +1946,13 @@ Future<void> _sendWelcomeMessage(String to, BusinessProfile profile) async {
   ];
 
   if (profile.role == UserRole.admin) {
-    buttons.add({'id': 'btn_settings', 'title': '⚙️ Settings'});
+    // If they have a pending payment, prioritize the Verify button
+    if (profile.pendingPaymentReference != null &&
+        profile.pendingPaymentReference!.isNotEmpty) {
+      buttons.add({'id': 'btn_verify_payment', 'title': '✅ Verify Payment'});
+    } else {
+      buttons.add({'id': 'btn_settings', 'title': '⚙️ Settings'});
+    }
   } else {
     buttons.add({'id': 'help', 'title': '❓ Help'});
   }

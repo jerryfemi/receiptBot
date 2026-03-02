@@ -30,6 +30,8 @@ enum UserAction {
   editProfileMenu,
   selectCurrency,
   awaitingInvoiceBankDetails,
+  awaitingEmailForUpgrade,
+  selectingSubscriptionPlan,
 }
 
 enum TransactionType {
@@ -61,6 +63,15 @@ class BusinessProfile {
   final String currencyCode; // e.g. NGN, USD, GBP
   final String currencySymbol; // e.g. ₦, $, £
 
+  final bool isPremium;
+  final DateTime? premiumExpiresAt;
+  final String? email;
+  final String? pendingPaymentReference;
+  final String? pendingSubscriptionTier; // Add the missing field
+  final int receiptCount; // New field for Freemium limit
+  final String?
+      lastReceiptMonth; // New field for Freemium tracking e.g., '2026-03'
+
   BusinessProfile({
     required this.phoneNumber,
     this.orgId,
@@ -79,6 +90,13 @@ class BusinessProfile {
     this.layoutIndex = 0, // Default to layout 0
     this.currencyCode = 'NGN',
     this.currencySymbol = '₦',
+    this.isPremium = false,
+    this.premiumExpiresAt,
+    this.email,
+    this.pendingPaymentReference,
+    this.pendingSubscriptionTier,
+    this.receiptCount = 0,
+    this.lastReceiptMonth,
   });
 
   factory BusinessProfile.fromJson(Map<String, dynamic> json) =>
@@ -104,6 +122,13 @@ class BusinessProfile {
     int? layoutIndex,
     String? currencyCode,
     String? currencySymbol,
+    bool? isPremium,
+    DateTime? premiumExpiresAt,
+    String? email,
+    String? pendingPaymentReference,
+    String? pendingSubscriptionTier,
+    int? receiptCount,
+    String? lastReceiptMonth,
   }) {
     return BusinessProfile(
       phoneNumber: phoneNumber ?? this.phoneNumber,
@@ -123,6 +148,15 @@ class BusinessProfile {
       layoutIndex: layoutIndex ?? this.layoutIndex,
       currencyCode: currencyCode ?? this.currencyCode,
       currencySymbol: currencySymbol ?? this.currencySymbol,
+      isPremium: isPremium ?? this.isPremium,
+      premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
+      email: email ?? this.email,
+      pendingPaymentReference:
+          pendingPaymentReference ?? this.pendingPaymentReference,
+      pendingSubscriptionTier:
+          pendingSubscriptionTier ?? this.pendingSubscriptionTier,
+      receiptCount: receiptCount ?? this.receiptCount,
+      lastReceiptMonth: lastReceiptMonth ?? this.lastReceiptMonth,
     );
   }
 }
@@ -215,6 +249,8 @@ class Organization {
   final int? layoutIndex; // New field for physical layout structure
   final String currencyCode;
   final String currencySymbol;
+  final bool isPremium;
+  final DateTime? premiumExpiresAt;
 
   Organization({
     required this.id,
@@ -230,6 +266,8 @@ class Organization {
     this.layoutIndex = 0, // Default to layout 0
     this.currencyCode = 'NGN',
     this.currencySymbol = '₦',
+    this.isPremium = false,
+    this.premiumExpiresAt,
   });
 
   factory Organization.fromJson(Map<String, dynamic> json) =>
@@ -249,6 +287,8 @@ class Organization {
     int? layoutIndex,
     String? currencyCode,
     String? currencySymbol,
+    bool? isPremium,
+    DateTime? premiumExpiresAt,
   }) {
     return Organization(
       id: id,
@@ -264,6 +304,8 @@ class Organization {
       layoutIndex: layoutIndex ?? this.layoutIndex,
       currencyCode: currencyCode ?? this.currencyCode,
       currencySymbol: currencySymbol ?? this.currencySymbol,
+      isPremium: isPremium ?? this.isPremium,
+      premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
     );
   }
 }
