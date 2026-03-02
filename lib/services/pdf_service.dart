@@ -23,8 +23,8 @@ class PdfService {
   Future<Uint8List> generateReceipt(
     BusinessProfile profile,
     Transaction transaction, {
-    int themeIndex = 0, // 0: B&W, 1: Beige, 2: Blue
-    int layoutIndex = 0, // 0: Classic, 1: Modern, 2: Minimal
+    int themeIndex = 0, // 0: B&W, 1: Beige,
+    int layoutIndex = 3, // Default to Corporate (3)
     Organization? org,
   }) async {
     // Load Fonts (with Caching)

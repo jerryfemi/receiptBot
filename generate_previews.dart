@@ -32,7 +32,7 @@ void main() async {
   // Create dummy items
   final List<ReceiptItem> items = [
     ReceiptItem(
-        description: 'Premium Widget Model X', quantity: 2, amount: 49.99),
+        description: 'Premium Widget Model X', quantity: 2, amount: 499.99),
     ReceiptItem(
         description: 'Installation Service (Hourly)',
         quantity: 4,

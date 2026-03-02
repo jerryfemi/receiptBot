@@ -280,7 +280,7 @@ List<pw.Widget> signatureReceipt(
       pw.Center(
         child: pw.Text("thank you for shopping $businessName",
             style:
-                pw.TextStyle(font: scriptFont, fontSize: 10, color: primary)),
+                pw.TextStyle(font: scriptFont, fontSize: 16, color: primary)),
       )
   ];
 }
@@ -514,15 +514,37 @@ List<pw.Widget> signatureInvoice(
                           color: PdfColors.black))),
             ])),
     pw.SizedBox(height: 15),
+    // Totals Section (Right Aligned)
+    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+          pw.Text("Tax", style: styleLabel),
+          pw.SizedBox(width: 30),
+          pw.Text(formatCurrency(transaction.tax ?? 0, currencySymbol),
+              style: styleBody),
+        ]),
+        pw.SizedBox(height: 5),
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+          pw.Text("TOTAL",
+              style: styleLabel.copyWith(color: PdfColors.black, fontSize: 12)),
+          pw.SizedBox(width: 30),
+          pw.Text(formatCurrency(transaction.transactionTotal, currencySymbol),
+              style: styleBody.copyWith(
+                  fontWeight: pw.FontWeight.bold, fontSize: 12)),
+        ]),
+      ])
+    ]),
+    pw.SizedBox(height: 40),
+    // Footer Section: Payment Options (Left) and Thank You (Right)
     pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        crossAxisAlignment: pw.CrossAxisAlignment.end,
         children: [
+          // Payment Options
           pw.Expanded(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                pw.SizedBox(height: 30),
                 if (bankName != null || transaction.bankName != null) ...[
                   pw.Text("PAYMENT OPTIONS:",
                       style: styleLabel.copyWith(
@@ -543,37 +565,15 @@ List<pw.Widget> signatureInvoice(
                       style: styleBody),
                 ]
               ])),
-          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-              pw.Text("Tax", style: styleLabel),
-              pw.SizedBox(width: 30),
-              pw.Text(formatCurrency(transaction.tax ?? 0, currencySymbol),
-                  style: styleBody),
-            ]),
-            pw.SizedBox(height: 5),
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-              pw.Text("TOTAL",
-                  style: styleLabel.copyWith(
-                      color: PdfColors.black, fontSize: 12)),
-              pw.SizedBox(width: 30),
-              pw.Text(
-                  formatCurrency(transaction.transactionTotal, currencySymbol),
-                  style: styleBody.copyWith(
-                      fontWeight: pw.FontWeight.bold, fontSize: 12)),
-            ]),
-          ])
-        ]),
-    if (scriptFont != null) ...[
-      pw.SizedBox(height: 40),
-      pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.end,
-        children: [
-          pw.Text("thank you!",
-              style:
-                  pw.TextStyle(font: scriptFont, fontSize: 14, color: primary)),
-        ],
-      )
-    ]
+          // Thank You Message
+          if (scriptFont != null)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(left: 20),
+              child: pw.Text("thank you!",
+                  style: pw.TextStyle(
+                      font: scriptFont, fontSize: 18, color: primary)),
+            )
+        ])
   ];
 }
 

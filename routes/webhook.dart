@@ -425,23 +425,46 @@ Future<void> _handleActiveUser(
           from,
           "Please select a **Layout Structure**.",
         );
-        // Send Layout 1
-        await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Default', 'image',
-            caption: '1️⃣ Default (Original standard layout)');
+
+        // Send Layout 1 (Corporate)
+        await _sendWhatsAppInteractiveMedia(
+            from,
+            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fstandard.png?alt=media',
+            'image',
+            bodyText: '1️⃣ Corporate (Premium & High-Impact) ⭐ Recommended',
+            buttons: [
+              {'id': 'theme_layout_4', 'title': 'Select Corporate'}
+            ]);
+
         // Send Layout 2
-        await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Signature', 'image',
-            caption: '2️⃣ Signature (Elegant script font)');
+        await _sendWhatsAppInteractiveMedia(
+            from,
+            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fsignature.png?alt=media',
+            'image',
+            bodyText: '2️⃣ Signature (Elegant script font)',
+            buttons: [
+              {'id': 'theme_layout_2', 'title': 'Select Signature'}
+            ]);
+
         // Send Layout 3
-        await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Simple', 'image',
-            caption: '3️⃣ Simple (Strict grid structure)');
+        await _sendWhatsAppInteractiveMedia(
+            from,
+            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fsimple.png?alt=media',
+            'image',
+            bodyText: '3️⃣ Simple (Strict grid structure)',
+            buttons: [
+              {'id': 'theme_layout_3', 'title': 'Select Simple'}
+            ]);
+
         // Send Layout 4
-        await _sendWhatsAppMedia(from,
-            'https://dummyimage.com/600x800/fff/000.png&text=Corporate', 'image',
-            caption:
-                '4️⃣ Corporate (Premium structured match)\n\nReply with 1, 2, 3, or 4.');
+        await _sendWhatsAppInteractiveMedia(
+            from,
+            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fclassic.png?alt=media',
+            'image',
+            bodyText: '4️⃣ Legacy (default plain layout)',
+            buttons: [
+              {'id': 'theme_layout_1', 'title': 'Select Legacy'}
+            ]);
       } else if (lowerText == '6' ||
           lowerText == 'btn_edit_address' ||
           lowerText == 'address') {
@@ -1246,20 +1269,29 @@ Future<void> _handleLayoutSelection(
   int? layoutIndex;
 
   final lower = body.toLowerCase().trim();
-  if (lower == '1' || lower == 'classic') {
+  if (lower == 'theme_layout_1' ||
+      lower == '1' ||
+      lower == 'legacy' ||
+      lower == 'default' ||
+      lower == 'classic') {
     layoutIndex = 0;
-  } else if (lower == '2' || lower == 'modern' || lower == 'circle') {
+  } else if (lower == 'theme_layout_2' ||
+      lower == '2' ||
+      lower == 'signature') {
     layoutIndex = 1;
-  } else if (lower == '3' || lower == 'minimal' || lower == 'grid') {
+  } else if (lower == 'theme_layout_3' || lower == '3' || lower == 'simple') {
     layoutIndex = 2;
-  } else if (lower == '4' || lower == 'standard' || lower == 'premium') {
+  } else if (lower == 'theme_layout_4' ||
+      lower == '4' ||
+      lower == 'corporate' ||
+      lower == 'standard') {
     layoutIndex = 3;
   }
 
   if (layoutIndex == null) {
     await _sendWhatsAppMessage(
       from,
-      'Please reply with 1, 2, 3, or 4 to select a layout structure.',
+      'Please select an option from the menu, or reply with 1, 2, 3, or 4.',
     );
     return;
   }
@@ -1313,7 +1345,7 @@ Future<void> _generateAndSendPDF(
       profile, // Still passing profile as fallback/context
       transaction,
       themeIndex: themeIndex,
-      layoutIndex: profile.layoutIndex ?? 0,
+      layoutIndex: profile.layoutIndex ?? 3,
       org: org,
     );
     swPdf.stop();
@@ -1410,44 +1442,6 @@ Future<List<int>> _downloadFileBytes(String url) async {
   }
 }
 
-Future<void> _sendWhatsAppMedia(
-  String to,
-  String mediaUrl,
-  String mediaType, {
-  String? caption,
-}) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-
-  final Map<String, dynamic> mediaPayload = {
-    'link': mediaUrl,
-  };
-
-  if (caption != null) {
-    mediaPayload['caption'] = caption;
-  }
-
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': mediaType,
-    mediaType: mediaPayload,
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send WhatsApp media: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending WhatsApp media: $e');
-  }
-}
-
 Future<void> _sendWhatsAppDocument(
   String to,
   String mediaUrl,
@@ -1477,6 +1471,59 @@ Future<void> _sendWhatsAppDocument(
     }
   } catch (e) {
     print('Error sending WhatsApp document: $e');
+  }
+}
+
+Future<void> _sendWhatsAppInteractiveMedia(
+  String to,
+  String mediaUrl,
+  String mediaType, {
+  required String bodyText,
+  required List<Map<String, String>> buttons,
+}) async {
+  final url =
+      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
+  final headers = {
+    'Authorization': 'Bearer $_whatsappToken',
+    'Content-Type': 'application/json',
+  };
+
+  final actionButtons = buttons.map((b) {
+    return {
+      'type': 'reply',
+      'reply': {
+        'id': b['id'],
+        'title': b['title'],
+      }
+    };
+  }).toList();
+
+  final body = jsonEncode({
+    'messaging_product': 'whatsapp',
+    'to': to,
+    'type': 'interactive',
+    'interactive': {
+      'type': 'button',
+      'header': {
+        'type': mediaType,
+        mediaType: {
+          'link': mediaUrl,
+        }
+      },
+      'body': {'text': bodyText},
+      'action': {
+        'buttons': actionButtons,
+      }
+    }
+  });
+
+  try {
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode != 200) {
+      print('Failed to send interactive media: ${response.body}');
+    }
+  } catch (e) {
+    print('Error sending interactive media: $e');
   }
 }
 
