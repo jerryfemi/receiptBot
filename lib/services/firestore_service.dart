@@ -243,6 +243,59 @@ class FirestoreService {
     );
   }
 
+  Future<List<BusinessProfile>> getTeamMembers(String orgId) async {
+    await _ensureInitialized();
+
+    final query = RunQueryRequest(
+      structuredQuery: StructuredQuery(
+        from: [CollectionSelector(collectionId: 'users')],
+        where: Filter(
+          fieldFilter: FieldFilter(
+            field: FieldReference(fieldPath: 'orgId'),
+            op: 'EQUAL',
+            value: Value(stringValue: orgId),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final results =
+          await _firestoreApi!.projects.databases.documents.runQuery(
+        query,
+        'projects/$projectId/databases/(default)/documents',
+      );
+
+      final members = <BusinessProfile>[];
+      for (final result in results) {
+        if (result.document != null && result.document!.fields != null) {
+          final namePaths = result.document!.name!.split('/');
+          final phone = namePaths.last;
+          members.add(_profileFromFields(result.document!.fields!, phone));
+        }
+      }
+      return members;
+    } catch (e) {
+      print('Error finding team members by orgId: $e');
+      return [];
+    }
+  }
+
+  Future<void> removeTeamMember(String phoneNumber) async {
+    await _ensureInitialized();
+    final fields = <String, Value>{
+      'orgId': Value(stringValue: ''), // Clear orgId
+      'role': Value(stringValue: UserRole.admin.name), // Reset to admin
+      'currentAction': Value(stringValue: UserAction.idle.name),
+    };
+
+    await _firestoreApi!.projects.databases.documents.patch(
+      Document(fields: fields),
+      _userPath(phoneNumber),
+      updateMask_fieldPaths: fields.keys.toList(),
+    );
+  }
+
   Future<void> updateOnboardingStep(
     String phoneNumber,
     OnboardingStatus status, {
@@ -403,6 +456,12 @@ class FirestoreService {
           : null,
       email: fields['email']?.stringValue,
       pendingPaymentReference: fields['pendingPaymentReference']?.stringValue,
+      pendingSubscriptionTier: fields['pendingSubscriptionTier']?.stringValue,
+      receiptCount: fields['receiptCount']?.integerValue != null
+          ? int.tryParse(fields['receiptCount']!.integerValue!) ?? 0
+          : 0,
+      lastReceiptMonth: fields['lastReceiptMonth']?.stringValue,
+      hasSeenPremiumTip: fields['hasSeenPremiumTip']?.booleanValue ?? false,
     );
   }
 

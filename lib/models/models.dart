@@ -10,7 +10,6 @@ enum OnboardingStatus {
   awaiting_invite_code,
   awaiting_address,
   awaiting_phone,
-  awaiting_logo,
   active,
 }
 
@@ -32,6 +31,7 @@ enum UserAction {
   awaitingInvoiceBankDetails,
   awaitingEmailForUpgrade,
   selectingSubscriptionPlan,
+  removeTeamMember,
 }
 
 enum TransactionType {
@@ -71,6 +71,7 @@ class BusinessProfile {
   final int receiptCount; // New field for Freemium limit
   final String?
       lastReceiptMonth; // New field for Freemium tracking e.g., '2026-03'
+  final bool hasSeenPremiumTip; // Tracks if they saw the post-receipt tip
 
   BusinessProfile({
     required this.phoneNumber,
@@ -97,6 +98,7 @@ class BusinessProfile {
     this.pendingSubscriptionTier,
     this.receiptCount = 0,
     this.lastReceiptMonth,
+    this.hasSeenPremiumTip = false,
   });
 
   factory BusinessProfile.fromJson(Map<String, dynamic> json) =>
@@ -129,6 +131,7 @@ class BusinessProfile {
     String? pendingSubscriptionTier,
     int? receiptCount,
     String? lastReceiptMonth,
+    bool? hasSeenPremiumTip,
   }) {
     return BusinessProfile(
       phoneNumber: phoneNumber ?? this.phoneNumber,
@@ -157,6 +160,7 @@ class BusinessProfile {
           pendingSubscriptionTier ?? this.pendingSubscriptionTier,
       receiptCount: receiptCount ?? this.receiptCount,
       lastReceiptMonth: lastReceiptMonth ?? this.lastReceiptMonth,
+      hasSeenPremiumTip: hasSeenPremiumTip ?? this.hasSeenPremiumTip,
     );
   }
 }

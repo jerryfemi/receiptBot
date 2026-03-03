@@ -125,15 +125,6 @@ Future<void> _handleMessage(
         currencyCode: currencyInfo.code,
         currencySymbol: currencyInfo.symbol,
       );
-      // 3. New User Flow (Start)
-      if (profile.status == OnboardingStatus.new_user) {
-        await _sendWhatsAppMessage(from,
-            "Welcome! \n\nI can help you generate professional Receipts & Invoices internally.\n\nAre you here to:\n1️⃣ Create your own Business Profile\n2️⃣ Join a Team via Invite Code\n\nReply with 1 or 2.");
-
-        await _firestoreService.updateOnboardingStep(
-            from, OnboardingStatus.awaiting_setup_choice);
-        return;
-      }
     }
 
     // 2. State Machine
@@ -222,7 +213,7 @@ Future<void> _handleMessage(
       case OnboardingStatus.awaiting_phone:
         await _firestoreService.updateOnboardingStep(
           from,
-          OnboardingStatus.awaiting_logo,
+          OnboardingStatus.active,
           data: {'businessAddress': text},
         );
         if (profile.orgId != null) {
@@ -231,60 +222,20 @@ Future<void> _handleMessage(
             {'businessAddress': text},
           );
         }
-        await _sendWhatsAppMessage(
-          from,
-          "Almost done! Please upload a transparent **PNG of your Business Logo**.\n\nType *Skip* if you don't have one, or *Cancel* to exit.",
-        );
-        break;
-
-      case OnboardingStatus.awaiting_logo:
-        if (type == 'image' || type == 'document') {
-          // Handle Image or Document Upload
-          final mediaId = type == 'image'
-              ? messageData['image']['id']
-              : messageData['document']['id'];
-          // 1. Get WhatsApp URL
-          final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
-
-          // 2. Download Bytes
-          final bytes = await _downloadFileBytes(tempUrl);
-
-          // 3. Upload to Cloud Storage
-          final publicUrl = await _firestoreService.uploadFile(
-            'logos/$from.jpg',
-            bytes,
-            'image/jpeg',
-          );
-
-          await _firestoreService.saveLogoUrl(from, publicUrl);
-          if (profile.orgId != null) {
-            await _firestoreService.updateOrganizationData(
-              profile.orgId!,
-              {'logoUrl': publicUrl},
-            );
-          }
-
-          await _sendWhatsAppMessage(
-            from,
-            "Setup Complete! 🎉\n\nYou can now create receipts and invoices.\n\n🔹 Type *Create Receipt* to make a receipt\n🔹 Type *Create Invoice* to make an invoice\n🔹 Type *Menu* to see quick actions\n🔹 Type *Help* for more info",
-          );
-        } else if (text.toLowerCase() == 'skip') {
-          // SKIP LOGO
-          await _firestoreService.updateOnboardingStep(
-            from,
-            OnboardingStatus.active,
-            data: {'logoUrl': null}, // Ensure it's null
-          );
-          await _sendWhatsAppMessage(
-            from,
-            "Setup Complete! 🎉\n\nYou can now create receipts and invoices.\n\n🔹 Type *Create Receipt* to make a receipt\n🔹 Type *Create Invoice* to make an invoice\n🔹 Type *Menu* to see quick actions\n🔹 Type *Help* for more info",
-          );
+        final List<Map<String, String>> buttons = [
+          {'id': 'btn_create_receipt', 'title': '🧾 Receipt'},
+          {'id': 'btn_create_invoice', 'title': '📄 Invoice'},
+        ];
+        if (profile.role == UserRole.admin) {
+          buttons.add({'id': 'btn_settings', 'title': '⚙️ Settings'});
         } else {
-          await _sendWhatsAppMessage(
-            from,
-            'Please send an **image or document** for your logo, or type *Skip* to proceed without one.',
-          );
+          buttons.add({'id': 'help', 'title': '❓ Help'});
         }
+        await _sendWhatsAppInteractiveButtons(
+          from,
+          'Setup Complete! 🎉\n\nYou can now create receipts and invoices.\n\n💡 *Pro Tip:* You can tap the buttons below, or simply type *"Create Receipt"*, *"Menu"*, or *"Help"* at any time!\n\n_What would you like to do first?_',
+          buttons,
+        );
         break;
 
       case OnboardingStatus.active:
@@ -343,8 +294,7 @@ Future<void> _handleActiveUser(
   // 1. IMAGE HANDLING
   if (type == 'image') {
     // A. Priority: Check if we are in a specific flow that needs an image (e.g. Logo Upload)
-    if (profile.currentAction == UserAction.editLogo ||
-        profile.status == OnboardingStatus.awaiting_logo) {
+    if (profile.currentAction == UserAction.editLogo) {
       // Let the switch statement handle it below
     }
     // B. Otherwise: Default to Image Scanning (Receipt Parsing)
@@ -472,6 +422,39 @@ Future<void> _handleActiveUser(
         await _firestoreService.updateAction(from, UserAction.idle);
       }
       break;
+    case UserAction.removeTeamMember:
+      if (text.toLowerCase().trim() == 'cancel' ||
+          text.toLowerCase().trim() == 'btn_cancel') {
+        await _firestoreService.updateAction(from, UserAction.idle);
+        await _sendWhatsAppMessage(from, 'Action cancelled.');
+        return;
+      }
+
+      if (!text.startsWith('rm_')) {
+        await _sendWhatsAppMessage(from,
+            'Please select a team member from the list or type *Cancel*.');
+        return;
+      }
+
+      final targetPhone = text.replaceFirst('rm_', '');
+      await _sendWhatsAppMessage(from, 'Removing team member... ⏳');
+      try {
+        await _firestoreService.removeTeamMember(targetPhone);
+        await _sendWhatsAppMessage(from, 'Team member removed successfully. ✅');
+
+        // Notify the removed user
+        try {
+          await _sendWhatsAppMessage(targetPhone,
+              'ℹ️ You have been removed from the organization by the Admin. Your account has been reset.');
+        } catch (_) {} // Ignore if notification fails
+      } catch (e) {
+        print('Error removing team member: $e');
+        await _sendWhatsAppMessage(
+            from, '⚠️ Failed to remove team member. Please try again.');
+      }
+      await _firestoreService.updateAction(from, UserAction.idle);
+      break;
+
     case UserAction.editProfileMenu:
       if (profile.role != UserRole.admin) {
         await _sendWhatsAppMessage(from, "Only Admins can edit the profile.");
@@ -519,13 +502,14 @@ Future<void> _handleActiveUser(
           lowerText == 'btn_edit_layout' ||
           lowerText == 'layout') {
         if (!profile.isPremium) {
-          await _sendWhatsAppMessage(
+          await _sendWhatsAppInteractiveButtons(
             from,
-            "💎 **Premium Feature**\n\nCustom layouts (Modern, Minimal, Signature) are only available for Premium users!\n\nType *Upgrade* to unlock ALL layouts today!",
+            "💎 **Premium Feature**\n\nCustom layouts (Modern, Minimal, Signature) are only available for Premium users!",
+            [
+              {'id': 'btn_upgrade', 'title': '⭐ Upgrade'},
+              {'id': 'cancel', 'title': '❌ Cancel'},
+            ],
           );
-          // Loop back to menu so they aren't stuck
-          await _firestoreService.updateAction(
-              from, UserAction.editProfileMenu);
           return;
         }
 
@@ -1022,6 +1006,7 @@ Future<bool> _handleGlobalCommands(
           'title': 'Annual Plan',
           'description': 'Save ₦7,000! (₦35,000/yr)'
         },
+        {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
       ],
     );
     return true;
@@ -1158,9 +1143,9 @@ Future<bool> _handleGlobalCommands(
           'description': 'Update business details'
         },
         {
-          'id': 'btn_invite_team',
-          'title': 'Invite Team Member',
-          'description': 'Share access with staff'
+          'id': 'btn_manage_team',
+          'title': 'Manage Team',
+          'description': 'Invite or remove staff'
         },
         if (!profile.isPremium)
           {
@@ -1238,26 +1223,48 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower == 'invite team member' || lower == 'btn_invite_team') {
+  if (lower == 'manage team' || lower == 'btn_manage_team') {
     if (profile.role != UserRole.admin) {
       await _sendWhatsAppMessage(
         from,
-        'Only Admins can invite team members.',
+        'Only Admins can manage team members.',
       );
       return true;
     }
 
     if (profile.orgId != null) {
+      final teamMembers =
+          await _firestoreService.getTeamMembers(profile.orgId!);
+      // Filter out the admin themselves from the removal list
+      final agents = teamMembers.where((m) => m.phoneNumber != from).toList();
+
+      String message = '👥 *Team Management*\n\n';
+
       final org = await _firestoreService.getOrganization(profile.orgId!);
-      if (org != null) {
-        await _sendWhatsAppMessage(
-          from,
-          'Your Team Invite Code is:\n\n*${org.inviteCode}*\n\nShare this code with your team members so they can join your organization.',
-        );
+      message += 'Your Team Invite Code is:\n*${org?.inviteCode ?? "N/A"}*\n\n';
+
+      if (agents.isEmpty) {
+        message +=
+            'You currently have no other team members.\nShare the code above for them to join!';
+        await _sendWhatsAppMessage(from, message);
       } else {
-        await _sendWhatsAppMessage(
+        message += 'Select a team member to remove:';
+
+        final listOptions = agents.map((agent) {
+          return {
+            'id': 'rm_${agent.phoneNumber}',
+            'title': agent.businessName ?? agent.phoneNumber,
+            'description': 'Remove this member'
+          };
+        }).toList();
+
+        await _firestoreService.updateAction(from, UserAction.removeTeamMember);
+        await _sendWhatsAppInteractiveList(
           from,
-          'Your organization could not be found. Please contact support.',
+          message,
+          'Select Member',
+          'Team Members',
+          listOptions,
         );
       }
     } else {
@@ -1266,7 +1273,6 @@ Future<bool> _handleGlobalCommands(
         'You are not currently part of an organization. Please recreate your profile to get an invite code.',
       );
     }
-
     return true;
   }
 
@@ -1290,6 +1296,7 @@ Future<bool> _handleGlobalCommands(
   }
 
   if (lower.startsWith('cancel') ||
+      lower == 'btn_cancel' ||
       lower == 'exit' ||
       lower.startsWith('quit')) {
     await _firestoreService.updateAction(from, UserAction.idle);
@@ -1674,6 +1681,14 @@ Future<void> _generateAndSendPDF(
             'description': 'Save ₦7,000! (₦35,000/yr)'
           },
         ]);
+      } else if (!profile.hasSeenPremiumTip) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        await _sendWhatsAppMessage(from,
+            "💡 **Tip:** Want your logo on every receipt? Reply with *Upgrade* to unlock custom branding and premium layouts!");
+
+        await _firestoreService.updateProfileData(from, {
+          'hasSeenPremiumTip': true,
+        });
       }
     }
     // ------------------------------------
