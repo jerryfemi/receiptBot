@@ -34,9 +34,7 @@ void main() async {
     ReceiptItem(
         description: 'Premium Widget Model X', quantity: 2, amount: 499.99),
     ReceiptItem(
-        description: 'Installation Service (Hourly)',
-        quantity: 4,
-        amount: 75),
+        description: 'Installation Service (Hourly)', quantity: 4, amount: 75),
     ReceiptItem(
         description: 'Extended Warranty - 1 Year', quantity: 1, amount: 99.50),
     ReceiptItem(description: 'Shipping & Handling', quantity: 1, amount: 15),
@@ -80,8 +78,8 @@ void main() async {
 
   final layouts = ['Default', 'Signature', 'Simple', 'Corporate'];
   final outputDir = Directory('preview_pdfs');
-  if (!await outputDir.exists()) {
-    await outputDir.create();
+  if (!outputDir.existsSync()) {
+    outputDir.createSync();
   }
 
   for (int i = 0; i < layouts.length; i++) {

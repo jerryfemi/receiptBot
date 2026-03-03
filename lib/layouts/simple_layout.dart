@@ -27,12 +27,13 @@ List<pw.Widget> simpleInvoice(
   final styleTitle =
       pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     // HEADER: "INVOICE" Top Left, Meta top right (in a box)
@@ -129,7 +130,7 @@ List<pw.Widget> simpleInvoice(
                 pw.Text(transaction.customerName.toUpperCase(),
                     style: serifFont != null
                     ? pw.TextStyle(font: serifFont,fontSize: 10)
-                    : styleBody),
+                        : styleBody),
                 pw.SizedBox(height: 5),
                 if (transaction.customerAddress != null &&
                     transaction.customerAddress!.isNotEmpty) ...[
@@ -278,12 +279,13 @@ List<pw.Widget> simpleReceipt(
   final styleTitle =
       pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     //  RECEIPT HEADER
@@ -352,46 +354,46 @@ List<pw.Widget> simpleReceipt(
 
     // BILLED TO Section
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text("BILLED TO :", style: styleTitle.copyWith(fontSize: 12)),
-        pw.SizedBox(height: 10),
+        children: [
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text("BILLED TO :", style: styleTitle.copyWith(fontSize: 12)),
+            pw.SizedBox(height: 10),
         pw.Text(transaction.customerName.toUpperCase(), style: styleBody.copyWith(font: serifFont,fontSize: 10)),
-        pw.SizedBox(height: 5),
-        if (transaction.customerAddress != null &&
-            transaction.customerAddress!.isNotEmpty) ...[
-          pw.Text(transaction.customerAddress ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
-        ],
-        pw.SizedBox(height: 5),
-        if (transaction.customerPhone != null &&
-            transaction.customerPhone!.isNotEmpty) ...[
-          pw.Text(transaction.customerPhone ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
-        ]
-      ]),// Right: Receipt Meta
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.end,
-          children: [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text("RECEIPT NO: ",
-                    style: styleLabel.copyWith(color: PdfColors.black)),
-                pw.Text("R-$uniqueId", style: styleBody),
-              ],
-            ),
             pw.SizedBox(height: 5),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text("date: ",
-                    style: styleLabel.copyWith(color: PdfColors.black)),
-                pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
-                    style: styleBody),
-              ],
-            ),
-          ],
-        ),
-    ]),
+            if (transaction.customerAddress != null &&
+                transaction.customerAddress!.isNotEmpty) ...[
+          pw.Text(transaction.customerAddress ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+            ],
+            pw.SizedBox(height: 5),
+            if (transaction.customerPhone != null &&
+                transaction.customerPhone!.isNotEmpty) ...[
+          pw.Text(transaction.customerPhone ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+            ]
+          ]), // Right: Receipt Meta
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text("RECEIPT NO: ",
+                      style: styleLabel.copyWith(color: PdfColors.black)),
+                  pw.Text("R-$uniqueId", style: styleBody),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text("date: ",
+                      style: styleLabel.copyWith(color: PdfColors.black)),
+                  pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                      style: styleBody),
+                ],
+              ),
+            ],
+          ),
+        ]),
     pw.SizedBox(height: 30),
 
     // TABLE: STRICT GRIDS

@@ -453,7 +453,9 @@ class FirestoreService {
       isPremium: fields['isPremium']?.booleanValue ?? false,
       premiumExpiresAt: fields['premiumExpiresAt']?.timestampValue != null
           ? DateTime.tryParse(fields['premiumExpiresAt']!.timestampValue!)
-          : null,
+          : fields['premiumExpiresAt']?.stringValue != null
+              ? DateTime.tryParse(fields['premiumExpiresAt']!.stringValue!)
+              : null,
       email: fields['email']?.stringValue,
       pendingPaymentReference: fields['pendingPaymentReference']?.stringValue,
       pendingSubscriptionTier: fields['pendingSubscriptionTier']?.stringValue,

@@ -87,7 +87,7 @@ Future<Response> onRequest(RequestContext context) async {
         final amountInKobo = verifyData['amount'] as num;
         final email = verifyData['customer']['email'];
 
-        // We expect either 3500 NGN (Monthly) or 35000 NGN (Yearly)
+        // We expect either 350,000 NGN kobo (3,500 NGN Monthly) or 3,500,000 NGN kobo (35,000 NGN Yearly)
         if (status == 'success' && amountInKobo >= 350000) {
           print('Payment Verified for $email. Upgrading profile...');
 
@@ -125,6 +125,7 @@ Future<Response> onRequest(RequestContext context) async {
             // Grant Premium
             await _firestoreService.updateProfileData(phoneNumber, {
               'isPremium': true,
+              'pendingSubscriptionTier': planName,
               'premiumExpiresAt': newExpiryDate.toIso8601String(),
               'pendingPaymentReference': '', // Clear it
             });

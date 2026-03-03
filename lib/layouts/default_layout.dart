@@ -31,12 +31,13 @@ List<pw.Widget> defaultInvoiceLayout(
   const double fsHeader = 10; // Table Headers / Section Titles
   const double fsBody = 10; // Normal Text
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   // Styles
   final styleTitle = pw.TextStyle(
@@ -179,13 +180,16 @@ List<pw.Widget> defaultInvoiceLayout(
               pw.Text("Bill To:",
                   style: styleLabel.copyWith(color: PdfColors.grey700)),
               pw.SizedBox(height: 5),
-              pw.Text(transaction.customerName.toUpperCase(), style: styleBody.copyWith(font: serifFont)),
+              pw.Text(transaction.customerName.toUpperCase(),
+                  style: styleBody.copyWith(font: serifFont)),
               if (transaction.customerAddress != null)
                 pw.Text(transaction.customerAddress!,
-                    style: styleBody.copyWith(color: PdfColors.grey700,font: serifFont)),
+                    style: styleBody.copyWith(
+                        color: PdfColors.grey700, font: serifFont)),
               if (transaction.customerPhone != null)
                 pw.Text(transaction.customerPhone!,
-                    style: styleBody.copyWith(color: PdfColors.grey700,font: serifFont)),
+                    style: styleBody.copyWith(
+                        color: PdfColors.grey700, font: serifFont)),
             ],
           ),
         ),
@@ -310,12 +314,13 @@ List<pw.Widget> defaultReceiptLayout(
   final accentColor = primary; // Use primary color for accent
   const secondaryColor = PdfColors.grey600;
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     // --- HEADER (Left-Aligned Text, Right-Aligned Logo) ---
@@ -380,35 +385,40 @@ List<pw.Widget> defaultReceiptLayout(
     pw.SizedBox(height: 20),
 
     // --- TRANSACTIONS  ---
-    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text('BILLED TO:',
-            style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-                color: secondaryColor)),
-        pw.Text(transaction.customerName,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-        if (transaction.customerAddress != null)
-          pw.Text(transaction.customerAddress!,
-              style: const pw.TextStyle(fontSize: 10)),
-        if (transaction.customerPhone != null)
-          pw.Text(transaction.customerPhone!,
-              style: const pw.TextStyle(fontSize: 10)),
-      ]),
-      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-        pw.Text('RECEIPT INFO:',
-            style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-                color: secondaryColor)),
-        pw.SizedBox(height: 4),
-        pw.Text('Date: ${DateFormat('MM.dd.yyyy').format(transaction.date)}',
-            style: const pw.TextStyle(fontSize: 10)),
-        pw.Text('No: #R-$uniqueId', style: const pw.TextStyle(fontSize: 10)),
-      ]),
-    ]),
+    pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text('BILLED TO:',
+                style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                    color: secondaryColor)),
+            pw.Text(transaction.customerName,
+                style:
+                    pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+            if (transaction.customerAddress != null)
+              pw.Text(transaction.customerAddress!,
+                  style: const pw.TextStyle(fontSize: 10)),
+            if (transaction.customerPhone != null)
+              pw.Text(transaction.customerPhone!,
+                  style: const pw.TextStyle(fontSize: 10)),
+          ]),
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+            pw.Text('RECEIPT INFO:',
+                style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                    color: secondaryColor)),
+            pw.SizedBox(height: 4),
+            pw.Text(
+                'Date: ${DateFormat('MM.dd.yyyy').format(transaction.date)}',
+                style: const pw.TextStyle(fontSize: 10)),
+            pw.Text('No: #R-$uniqueId',
+                style: const pw.TextStyle(fontSize: 10)),
+          ]),
+        ]),
 
     pw.SizedBox(height: 10),
     pw.Center(

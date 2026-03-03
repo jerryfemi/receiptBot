@@ -99,18 +99,40 @@ class GeminiService {
     User Input: "$text"
     ''';
 
-    try {
-      final content = [Content.text(prompt)];
-      final response = await _model.generateContent(content);
+    const maxRetries = 3;
+    int retryCount = 0;
 
-      if (response.text == null) {
-        throw Exception('Gemini returned an empty response.');
+    while (retryCount < maxRetries) {
+      try {
+        final content = [Content.text(prompt)];
+        final response = await _model.generateContent(content);
+
+        if (response.text == null) {
+          throw Exception('Gemini returned an empty response.');
+        }
+        return _cleanAndParseJson(response.text!);
+      } catch (e) {
+        retryCount++;
+        final errorString = e.toString();
+
+        // Check if it's a 503 or 429 error
+        if (errorString.contains('503') || errorString.contains('429')) {
+          print(
+              'Gemini API Error (503/429). Retry $retryCount of $maxRetries...');
+          if (retryCount >= maxRetries) {
+            throw Exception(
+                'GEMINI_BUSY: Google AI servers are temporarily overloaded. Please wait a minute and try again.');
+          }
+          await Future<void>.delayed(
+              Duration(seconds: 2 * retryCount)); // Exponential backoff
+        } else {
+          // If it's another type of error, don't retry, just throw
+          print('Gemini Service Error: $e');
+          rethrow;
+        }
       }
-      return _cleanAndParseJson(response.text!);
-    } catch (e) {
-      print('Gemini Service Error: $e');
-      rethrow;
     }
+    throw Exception('Failed to generate content after retries.');
   }
 
   /// Parses an image (receipt/invoice/handwritten note) into a [Transaction].
@@ -157,16 +179,35 @@ class GeminiService {
       Content.multi([prompt, imagePart])
     ];
 
-    try {
-      final response = await _model.generateContent(content);
-      if (response.text == null) {
-        throw Exception('Gemini returned an empty response for image.');
+    const maxRetries = 3;
+    int retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _model.generateContent(content);
+        if (response.text == null) {
+          throw Exception('Gemini returned an empty response for image.');
+        }
+        return _cleanAndParseJson(response.text!);
+      } catch (e) {
+        retryCount++;
+        final errorString = e.toString();
+
+        if (errorString.contains('503') || errorString.contains('429')) {
+          print(
+              'Gemini Image API Error (503/429). Retry $retryCount of $maxRetries...');
+          if (retryCount >= maxRetries) {
+            throw Exception(
+                'GEMINI_BUSY: Google AI servers are temporarily overloaded. Please wait a minute and try again.');
+          }
+          await Future<void>.delayed(Duration(seconds: 2 * retryCount));
+        } else {
+          print('Gemini Image Parse Error: $e');
+          rethrow; // Throw other errors immediately
+        }
       }
-      return _cleanAndParseJson(response.text!);
-    } catch (e) {
-      print('Gemini Image Parse Error: $e');
-      rethrow;
     }
+    throw Exception('Failed to generate image content after retries.');
   }
 
   // Helper to safely parse Gemini's response
@@ -213,33 +254,53 @@ class GeminiService {
     Return JSON ONLY: {"intent": "chat|createReceipt|createInvoice|help|unknown", "reply": "your friendly response if chat (optional)"}
     """;
 
-    try {
-      final response = await _model.generateContent([Content.text(prompt)]);
+    const maxRetries = 3;
+    int retryCount = 0;
 
-      if (response.text == null) return IntentResult(UserIntent.unknown);
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _model.generateContent([Content.text(prompt)]);
 
-      // Clean markdown if present
-      var cleanText = response.text!.trim();
-      if (cleanText.startsWith('```json')) {
-        cleanText = cleanText.replaceAll('```json', '').replaceAll('```', '');
+        if (response.text == null) return IntentResult(UserIntent.unknown);
+
+        // Clean markdown if present
+        var cleanText = response.text!.trim();
+        if (cleanText.startsWith('```json')) {
+          cleanText = cleanText.replaceAll('```json', '').replaceAll('```', '');
+        }
+        if (cleanText.startsWith('```')) {
+          cleanText = cleanText.replaceAll('```', '');
+        }
+
+        final decoded = jsonDecode(cleanText) as Map<String, dynamic>;
+        final intentString = decoded['intent'] as String?;
+        final reply = decoded['reply'] as String?;
+
+        UserIntent intent = UserIntent.unknown;
+        if (intentString == 'chat') intent = UserIntent.chat;
+        if (intentString == 'createReceipt') intent = UserIntent.createReceipt;
+        if (intentString == 'createInvoice') intent = UserIntent.createInvoice;
+        if (intentString == 'help') intent = UserIntent.help;
+
+        return IntentResult(intent, response: reply);
+      } catch (e) {
+        retryCount++;
+        final errorString = e.toString();
+
+        if (errorString.contains('503') || errorString.contains('429')) {
+          print('Gemini Intent API Error. Retry $retryCount of $maxRetries...');
+          if (retryCount >= maxRetries) {
+            return IntentResult(
+                UserIntent.unknown); // Fallback gracefully if overloaded
+          }
+          await Future<void>.delayed(Duration(seconds: 2 * retryCount));
+        } else {
+          print('Gemini Intent Parse Error: $e');
+          return IntentResult(UserIntent.unknown);
+        }
       }
-      if (cleanText.startsWith('```')) {
-        cleanText = cleanText.replaceAll('```', '');
-      }
-
-      final data = jsonDecode(cleanText);
-      final intentStr = data['intent'] as String;
-
-      final intent = UserIntent.values.firstWhere(
-        (e) => e.name == intentStr,
-        orElse: () => UserIntent.unknown,
-      );
-
-      return IntentResult(intent, response: data['reply'] as String?);
-    } catch (e) {
-      print('Intent classification error: $e');
-      return IntentResult(UserIntent.unknown);
     }
+    return IntentResult(UserIntent.unknown);
   }
 }
 

@@ -24,12 +24,13 @@ List<pw.Widget> signatureReceipt(
       pw.TextStyle(font: regularFont, fontSize: 10, color: textColor);
   // Removed unused titleStyle
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     //  RECEIPT HEADER
@@ -310,12 +311,13 @@ List<pw.Widget> signatureInvoice(
       ? pw.TextStyle(font: scriptFont, fontSize: 26, color: primary)
       : pw.TextStyle(font: boldFont, fontSize: 26, color: primary);
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [

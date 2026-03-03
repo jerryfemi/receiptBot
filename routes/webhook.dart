@@ -185,6 +185,19 @@ Future<void> _handleMessage(
           });
           await _sendWhatsAppMessage(from,
               "Success! 🎉 You are now linked to **${org?.businessName ?? 'your team'}** as a Sales Agent.\n\nYou can now send me receipt details and I will generate them using the company's official template.");
+
+          // Notify Admin
+          final teamMembers = await _firestoreService.getTeamMembers(orgId);
+          final adminPhone = teamMembers
+              .firstWhere((member) => member.role == UserRole.admin,
+                  orElse: () => teamMembers.first)
+              .phoneNumber;
+
+          final agentName = "A new agent ($from)";
+          await _sendWhatsAppMessage(
+            adminPhone,
+            "✅ *New Team Member!*\n$agentName has successfully joined your organization and is now ready to generate receipts and invoices.",
+          );
         } else {
           await _sendWhatsAppMessage(from,
               "Oops, that code is invalid. Please try again or ask your admin for the correct code, or type 'cancel' to restart.");
@@ -335,8 +348,13 @@ Future<void> _handleActiveUser(
         );
       } catch (e) {
         print("Image Scan Error: $e");
-        await _sendWhatsAppMessage(from,
-            "⚠️ I couldn't read that image clearly. Please try sending a clearer photo or type the details.");
+        if (e.toString().contains('GEMINI_BUSY')) {
+          await _sendWhatsAppMessage(from,
+              "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt image again.");
+        } else {
+          await _sendWhatsAppMessage(from,
+              "⚠️ I couldn't read that image clearly. Please try sending a clearer photo or type the details.");
+        }
       }
       return; // Stop here if we scanned
     }
@@ -371,15 +389,29 @@ Future<void> _handleActiveUser(
       }
 
       final plan = lowerText == 'btn_monthly' ? 'monthly' : 'yearly';
-      final priceStr = plan == 'monthly' ? '₦3,500' : '₦35,000';
 
       await _firestoreService.updateProfileData(from, {
         'pendingSubscriptionTier': plan,
         'currentAction': UserAction.awaitingEmailForUpgrade.name,
       });
 
-      await _sendWhatsAppMessage(from,
-          "Great choice! You've selected the **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan** ($priceStr).\n\nPlease send me your **Email Address** to generate your secure payment link.\n\nType *Cancel* to exit.");
+      String pitchText;
+      if (profile.isPremium) {
+        final currentTier =
+            profile.pendingSubscriptionTier?.toLowerCase() ?? '';
+        if (currentTier == plan) {
+          pitchText =
+              "Ready to extend your **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**? Awesome! 🥳\n\nPaystack requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+        } else {
+          pitchText =
+              "Upgrading to the **Annual Plan**? Fantastic choice! 🎉\n\nPaystack requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+        }
+      } else {
+        pitchText =
+            "Amazing choice! 🎉 Let's get you set up on the **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**.\n\nPaystack requires an email address to securely process your receipt. Please reply with your best email address so I can generate your checkout link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+      }
+
+      await _sendWhatsAppMessage(from, pitchText);
       break;
 
     case UserAction.awaitingEmailForUpgrade:
@@ -677,15 +709,23 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_bank', 'title': 'Bank Details'},
             {'id': 'btn_edit_theme', 'title': 'Theme'},
             {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
             {'id': 'btn_edit_currency', 'title': 'Currency'},
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
       } catch (e) {
-        await _sendWhatsAppMessage(
-          from,
-          'Error parsing details. Please try again.',
-        );
+        if (e.toString().contains('GEMINI_BUSY')) {
+          await _sendWhatsAppMessage(
+            from,
+            "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try again.",
+          );
+        } else {
+          await _sendWhatsAppMessage(
+            from,
+            'Error parsing details. Please try again.',
+          );
+        }
       }
       break;
 
@@ -740,10 +780,17 @@ Future<void> _handleActiveUser(
           );
         }
       } catch (e) {
-        await _sendWhatsAppMessage(
-          from,
-          'Error parsing details. Please try again.',
-        );
+        if (e.toString().contains('GEMINI_BUSY')) {
+          await _sendWhatsAppMessage(
+            from,
+            "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try again.",
+          );
+        } else {
+          await _sendWhatsAppMessage(
+            from,
+            'Error parsing details. Please try again.',
+          );
+        }
       }
       break;
 
@@ -775,7 +822,9 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_phone', 'title': 'Phone Number'},
             {'id': 'btn_edit_bank', 'title': 'Bank Details'},
             {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
             {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_Currency', 'title': 'Currency'},
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
@@ -809,6 +858,8 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_bank', 'title': 'Bank Details'},
             {'id': 'btn_edit_theme', 'title': 'Theme'},
             {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_currency', 'title': 'Currency'},
+            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
@@ -843,6 +894,8 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_bank', 'title': 'Bank Details'},
             {'id': 'btn_edit_theme', 'title': 'Theme'},
             {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_currency', 'title': 'Currency'},
+            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
@@ -889,7 +942,9 @@ Future<void> _handleActiveUser(
             {'id': 'btn_edit_phone', 'title': 'Phone Number'},
             {'id': 'btn_edit_bank', 'title': 'Bank Details'},
             {'id': 'btn_edit_theme', 'title': 'Theme'},
+            {'id': 'btn_edit_currency', 'title': 'Currency'},
             {'id': 'btn_edit_layout', 'title': 'Layout'},
+            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
             {'id': 'btn_edit_address', 'title': 'Business Address'},
           ],
         );
@@ -990,25 +1045,73 @@ Future<bool> _handleGlobalCommands(
     await _firestoreService.updateAction(
         from, UserAction.selectingSubscriptionPlan);
 
-    await _sendWhatsAppInteractiveList(
-      from,
-      '💎 *Upgrade to Premium*\nUnlock pro layouts, remove watermarks, and get monthly sales reports!\n\nSelect a plan below: 👇',
-      'View Plans',
-      'Select Plan',
-      [
-        {
-          'id': 'btn_monthly',
-          'title': 'Monthly Plan',
-          'description': 'Flexible (₦3,500/mo)'
-        },
-        {
-          'id': 'btn_yearly',
-          'title': 'Annual Plan',
-          'description': 'Save ₦7,000! (₦35,000/yr)'
-        },
-        {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
-      ],
-    );
+    if (profile.isPremium) {
+      final tierName = profile.pendingSubscriptionTier ?? "Premium";
+      final expiry = profile.premiumExpiresAt;
+      final dateStr = expiry != null
+          ? "${expiry.day}/${expiry.month}/${expiry.year}"
+          : "an unknown date";
+
+      if (tierName.toLowerCase() == 'annual') {
+        // ANNUAL TIER: Only allow extension, no downgrade
+        await _sendWhatsAppInteractiveList(
+          from,
+          '💎 *Manage Subscription*\n\nYou are currently on the *Annual Plan* (Valid until $dateStr).\n\nWould you like to extend your subscription for another year?',
+          'View Options',
+          'Select Option',
+          [
+            {
+              'id': 'btn_yearly',
+              'title': 'Extend Annual',
+              'description': 'Add 365 Days (₦35,000)'
+            },
+            {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
+          ],
+        );
+      } else {
+        // MONTHLY TIER: Allow extension OR upgrade to Annual
+        await _sendWhatsAppInteractiveList(
+          from,
+          '💎 *Manage Subscription*\n\nYou are currently on the **Monthly Plan** (Valid until $dateStr).\n\nWould you like to extend your month, or upgrade to Annual?',
+          'View Options',
+          'Select Option',
+          [
+            {
+              'id': 'btn_monthly',
+              'title': 'Extend Monthly',
+              'description': 'Add 30 Days (₦3,500)'
+            },
+            {
+              'id': 'btn_yearly',
+              'title': 'Upgrade to Annual',
+              'description': 'Save 20%! (₦35,000/yr)'
+            },
+            {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
+          ],
+        );
+      }
+    } else {
+      // FREE TIER: Standard Upgrade Pitch
+      await _sendWhatsAppInteractiveList(
+        from,
+        '💎 *Upgrade to Premium*\nUnlock pro layouts, remove watermarks, and get monthly sales reports!\n\nSelect a plan below: 👇',
+        'View Plans',
+        'Select Plan',
+        [
+          {
+            'id': 'btn_monthly',
+            'title': 'Monthly Plan',
+            'description': 'Flexible (₦3,500/mo)'
+          },
+          {
+            'id': 'btn_yearly',
+            'title': 'Annual Plan',
+            'description': 'Save 20%! (₦35,000/yr)'
+          },
+          {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
+        ],
+      );
+    }
     return true;
   }
 
@@ -1020,16 +1123,17 @@ Future<bool> _handleGlobalCommands(
     }
 
     if (profile.isPremium) {
+      final tierName = profile.pendingSubscriptionTier ?? "Premium";
       if (profile.premiumExpiresAt != null) {
         final expiry = profile.premiumExpiresAt!;
         final daysLeft = expiry.difference(DateTime.now()).inDays;
         final dateStr = "${expiry.day}/${expiry.month}/${expiry.year}";
 
         await _sendWhatsAppMessage(from,
-            "💎 **Subscription Active**\n\nYou are currently on the Premium tier.\nYour access expires on *$dateStr* ($daysLeft days remaining).\n\nIf you'd like to extend your time, type *Upgrade*.");
+            "💎 **Subscription Active**\n\nYou are currently on the *$tierName* tier.\nYour access expires on *$dateStr* ($daysLeft days remaining).\n\nIf you'd like to extend your time, type *Upgrade*.");
       } else {
         await _sendWhatsAppMessage(from,
-            "💎 **Subscription Active**\n\nYou are currently on the Premium tier, however your expiration date could not be read.");
+            "💎 **Subscription Active**\n\nYou are currently on the *$tierName* tier, however your expiration date could not be read.");
       }
     } else {
       await _sendWhatsAppMessage(from,
@@ -1133,11 +1237,6 @@ Future<bool> _handleGlobalCommands(
       'Settings',
       [
         {
-          'id': 'btn_sub_status',
-          'title': '💎 Subscription Status',
-          'description': 'View plan & expiry'
-        },
-        {
           'id': 'btn_edit_profile',
           'title': 'Edit Profile',
           'description': 'Update business details'
@@ -1147,17 +1246,22 @@ Future<bool> _handleGlobalCommands(
           'title': 'Manage Team',
           'description': 'Invite or remove staff'
         },
-        if (!profile.isPremium)
-          {
-            'id': 'btn_upgrade',
-            'title': '⭐ Upgrade to Premium',
-            'description': 'Unlock advanced features'
-          },
         {
           'id': 'help',
           'title': 'Help & Support',
           'description': 'View guide or contact'
         },
+        {
+          'id': 'btn_sub_status',
+          'title': 'Subscription Status',
+          'description': 'View plan & expiry'
+        },
+        if (!profile.isPremium)
+          {
+            'id': 'btn_upgrade',
+            'title': 'Upgrade to Premium',
+            'description': 'Unlock advanced features ⭐'
+          },
       ],
     );
     return true;
@@ -1358,7 +1462,7 @@ Future<void> _processReceiptResult(
         {
           'id': 'btn_yearly',
           'title': 'Annual Plan',
-          'description': 'Save ₦7,000! (₦35,000/yr)'
+          'description': 'Save 20%! (₦35,000/yr)'
         },
       ]);
       return;
@@ -1467,10 +1571,17 @@ Future<void> _processReceiptResult(
     );
   } catch (e) {
     print('Error generating receipt: $e');
-    await _sendWhatsAppMessage(
-      from,
-      "⚠️ Error: I couldn't process that.\n\nDetails: $e\n\nPlease try again or type 'Create Receipt' for help.",
-    );
+    if (e.toString().contains('GEMINI_BUSY')) {
+      await _sendWhatsAppMessage(
+        from,
+        "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt details again.",
+      );
+    } else {
+      await _sendWhatsAppMessage(
+        from,
+        "⚠️ Error: I couldn't process that.\n\nDetails: $e\n\nPlease try again or type 'Create Receipt' for help.",
+      );
+    }
   }
 }
 
@@ -1519,6 +1630,7 @@ Future<void> _handleThemeSelection(
       {'id': 'btn_edit_theme', 'title': 'Theme'},
       {'id': 'btn_edit_layout', 'title': 'Layout'},
       {'id': 'btn_edit_currency', 'title': 'Currency'},
+      {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
       {'id': 'btn_edit_address', 'title': 'Business Address'},
     ]);
     return;
@@ -1584,6 +1696,7 @@ Future<void> _handleLayoutSelection(
       {'id': 'btn_edit_theme', 'title': 'Theme'},
       {'id': 'btn_edit_layout', 'title': 'Layout'},
       {'id': 'btn_edit_currency', 'title': 'Currency'},
+      {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
       {'id': 'btn_edit_address', 'title': 'Business Address'},
     ]);
     return;

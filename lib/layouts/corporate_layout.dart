@@ -30,12 +30,13 @@ List<pw.Widget> corporateInvoice(
   final headerBgColor = PdfColor.fromHex(
       '#F4F1E9'); // Light beige fill color closely matching Image 1
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     pw.Row(
@@ -84,19 +85,19 @@ List<pw.Widget> corporateInvoice(
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
                 style: serifFont != null
-                    ? pw.TextStyle(font: serifFont,fontSize: 10)
+                    ? pw.TextStyle(font: serifFont, fontSize: 10)
                     : styleBody.copyWith(fontSize: 10)),
             if (transaction.customerAddress != null &&
                 transaction.customerAddress!.isNotEmpty)
               pw.Text(transaction.customerAddress!,
                   style: serifFont != null
-                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      ? pw.TextStyle(font: serifFont, fontSize: 10)
                       : styleBody),
             if (transaction.customerPhone != null &&
                 transaction.customerPhone!.isNotEmpty)
               pw.Text(transaction.customerPhone!,
                   style: serifFont != null
-                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      ? pw.TextStyle(font: serifFont, fontSize: 10)
                       : styleBody),
           ]),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
@@ -294,12 +295,13 @@ List<pw.Widget> corporateReceipt(
   final headerBgColor = PdfColor.fromHex(
       '#F4F1E9'); // Light beige fill color closely matching Image 1
 
-  final uniqueId =
+  final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
           .abs()
-          .toString()
-          .padLeft(5, '1')
-          .substring(0, 5);
+          .toString();
+  final uniqueId = uniqueIdString.length >= 5
+      ? uniqueIdString.substring(uniqueIdString.length - 5)
+      : uniqueIdString.padLeft(5, '0');
 
   return [
     // GLOBAL RECEIPT HEADER
@@ -371,13 +373,13 @@ List<pw.Widget> corporateReceipt(
                 transaction.customerAddress!.isNotEmpty)
               pw.Text(transaction.customerAddress ?? "",
                   style: serifFont != null
-                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      ? pw.TextStyle(font: serifFont, fontSize: 10)
                       : styleBody),
             if (transaction.customerPhone != null &&
                 transaction.customerPhone!.isNotEmpty)
               pw.Text(transaction.customerPhone ?? "",
                   style: serifFont != null
-                      ? pw.TextStyle(font: serifFont,fontSize: 10)
+                      ? pw.TextStyle(font: serifFont, fontSize: 10)
                       : styleBody),
           ]),
 
