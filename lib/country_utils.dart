@@ -37,6 +37,36 @@ class CountryUtils {
     return (code: 'USD', symbol: r'$');
   }
 
+  /// Determines if the given phone number belongs to a region supported by Paystack
+  /// (Nigeria, Ghana, Kenya, South Africa). Otherwise, it falls back to international billing (Lemon Squeezy).
+  static bool isPaystackRegion(String phoneNumber) {
+    final cleanPhone = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    return cleanPhone.startsWith('234') || // Nigeria
+        cleanPhone.startsWith('+234') ||
+        cleanPhone.startsWith('233') || // Ghana
+        cleanPhone.startsWith('+233') ||
+        cleanPhone.startsWith('254') || // Kenya
+        cleanPhone.startsWith('+254') ||
+        cleanPhone.startsWith('27') || // South Africa
+        cleanPhone.startsWith('+27') ||
+        cleanPhone.startsWith('225') || // Côte d'Ivoire
+        cleanPhone.startsWith('+225') ||
+        cleanPhone.startsWith('250') || // Rwanda
+        cleanPhone.startsWith('+250') ||
+        cleanPhone.startsWith('221') || // Senegal
+        cleanPhone.startsWith('+221') ||
+        cleanPhone.startsWith('256') || // Uganda
+        cleanPhone.startsWith('+256') ||
+        cleanPhone.startsWith('255') || // Tanzania
+        cleanPhone.startsWith('+255') ||
+        cleanPhone.startsWith('237') || // Cameroon
+        cleanPhone.startsWith('+237') ||
+        cleanPhone.startsWith('260') || // Zambia
+        cleanPhone.startsWith('+260') ||
+        cleanPhone.startsWith('263') || // Zimbabwe
+        cleanPhone.startsWith('+263');
+  }
+
   static const List<Map<String, String>> supportedCurrencies = [
     {'code': 'NGN', 'symbol': '₦', 'name': 'Nigerian Naira'},
     {'code': 'USD', 'symbol': r'$', 'name': 'US Dollar'},
@@ -49,7 +79,6 @@ class CountryUtils {
   ];
 }
 
-
 extension TransactionTotal on Transaction {
   double get transactionTotal {
     final double subtotal =
@@ -58,7 +87,7 @@ extension TransactionTotal on Transaction {
   }
 }
 
-  String formatCurrency(double amount, String symbol) {
-    // Basic comma formatting
-    return '$symbol${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
-  }
+String formatCurrency(double amount, String symbol) {
+  // Basic comma formatting
+  return '$symbol${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+}

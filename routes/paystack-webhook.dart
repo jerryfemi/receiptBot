@@ -6,6 +6,7 @@ import 'package:dart_frog/dart_frog.dart';
 import 'package:http/http.dart' as http;
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
+import 'webhook.dart' as webhook_handler;
 
 final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
 final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
@@ -128,10 +129,20 @@ Future<Response> onRequest(RequestContext context) async {
               'pendingSubscriptionTier': planName,
               'premiumExpiresAt': newExpiryDate.toIso8601String(),
               'pendingPaymentReference': '', // Clear it
+              'receiptCount': 0, // Reset count on upgrade
             });
 
             await _sendWhatsAppMessage(phoneNumber,
                 "🎉 **$planName Payment Successful!** 🎉\n\nYou are now a Premium user! Enjoy advanced layouts, monthly sales stats, and more!\n\nYour access is valid until ${newExpiryDate.day}/${newExpiryDate.month}/${newExpiryDate.year}.");
+
+            // Generate and send receipt
+            await webhook_handler.generateAndSendSubscriptionReceipt(
+              phoneNumber,
+              profile,
+              planName,
+              amountInKobo / 100, // Pass standard amount, not kobo
+              profile.currencyCode,
+            );
           } else {
             print('Error: User not found for reference: $reference');
           }

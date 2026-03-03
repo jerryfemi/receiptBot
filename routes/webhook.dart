@@ -12,7 +12,9 @@ import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
+import 'package:receipt_bot/services/lemon_squeezy_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
+
 import 'package:receipt_bot/services/pdf_service.dart';
 
 // Configuration
@@ -28,6 +30,7 @@ final _firestoreService = FirestoreService(projectId: _projectId);
 late final GeminiService _geminiService;
 final _pdfService = PdfService();
 final _paystackService = PaystackService();
+final _lemonSqueezyService = LemonSqueezyService();
 bool _servicesInitialized = false;
 
 Future<Response> onRequest(RequestContext context) async {
@@ -283,6 +286,13 @@ Future<void> _handleActiveUser(
 
     if (currentCount >= 5) {
       await _firestoreService.updateAction(from, UserAction.idle);
+
+      final isPaystack = CountryUtils.isPaystackRegion(from);
+      final monthlyDesc =
+          isPaystack ? 'Unlimited (₦3,500/mo)' : r'Flexible ($20/mo)';
+      final annualDesc =
+          isPaystack ? 'Save ₦7,000! (₦35,000/yr)' : r'Save $40! ($200/yr)';
+
       await _sendWhatsAppInteractiveList(
           from,
           "🚫 **Monthly Limit Reached**\n\nYou have generated 5 free receipts/invoices this month. Tap below to unlock unlimited generations!",
@@ -291,13 +301,9 @@ Future<void> _handleActiveUser(
         {
           'id': 'btn_monthly',
           'title': 'Monthly Plan',
-          'description': 'Unlimited (₦3,500/mo)'
+          'description': monthlyDesc
         },
-        {
-          'id': 'btn_yearly',
-          'title': 'Annual Plan',
-          'description': 'Save ₦7,000! (₦35,000/yr)'
-        },
+        {'id': 'btn_yearly', 'title': 'Annual Plan', 'description': annualDesc},
       ]);
       return false;
     }
@@ -396,19 +402,26 @@ Future<void> _handleActiveUser(
       });
 
       String pitchText;
+      final isPaystack = CountryUtils.isPaystackRegion(from);
+      final gatewayName = isPaystack ? 'Paystack' : 'our secure checkout';
+
       if (profile.isPremium) {
         final currentTier =
             profile.pendingSubscriptionTier?.toLowerCase() ?? '';
         if (currentTier == plan) {
           pitchText =
-              "Ready to extend your **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**? Awesome! 🥳\n\nPaystack requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+              "Ready to extend your **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**? Awesome! 🥳\n\n$gatewayName requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
         } else {
           pitchText =
-              "Upgrading to the **Annual Plan**? Fantastic choice! 🎉\n\nPaystack requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+              "Upgrading to the **Annual Plan**? Fantastic choice! 🎉\n\n$gatewayName requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
         }
       } else {
         pitchText =
-            "Amazing choice! 🎉 Let's get you set up on the **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**.\n\nPaystack requires an email address to securely process your receipt. Please reply with your best email address so I can generate your checkout link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+            "Amazing choice! 🎉 Let's get you set up on the **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**.\n\n$gatewayName requires an email address to securely process your receipt. Please reply with your best email address so I can generate your checkout link.\n\n(Don't worry, you won't be charged just by typing your email!)";
+        if (!isPaystack) {
+          pitchText +=
+              "\n\n(Note: Your exact price in £ or € will be calculated automatically at checkout).";
+        }
       }
 
       await _sendWhatsAppMessage(from, pitchText);
@@ -425,17 +438,36 @@ Future<void> _handleActiveUser(
           from, "Generating your secure payment link... ⏳");
       try {
         final plan = profile.pendingSubscriptionTier ?? 'monthly';
-        final amount = plan == 'monthly' ? 3500.0 : 35000.0;
+        final isPaystack = CountryUtils.isPaystackRegion(from);
 
-        final result = await _paystackService.initializeTransaction(
-            email: email, amount: amount, currency: 'NGN');
-        final checkoutUrl = result['authorization_url']!;
-        final reference = result['reference']!;
+        String checkoutUrl;
+        String referenceOrLocalId;
+
+        if (isPaystack) {
+          final amount = plan == 'monthly' ? 3500.0 : 35000.0;
+          final result = await _paystackService.initializeTransaction(
+              email: email, amount: amount, currency: 'NGN');
+          checkoutUrl = result['authorization_url']!;
+          referenceOrLocalId = result['reference']!;
+        } else {
+          // Lemon Squeezy
+          final variantId = plan == 'monthly'
+              ? Platform.environment['LS_VARIANT_MONTHLY'] ?? ''
+              : Platform.environment['LS_VARIANT_ANNUAL'] ?? '';
+
+          checkoutUrl = await _lemonSqueezyService.createCheckout(
+            email: email,
+            variantId: variantId,
+            phoneNumber: from,
+            planName: plan == 'monthly' ? 'Monthly' : 'Annual',
+          );
+          referenceOrLocalId = 'ls_${DateTime.now().millisecondsSinceEpoch}';
+        }
 
         // Save the reference and email
         await _firestoreService.updateProfileData(from, {
           'email': email,
-          'pendingPaymentReference': reference,
+          'pendingPaymentReference': referenceOrLocalId,
           'currentAction': UserAction
               .idle.name, // Reset action since they will pay on the web
         });
@@ -1054,22 +1086,28 @@ Future<bool> _handleGlobalCommands(
 
       if (tierName.toLowerCase() == 'annual') {
         // ANNUAL TIER: Only allow extension, no downgrade
+        final isPaystack = CountryUtils.isPaystackRegion(from);
+        final desc =
+            isPaystack ? 'Add 365 Days (₦35,000)' : r'Add 365 Days ($200)';
+
         await _sendWhatsAppInteractiveList(
           from,
           '💎 *Manage Subscription*\n\nYou are currently on the *Annual Plan* (Valid until $dateStr).\n\nWould you like to extend your subscription for another year?',
           'View Options',
           'Select Option',
           [
-            {
-              'id': 'btn_yearly',
-              'title': 'Extend Annual',
-              'description': 'Add 365 Days (₦35,000)'
-            },
+            {'id': 'btn_yearly', 'title': 'Extend Annual', 'description': desc},
             {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
           ],
         );
       } else {
         // MONTHLY TIER: Allow extension OR upgrade to Annual
+        final isPaystack = CountryUtils.isPaystackRegion(from);
+        final monthlyDesc =
+            isPaystack ? 'Add 30 Days (₦3,500)' : r'Add 30 Days ($20)';
+        final annualDesc =
+            isPaystack ? 'Save 20%! (₦35,000/yr)' : r'Save $40! ($200/yr)';
+
         await _sendWhatsAppInteractiveList(
           from,
           '💎 *Manage Subscription*\n\nYou are currently on the **Monthly Plan** (Valid until $dateStr).\n\nWould you like to extend your month, or upgrade to Annual?',
@@ -1079,12 +1117,12 @@ Future<bool> _handleGlobalCommands(
             {
               'id': 'btn_monthly',
               'title': 'Extend Monthly',
-              'description': 'Add 30 Days (₦3,500)'
+              'description': monthlyDesc
             },
             {
               'id': 'btn_yearly',
               'title': 'Upgrade to Annual',
-              'description': 'Save 20%! (₦35,000/yr)'
+              'description': annualDesc
             },
             {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
           ],
@@ -1092,6 +1130,12 @@ Future<bool> _handleGlobalCommands(
       }
     } else {
       // FREE TIER: Standard Upgrade Pitch
+      final isPaystack = CountryUtils.isPaystackRegion(from);
+      final monthlyDesc =
+          isPaystack ? 'Flexible (₦3,500/mo)' : r'Flexible ($20/mo)';
+      final annualDesc =
+          isPaystack ? 'Save 20%! (₦35,000/yr)' : r'Save $40! ($200/yr)';
+
       await _sendWhatsAppInteractiveList(
         from,
         '💎 *Upgrade to Premium*\nUnlock pro layouts, remove watermarks, and get monthly sales reports!\n\nSelect a plan below: 👇',
@@ -1101,12 +1145,12 @@ Future<bool> _handleGlobalCommands(
           {
             'id': 'btn_monthly',
             'title': 'Monthly Plan',
-            'description': 'Flexible (₦3,500/mo)'
+            'description': monthlyDesc
           },
           {
             'id': 'btn_yearly',
             'title': 'Annual Plan',
-            'description': 'Save 20%! (₦35,000/yr)'
+            'description': annualDesc
           },
           {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
         ],
@@ -1148,6 +1192,14 @@ Future<bool> _handleGlobalCommands(
       await _sendWhatsAppMessage(
         from,
         "You don't have any pending payments. Type *Upgrade* to start one!",
+      );
+      return true;
+    }
+
+    if (profile.pendingPaymentReference!.startsWith('ls_')) {
+      await _sendWhatsAppMessage(
+        from,
+        "🌍 International payments are verified automatically by our system.\n\nIf you just completed your checkout, please wait a minute or two for your Premium status to activate. Contact support if you need further assistance.",
       );
       return true;
     }
@@ -1449,6 +1501,13 @@ Future<void> _processReceiptResult(
 
     if (currentCount >= 5) {
       await _firestoreService.updateAction(from, UserAction.idle);
+
+      final isPaystack = CountryUtils.isPaystackRegion(from);
+      final monthlyDesc =
+          isPaystack ? 'Unlimited (₦3,500/mo)' : r'Flexible ($20/mo)';
+      final annualDesc =
+          isPaystack ? 'Save 20%! (₦35,000/yr)' : r'Save $40! ($200/yr)';
+
       await _sendWhatsAppInteractiveList(
           from,
           "🚫 **Monthly Limit Reached**\n\nYou have generated 5 free receipts/invoices this month. Tap below to unlock unlimited generations!",
@@ -1457,13 +1516,9 @@ Future<void> _processReceiptResult(
         {
           'id': 'btn_monthly',
           'title': 'Monthly Plan',
-          'description': 'Unlimited (₦3,500/mo)'
+          'description': monthlyDesc
         },
-        {
-          'id': 'btn_yearly',
-          'title': 'Annual Plan',
-          'description': 'Save 20%! (₦35,000/yr)'
-        },
+        {'id': 'btn_yearly', 'title': 'Annual Plan', 'description': annualDesc},
       ]);
       return;
     }
@@ -2092,30 +2147,35 @@ Future<void> _sendHelpMessage(String to) async {
   await _sendWhatsAppMessage(
     to,
     '''
-*How to use Remi* 
+*How to use Remi* 🤖
 
-I can help you create professional Receipts and Invoices quickly!
+I'm here to help you create professional Receipts and Invoices in seconds! Here is what I can do:
 
-*1. Create a Receipt*
-Simply type the details of the sale.
-Example: *"Sold 2 pairs of shoes for 15k each and a t-shirt for 5000 to John Doe"*
-OR type *"Create Receipt"* to follow the steps. You can also include taxes!
+🧾 *1. Fast Receipts*
+Just type the sale details naturally! 
+_Example: "Sold 2 pairs of shoes for 15k each and a t-shirt for 5000 to John Doe"_
+Or type *Create Receipt* to be guided step-by-step.
 
-*2. Create an Invoice*
-Type *"Create Invoice"* to start. I'll ask for client details, items, tax, and due date.
-(Make sure your Bank Details are set in your profile!)
+📝 *2. Professional Invoices*
+Type *Create Invoice* to start. I'll guide you through adding client details, items, tax, and a due date. 
+_(Tip: Make sure your Bank Details are saved in your profile first!)_
 
-*3. Edit Profile & Logo (Admins Only)*
-Type *"Edit Profile"* or *"Menu"* to update your Business Name, Address, Phone, or Bank Details. Type *"Upload Logo"* to set your brand image.
+📸 *3. Magic Image Scanning*
+Send me a clear photo of a handwritten receipt or list of items, and I will magically extract the text and digitize it for you! ✨
 
-*4. Invite Team Member (Admins Only)*
-Type *"Invite Team Member"* to get your 6-character code. Your staff can use this to join your organization and generate receipts on your behalf.
+⚙️ *4. Setup & Branding (Admins)*
+Type *Menu* or *Edit Profile* to update your Business Name, Address, and Bank Details. Type *Upload Logo* to add your brand's logo to your documents.
 
-*5. Image Parsing*
-Send me a photo of a handwritten receipt or note, and I'll digitize it for you!
+👥 *5. Invite Your Staff (Admins)*
+Type *Invite Team Member* to generate a unique 6-character code. Your staff can use this to join your account and generate receipts for your business.
 
-Type *"Menu"* to see all options or type *"Cancel"* to stop any current action.
-Need more help? Contact support at woobackbigmlboa@gmail.com.
+---
+💡 *Quick Commands:*
+• Type *Menu* to see all options.
+• Type *Cancel* at any time to stop a current action.
+• Type *Upgrade* to view Premium features! 💎
+
+Need human help? Contact support at woobackbigmlboa@gmail.com
 ''',
   );
 }
@@ -2128,5 +2188,84 @@ Future<void> _updateProfileAndOrg(
   await _firestoreService.updateProfileData(from, data);
   if (profile.role == UserRole.admin && profile.orgId != null) {
     await _firestoreService.updateOrganizationData(profile.orgId!, data);
+  }
+}
+
+/// Helper function to automatically generate and send a Proof of Payment
+/// receipt using the Signature layout when a user successfully subscribes.
+Future<void> generateAndSendSubscriptionReceipt(
+  String phoneNumber,
+  BusinessProfile profile,
+  String planName,
+  num amountPaid,
+  String currencyCode,
+) async {
+  try {
+    print('Generating Subscription Receipt for $phoneNumber...');
+
+    // 1. Create a synthetic Transaction representing the subscription
+    final subscriptionItem = ReceiptItem(
+      description: '1x Premium Subscription ($planName)',
+      amount: amountPaid.toDouble(),
+      quantity: 1,
+    );
+
+    final transaction = Transaction(
+      date: DateTime.now(),
+      items: [subscriptionItem],
+      totalAmount: amountPaid.toDouble(),
+      type: TransactionType.receipt,
+      customerName: profile.businessName ?? 'Valued Customer',
+      customerPhone: phoneNumber,
+    );
+
+    final resolvedCurrencySymbol = currencyCode == 'NGN'
+        ? '₦'
+        : currencyCode == 'GBP'
+            ? '£'
+            : currencyCode == 'EUR'
+                ? '€'
+                : r'$';
+
+    final botOrg = Organization(
+      id: 'bot_org',
+      businessName: 'ReceiptBot Inc.',
+      businessAddress: 'Global Digital Service',
+      displayPhoneNumber: '+2348021146844', // Or standard bot support number
+      logoUrl:
+          'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.appspot.com/o/receipts%2Fbot_logo.png?alt=media',
+      inviteCode: '',
+      currencyCode: currencyCode,
+      currencySymbol: resolvedCurrencySymbol,
+    );
+
+    // 3. Generate the PDF
+    // We use layoutIndex 1 (Signature Layout) and themeIndex 0 (Classic)
+    final pdfBytes = await _pdfService.generateReceipt(
+      profile,
+      transaction,
+      themeIndex: 0,
+      layoutIndex: 1,
+      org: botOrg,
+    );
+
+    // 4. Upload to Firebase Storage
+    final fileName =
+        'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final pdfUrl = await _firestoreService.uploadFile(
+      'receipts/$phoneNumber/$fileName',
+      pdfBytes,
+      'application/pdf',
+    );
+
+    // 5. Send via WhatsApp
+    await _sendWhatsAppDocument(
+      phoneNumber,
+      pdfUrl,
+      fileName,
+    );
+    print('Subscription Receipt sent successfully to $phoneNumber');
+  } catch (e) {
+    print('Error generating subscription receipt for $phoneNumber: $e');
   }
 }
