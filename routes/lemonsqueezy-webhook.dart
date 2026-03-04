@@ -3,42 +3,17 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dart_frog/dart_frog.dart';
-import 'package:http/http.dart' as http;
 import 'package:receipt_bot/services/firestore_service.dart';
+import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'webhook.dart' as webhook_handler;
 
-final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
-final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
 final String _projectId =
     Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
 final String _lsWebhookSecret = Platform.environment['LS_WEBHOOK_SECRET'] ?? '';
 
 final _firestoreService = FirestoreService(projectId: _projectId);
+final _whatsappService = WhatsAppService();
 bool _servicesInitialized = false;
-
-Future<void> _sendWhatsAppMessage(String to, String message) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'text',
-    'text': {'body': message},
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send WhatsApp message: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending WhatsApp message: $e');
-  }
-}
 
 Future<Response> onRequest(RequestContext context) async {
   final request = context.request;
@@ -70,6 +45,10 @@ Future<Response> onRequest(RequestContext context) async {
   final phoneNumber = customData['phoneNumber'] as String?;
   final planName = customData['planName'] as String?; // "Monthly" or "Annual"
 
+  // Generate idempotency key from event data
+  final eventId = payload['data']?['id']?.toString() ?? '';
+  final idempotencyKey = 'ls_${eventName}_$eventId';
+
   if (phoneNumber == null) {
     print(
         'WARNING: Webhook received without phoneNumber in custom_data. Cannot upgrade user.');
@@ -82,6 +61,12 @@ Future<Response> onRequest(RequestContext context) async {
       if (!_servicesInitialized) {
         await _firestoreService.initialize();
         _servicesInitialized = true;
+      }
+
+      // Idempotency check - prevent double processing on webhook retries
+      if (await _firestoreService.isWebhookProcessed(idempotencyKey)) {
+        print('Webhook already processed: $idempotencyKey. Skipping.');
+        return;
       }
 
       print('Processing LS Webhook Event: $eventName for $phoneNumber');
@@ -121,11 +106,14 @@ Future<Response> onRequest(RequestContext context) async {
           'receiptCount': 0, // Reset count on upgrade/renewal
         });
 
+        // Mark as processed BEFORE sending messages (prevents double-upgrade even if message fails)
+        await _firestoreService.markWebhookProcessed(idempotencyKey, 'lemonsqueezy');
+
         if (eventName == 'subscription_created') {
-          await _sendWhatsAppMessage(phoneNumber,
+          await _whatsappService.sendMessage(phoneNumber,
               "🎉 **Premium Activated!** 🎉\n\nYou are now a Global Premium user! Enjoy advanced layouts, monthly sales stats, and more!\n\nYour access is valid until ${newExpiryDate.day}/${newExpiryDate.month}/${newExpiryDate.year}.");
         } else {
-          await _sendWhatsAppMessage(phoneNumber,
+          await _whatsappService.sendMessage(phoneNumber,
               "🔄 **Premium Auto-Renewed!**\n\nYour subscription has been successfully renewed. Your access is now valid until ${newExpiryDate.day}/${newExpiryDate.month}/${newExpiryDate.year}.");
         }
 
@@ -144,15 +132,19 @@ Future<Response> onRequest(RequestContext context) async {
           profile.currencyCode,
         );
       } else if (eventName == 'subscription_cancelled') {
+        // Mark as processed before sending message
+        await _firestoreService.markWebhookProcessed(idempotencyKey, 'lemonsqueezy');
+        
         // We do NOT revoke access immediately (Netflix model). Access naturally expires based on `premiumExpiresAt`.
         // We just notify them.
-        await _sendWhatsAppMessage(phoneNumber,
+        await _whatsappService.sendMessage(phoneNumber,
             "ℹ️ **Subscription Cancelled**\n\nYour premium subscription has been cancelled and will not auto-renew. You will continue to have Premium access until your current billing period ends.");
       } else {
         print('Received unhandled Lemon Squeezy event: $eventName');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Lemon Squeezy Webhook processing error: $e');
+      print('Stack trace: $stackTrace');
     }
   });
 

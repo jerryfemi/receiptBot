@@ -2,6 +2,7 @@
 // ignore: lines_longer_than_80_chars
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -9,13 +10,15 @@ import 'dart:typed_data';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:http/http.dart' as http;
 import 'package:receipt_bot/country_utils.dart';
+import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/lemon_squeezy_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
-
 import 'package:receipt_bot/services/pdf_service.dart';
+import 'package:receipt_bot/services/whatsapp_service.dart';
+import 'package:receipt_bot/utils/constants.dart';
 
 // Configuration
 final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
@@ -25,13 +28,130 @@ final String _projectId =
     Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
 final String _geminiApiKey = Platform.environment['GEMINI_API_KEY'] ?? '';
 
-// Service Instances (Lazy initialization or via Middleware)
-final _firestoreService = FirestoreService(projectId: _projectId);
-late final GeminiService _geminiService;
-final _pdfService = PdfService();
-final _paystackService = PaystackService();
-final _lemonSqueezyService = LemonSqueezyService();
-bool _servicesInitialized = false;
+/// Thread-safe service holder using Completer pattern.
+/// Prevents race conditions during concurrent request initialization.
+class _ServiceHolder {
+  static final _ServiceHolder _instance = _ServiceHolder._internal();
+  factory _ServiceHolder() => _instance;
+  _ServiceHolder._internal();
+
+  Completer<void>? _initCompleter;
+  bool _isInitialized = false;
+
+  // Core services
+  late final FirestoreService firestoreService;
+  late final GeminiService geminiService;
+  late final PdfService pdfService;
+  late final PaystackService paystackService;
+  late final LemonSqueezyService lemonSqueezyService;
+  late final WhatsAppService whatsappService;
+
+  // Handlers
+  late final OnboardingHandler onboardingHandler;
+  late final SettingsHandler settingsHandler;
+  late final SubscriptionHandler subscriptionHandler;
+  late final ReceiptHandler receiptHandler;
+
+  /// Thread-safe initialization. Only the first caller initializes;
+  /// subsequent callers wait on the same Completer.
+  Future<void> ensureInitialized() async {
+    if (_isInitialized) return;
+
+    if (_initCompleter != null) {
+      // Another request is initializing - wait for it
+      await _initCompleter!.future;
+      return;
+    }
+
+    // First caller - start initialization
+    _initCompleter = Completer<void>();
+
+    try {
+      // Initialize services
+      firestoreService = FirestoreService(projectId: _projectId);
+      await firestoreService.initialize();
+
+      geminiService = GeminiService(apiKey: _geminiApiKey);
+      pdfService = PdfService();
+      paystackService = PaystackService();
+      lemonSqueezyService = LemonSqueezyService();
+      whatsappService = WhatsAppService(
+        token: _whatsappToken,
+        phoneNumberId: _phoneNumberId,
+      );
+
+      // Initialize handlers (depend on services)
+      onboardingHandler = OnboardingHandler(
+        firestoreService: firestoreService,
+        whatsappService: whatsappService,
+      );
+      settingsHandler = SettingsHandler(
+        firestoreService: firestoreService,
+        whatsappService: whatsappService,
+        geminiService: geminiService,
+      );
+      subscriptionHandler = SubscriptionHandler(
+        firestoreService: firestoreService,
+        whatsappService: whatsappService,
+        paystackService: paystackService,
+        lemonSqueezyService: lemonSqueezyService,
+        pdfService: pdfService,
+      );
+      receiptHandler = ReceiptHandler(
+        firestoreService: firestoreService,
+        whatsappService: whatsappService,
+        geminiService: geminiService,
+        pdfService: pdfService,
+        settingsHandler: settingsHandler,
+        subscriptionHandler: subscriptionHandler,
+      );
+
+      _isInitialized = true;
+      _initCompleter!.complete();
+    } catch (e) {
+      _initCompleter!.completeError(e);
+      _initCompleter = null; // Allow retry on next request
+      rethrow;
+    }
+  }
+}
+
+/// Simple in-memory idempotency cache for processed message IDs.
+/// Prevents duplicate processing when WhatsApp retries webhooks.
+class _IdempotencyCache {
+  static final _IdempotencyCache _instance = _IdempotencyCache._internal();
+  factory _IdempotencyCache() => _instance;
+  _IdempotencyCache._internal();
+
+  final Map<String, DateTime> _processedIds = {};
+  static const Duration _ttl = Duration(minutes: 5);
+  static const int _maxSize = 1000;
+
+  /// Returns true if this message was already processed.
+  bool isDuplicate(String messageId) {
+    _cleanup();
+    return _processedIds.containsKey(messageId);
+  }
+
+  /// Marks a message as processed.
+  void markProcessed(String messageId) {
+    _cleanup();
+    _processedIds[messageId] = DateTime.now();
+  }
+
+  /// Remove expired entries to prevent memory growth.
+  void _cleanup() {
+    if (_processedIds.length > _maxSize) {
+      final now = DateTime.now();
+      _processedIds
+          .removeWhere((_, timestamp) => now.difference(timestamp) > _ttl);
+    }
+  }
+}
+
+// Global singleton instances
+final _services = _ServiceHolder();
+final _idempotencyCache = _IdempotencyCache();
 
 Future<Response> onRequest(RequestContext context) async {
   print('HIT!');
@@ -48,23 +168,18 @@ Future<Response> onRequest(RequestContext context) async {
     return Response(statusCode: 403, body: 'Verification failed');
   }
 
-  // Initialize services only for other requests (POST)
-  if (!_servicesInitialized) {
-    try {
-      await _firestoreService.initialize();
-      _geminiService = GeminiService(apiKey: _geminiApiKey);
-      _servicesInitialized = true;
-    } catch (e) {
-      print('Service initialization failed: $e');
-      // We continue, but subsequent calls to services might fail
-    }
+  // 2. Initialize services (thread-safe, only happens once)
+  try {
+    await _services.ensureInitialized();
+  } catch (e) {
+    print('Service initialization failed: $e');
+    return Response(statusCode: 500, body: 'Service unavailable');
   }
 
-  // 2. Handle Messages (POST)
+  // 3. Handle Messages (POST)
   if (request.method == HttpMethod.post) {
     print('Received POST request');
     final body = await request.body();
-    // print('Raw Body: $body'); // Clean logs
     final json = jsonDecode(body);
 
     try {
@@ -73,10 +188,20 @@ Future<Response> onRequest(RequestContext context) async {
 
       if (changes['messages'] != null) {
         final message = changes['messages'][0];
+        final messageId = message['id'] as String?;
         final from = message['from'] as String;
         final type = message['type'] as String;
-        var text = '';
 
+        // Idempotency check - prevent duplicate processing on WhatsApp retries
+        if (messageId != null && _idempotencyCache.isDuplicate(messageId)) {
+          print('Duplicate message detected: $messageId - skipping');
+          return Response(body: 'EVENT_RECEIVED');
+        }
+        if (messageId != null) {
+          _idempotencyCache.markProcessed(messageId);
+        }
+
+        var text = '';
         if (type == 'text') {
           text = message['text']['body'] as String;
         } else if (type == 'image') {
@@ -114,7 +239,7 @@ Future<void> _handleMessage(
 
   try {
     // 1. Get Profile
-    var profile = await _firestoreService.getProfile(from);
+    var profile = await _services.firestoreService.getProfile(from);
 
     // If no profile, create new one
     if (profile == null) {
@@ -133,125 +258,25 @@ Future<void> _handleMessage(
     // 2. State Machine
     switch (profile.status ?? OnboardingStatus.new_user) {
       case OnboardingStatus.new_user:
-        await _sendWhatsAppInteractiveButtons(
-          from,
-          "Welcome! \n\nI can help you generate professional Receipts & Invoices internally.\n\nAre you here to:",
-          [
-            {'id': '1', 'title': '🏢 Create Profile'},
-            {'id': '2', 'title': '🤝 Join Team'},
-          ],
-        );
-        await _firestoreService.updateOnboardingStep(
-            from, OnboardingStatus.awaiting_setup_choice);
+        await _services.onboardingHandler.handleNewUser(from);
         break;
 
       case OnboardingStatus.awaiting_setup_choice:
-        if (text.trim() == '1') {
-          await _firestoreService.updateOnboardingStep(
-            from,
-            OnboardingStatus
-                .awaiting_address, // Next step is business name, but we store in 'businessName' during this step
-          );
-          await _sendWhatsAppMessage(
-              from, "Let's start! What is your *Business Name*?");
-        } else if (text.trim() == '2') {
-          await _firestoreService.updateOnboardingStep(
-            from,
-            OnboardingStatus.awaiting_invite_code,
-          );
-          await _sendWhatsAppMessage(from,
-              "Great! Please reply with the 6-character Invite Code your admin gave you.\n\nType *Cancel* to exit.");
-        } else {
-          await _sendWhatsAppInteractiveButtons(
-            from,
-            "Please make a selection to proceed:",
-            [
-              {'id': '1', 'title': '🏢 Create Profile'},
-              {'id': '2', 'title': '🤝 Join Team'},
-            ],
-          );
-        }
+        await _services.onboardingHandler.handleSetupChoice(from, text);
         break;
 
       case OnboardingStatus.awaiting_invite_code:
-        final code = text.trim().toUpperCase();
-        await _sendWhatsAppMessage(from, "Checking code... 🔎");
-
-        final orgId =
-            await _firestoreService.findOrganizationByInviteCode(code);
-        if (orgId != null) {
-          final org = await _firestoreService.getOrganization(orgId);
-          await _firestoreService.updateProfileData(from, {
-            'orgId': orgId,
-            'role': UserRole.agent.name,
-            'status': OnboardingStatus.active.name,
-          });
-          await _sendWhatsAppMessage(from,
-              "Success! 🎉 You are now linked to **${org?.businessName ?? 'your team'}** as a Sales Agent.\n\nYou can now send me receipt details and I will generate them using the company's official template.");
-
-          // Notify Admin
-          final teamMembers = await _firestoreService.getTeamMembers(orgId);
-          final adminPhone = teamMembers
-              .firstWhere((member) => member.role == UserRole.admin,
-                  orElse: () => teamMembers.first)
-              .phoneNumber;
-
-          final agentName = "A new agent ($from)";
-          await _sendWhatsAppMessage(
-            adminPhone,
-            "✅ *New Team Member!*\n$agentName has successfully joined your organization and is now ready to generate receipts and invoices.",
-          );
-        } else {
-          await _sendWhatsAppMessage(from,
-              "Oops, that code is invalid. Please try again or ask your admin for the correct code, or type 'cancel' to restart.");
-        }
+        await _services.onboardingHandler.handleInviteCode(from, text);
         break;
 
       case OnboardingStatus.awaiting_address:
         // Here `text` is the businessName provided
-        final newOrgId = await _firestoreService.createOrganization(text);
-        await _firestoreService.updateProfileData(from, {
-          'orgId': newOrgId,
-          'role': UserRole.admin.name,
-        });
-
-        await _firestoreService.updateOnboardingStep(
-          from,
-          OnboardingStatus.awaiting_phone,
-          data: {'businessName': text},
-        );
-        await _sendWhatsAppMessage(
-          from,
-          'Great! Now, what is your *Business Address*?\n\nType *Cancel* to exit.',
-        );
+        await _services.onboardingHandler.handleBusinessName(from, text);
         break;
 
       case OnboardingStatus.awaiting_phone:
-        await _firestoreService.updateOnboardingStep(
-          from,
-          OnboardingStatus.active,
-          data: {'businessAddress': text},
-        );
-        if (profile.orgId != null) {
-          await _firestoreService.updateOrganizationData(
-            profile.orgId!,
-            {'businessAddress': text},
-          );
-        }
-        final List<Map<String, String>> buttons = [
-          {'id': 'btn_create_receipt', 'title': '🧾 Receipt'},
-          {'id': 'btn_create_invoice', 'title': '📄 Invoice'},
-        ];
-        if (profile.role == UserRole.admin) {
-          buttons.add({'id': 'btn_settings', 'title': '⚙️ Settings'});
-        } else {
-          buttons.add({'id': 'help', 'title': '❓ Help'});
-        }
-        await _sendWhatsAppInteractiveButtons(
-          from,
-          'Setup Complete! 🎉\n\nYou can now create receipts and invoices.\n\n💡 *Pro Tip:* You can tap the buttons below, or simply type *"Create Receipt"*, *"Menu"*, or *"Help"* at any time!\n\n_What would you like to do first?_',
-          buttons,
-        );
+        await _services.onboardingHandler
+            .handleBusinessAddress(from, text, profile);
         break;
 
       case OnboardingStatus.active:
@@ -261,7 +286,7 @@ Future<void> _handleMessage(
   } catch (e) {
     print('Error in _handleMessage: $e');
     // If we fail outside the state machine (e.g. Firestore error)
-    await _sendWhatsAppMessage(from, 'System Error: $e');
+    await _services.whatsappService.sendMessage(from, 'System Error: $e');
   }
 }
 
@@ -272,44 +297,6 @@ Future<void> _handleActiveUser(
   Map<String, dynamic> messageData,
   BusinessProfile profile,
 ) async {
-  // --- HELPER FUNC: FREEMIUM PRE-CHECK ---
-  Future<bool> checkLimit() async {
-    if (profile.isPremium) return true;
-    final now = DateTime.now();
-    final currentMonthStr =
-        "${now.year}-${now.month.toString().padLeft(2, '0')}";
-    int currentCount = profile.receiptCount;
-
-    if (profile.lastReceiptMonth != currentMonthStr) {
-      currentCount = 0;
-    }
-
-    if (currentCount >= 5) {
-      await _firestoreService.updateAction(from, UserAction.idle);
-
-      final isPaystack = CountryUtils.isPaystackRegion(from);
-      final monthlyDesc =
-          isPaystack ? 'Unlimited (₦3,500/mo)' : r'Flexible ($20/mo)';
-      final annualDesc =
-          isPaystack ? 'Save ₦7,000! (₦35,000/yr)' : r'Save $40! ($200/yr)';
-
-      await _sendWhatsAppInteractiveList(
-          from,
-          "🚫 **Monthly Limit Reached**\n\nYou have generated 5 free receipts/invoices this month. Tap below to unlock unlimited generations!",
-          "View Plans",
-          "Select Plan", [
-        {
-          'id': 'btn_monthly',
-          'title': 'Monthly Plan',
-          'description': monthlyDesc
-        },
-        {'id': 'btn_yearly', 'title': 'Annual Plan', 'description': annualDesc},
-      ]);
-      return false;
-    }
-    return true;
-  }
-
   // 1. IMAGE HANDLING
   if (type == 'image') {
     // A. Priority: Check if we are in a specific flow that needs an image (e.g. Logo Upload)
@@ -318,32 +305,36 @@ Future<void> _handleActiveUser(
     }
     // B. Otherwise: Default to Image Scanning (Receipt Parsing)
     else {
-      if (!(await checkLimit())) return;
+      if (!(await _services.subscriptionHandler
+          .checkFreemiumLimit(from, profile))) {
+        return;
+      }
 
-      await _sendWhatsAppMessage(from, "Scanning image... 🔎");
+      await _services.whatsappService.sendMessage(from, "Scanning image... 🔎");
 
       try {
         // A. Get the image from WhatsApp
         final imageId = messageData['image']['id'] as String;
-        final url = await _getWhatsAppMediaUrl(imageId);
-        // Note: _downloadFileBytes returns List<int>, need to convert to Uint8List
-        final imageBytesList = await _downloadFileBytes(url);
+        final url = await _services.whatsappService.getMediaUrl(imageId);
+        // Note: downloadFileBytes returns List<int>, need to convert to Uint8List
+        final imageBytesList =
+            await _services.whatsappService.downloadFileBytes(url);
         final imageBytes = Uint8List.fromList(imageBytesList);
 
         // B. Send to Gemini Vision
-        final transaction = await _geminiService.parseImageTransaction(
+        final transaction = await _services.geminiService.parseImageTransaction(
           imageBytes,
           currencySymbol: profile.currencySymbol,
           currencyCode: profile.currencyCode,
         );
 
         // C. Save & Ask for Theme (Same as text flow)
-        await _firestoreService.updateProfileData(from, {
+        await _services.firestoreService.updateProfileData(from, {
           'pendingTransaction': jsonEncode(transaction.toJson()),
           'currentAction': UserAction.selectTheme.name
         });
 
-        await _sendWhatsAppInteractiveButtons(
+        await _services.whatsappService.sendInteractiveButtons(
           from,
           "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:",
           [
@@ -355,11 +346,11 @@ Future<void> _handleActiveUser(
       } catch (e) {
         print("Image Scan Error: $e");
         if (e.toString().contains('GEMINI_BUSY')) {
-          await _sendWhatsAppMessage(from,
+          await _services.whatsappService.sendMessage(from,
               "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt image again.");
         } else {
-          await _sendWhatsAppMessage(from,
-              "⚠️ I couldn't read that image clearly. Please try sending a clearer photo or type the details.");
+          await _services.whatsappService.sendMessage(from,
+              "⚠️ I couldn't read that image clearly.\n\n*Tips for better results:*\n• Ensure text is clearly visible\n• Keep the image upright (not rotated)\n• Use good lighting, avoid shadows\n• Crop to just the receipt/list\n\nOr type the details manually!");
         }
       }
       return; // Stop here if we scanned
@@ -378,635 +369,101 @@ Future<void> _handleActiveUser(
   // 4. Handle Current Action (Remaining actions from the original switch)
   switch (profile.currentAction ?? UserAction.idle) {
     case UserAction.createReceipt:
-      await _processReceiptResult(from, text, profile, isInvoice: false);
+      await _services.receiptHandler
+          .processReceiptResult(from, text, profile, isInvoice: false);
       break;
     case UserAction.createInvoice:
-      await _processReceiptResult(from, text, profile, isInvoice: true);
+      await _services.receiptHandler
+          .processReceiptResult(from, text, profile, isInvoice: true);
       break;
     case UserAction.selectLayout:
-      await _handleLayoutSelection(from, text, profile);
+      await _services.receiptHandler.handleLayoutSelection(from, text, profile);
       break;
     case UserAction.selectingSubscriptionPlan:
-      final lowerText = text.toLowerCase().trim();
-      if (lowerText != 'btn_monthly' && lowerText != 'btn_yearly') {
-        await _sendWhatsAppMessage(from,
-            "Please select a valid plan using the buttons provided, or type *Cancel* to exit.");
-        return;
-      }
-
-      final plan = lowerText == 'btn_monthly' ? 'monthly' : 'yearly';
-
-      await _firestoreService.updateProfileData(from, {
-        'pendingSubscriptionTier': plan,
-        'currentAction': UserAction.awaitingEmailForUpgrade.name,
-      });
-
-      String pitchText;
-      final isPaystack = CountryUtils.isPaystackRegion(from);
-      final gatewayName = isPaystack ? 'Paystack' : 'our secure checkout';
-
-      if (profile.isPremium) {
-        final currentTier =
-            profile.pendingSubscriptionTier?.toLowerCase() ?? '';
-        if (currentTier == plan) {
-          pitchText =
-              "Ready to extend your **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**? Awesome! 🥳\n\n$gatewayName requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
-        } else {
-          pitchText =
-              "Upgrading to the **Annual Plan**? Fantastic choice! 🎉\n\n$gatewayName requires an email address for your secure checkout. Please reply with your best email address so I can generate your link.\n\n(Don't worry, you won't be charged just by typing your email!)";
-        }
-      } else {
-        pitchText =
-            "Amazing choice! 🎉 Let's get you set up on the **${plan == 'monthly' ? 'Monthly' : 'Annual'} Plan**.\n\n$gatewayName requires an email address to securely process your receipt. Please reply with your best email address so I can generate your checkout link.\n\n(Don't worry, you won't be charged just by typing your email!)";
-        if (!isPaystack) {
-          pitchText +=
-              "\n\n(Note: Your exact price in £ or € will be calculated automatically at checkout).";
-        }
-      }
-
-      await _sendWhatsAppMessage(from, pitchText);
+      await _services.subscriptionHandler
+          .handlePlanSelection(from, text, profile);
       break;
 
     case UserAction.awaitingEmailForUpgrade:
-      final email = text.trim();
-      if (!email.contains('@')) {
-        await _sendWhatsAppMessage(from,
-            "That doesn't look like a valid email. Please reply with a valid email address, or type *Cancel* to exit.");
-        return;
-      }
-      await _sendWhatsAppMessage(
-          from, "Generating your secure payment link... ⏳");
-      try {
-        final plan = profile.pendingSubscriptionTier ?? 'monthly';
-        final isPaystack = CountryUtils.isPaystackRegion(from);
-
-        String checkoutUrl;
-        String referenceOrLocalId;
-
-        if (isPaystack) {
-          final amount = plan == 'monthly' ? 3500.0 : 35000.0;
-          final result = await _paystackService.initializeTransaction(
-              email: email, amount: amount, currency: 'NGN');
-          checkoutUrl = result['authorization_url']!;
-          referenceOrLocalId = result['reference']!;
-        } else {
-          // Lemon Squeezy
-          final variantId = plan == 'monthly'
-              ? Platform.environment['LS_VARIANT_MONTHLY'] ?? ''
-              : Platform.environment['LS_VARIANT_ANNUAL'] ?? '';
-
-          checkoutUrl = await _lemonSqueezyService.createCheckout(
-            email: email,
-            variantId: variantId,
-            phoneNumber: from,
-            planName: plan == 'monthly' ? 'Monthly' : 'Annual',
-          );
-          referenceOrLocalId = 'ls_${DateTime.now().millisecondsSinceEpoch}';
-        }
-
-        // Save the reference and email
-        await _firestoreService.updateProfileData(from, {
-          'email': email,
-          'pendingPaymentReference': referenceOrLocalId,
-          'currentAction': UserAction
-              .idle.name, // Reset action since they will pay on the web
-        });
-
-        await _sendWhatsAppInteractiveButtons(
-          from,
-          "Click the link below to securely complete your upgrade to Premium! 🚀\n\n$checkoutUrl\n\nOnce paid, you will be automatically upgraded. If it doesn't happen instantly, tap the button below.",
-          [
-            {'id': 'btn_verify_payment', 'title': '✅ Verify Payment'},
-          ],
-        );
-      } catch (e) {
-        print("Paystack initialization error: $e");
-        await _sendWhatsAppMessage(from,
-            "Sorry, there was an issue generating your payment link. Please try again later.");
-        await _firestoreService.updateAction(from, UserAction.idle);
-      }
+      await _services.subscriptionHandler
+          .handleEmailForUpgrade(from, text, profile);
       break;
     case UserAction.removeTeamMember:
-      if (text.toLowerCase().trim() == 'cancel' ||
-          text.toLowerCase().trim() == 'btn_cancel') {
-        await _firestoreService.updateAction(from, UserAction.idle);
-        await _sendWhatsAppMessage(from, 'Action cancelled.');
-        return;
-      }
-
-      if (!text.startsWith('rm_')) {
-        await _sendWhatsAppMessage(from,
-            'Please select a team member from the list or type *Cancel*.');
-        return;
-      }
-
-      final targetPhone = text.replaceFirst('rm_', '');
-      await _sendWhatsAppMessage(from, 'Removing team member... ⏳');
-      try {
-        await _firestoreService.removeTeamMember(targetPhone);
-        await _sendWhatsAppMessage(from, 'Team member removed successfully. ✅');
-
-        // Notify the removed user
-        try {
-          await _sendWhatsAppMessage(targetPhone,
-              'ℹ️ You have been removed from the organization by the Admin. Your account has been reset.');
-        } catch (_) {} // Ignore if notification fails
-      } catch (e) {
-        print('Error removing team member: $e');
-        await _sendWhatsAppMessage(
-            from, '⚠️ Failed to remove team member. Please try again.');
-      }
-      await _firestoreService.updateAction(from, UserAction.idle);
+      await _services.settingsHandler.handleRemoveTeamMember(from, text);
+      break;
+    case UserAction.confirmRemoveTeamMember:
+      await _services.settingsHandler.handleConfirmRemoveTeamMember(from, text);
       break;
 
     case UserAction.editProfileMenu:
-      if (profile.role != UserRole.admin) {
-        await _sendWhatsAppMessage(from, "Only Admins can edit the profile.");
-        await _firestoreService.updateAction(from, UserAction.idle);
-        return;
-      }
-      final lowerText = text.toLowerCase().trim();
-      if (lowerText == '1' ||
-          lowerText == 'btn_edit_name' ||
-          lowerText == 'business name') {
-        await _firestoreService.updateAction(from, UserAction.editName);
-        await _sendWhatsAppMessage(
-          from,
-          'Okay, send me the **New Business Name**.\n\nType *Cancel* to exit.',
-        );
-      } else if (lowerText == '2' ||
-          lowerText == 'btn_edit_phone' ||
-          lowerText == 'phone number') {
-        await _firestoreService.updateAction(from, UserAction.editPhone);
-        await _sendWhatsAppMessage(
-          from,
-          'Okay, send me the **New Phone Number**.\n\nType *Cancel* to exit.',
-        );
-      } else if (lowerText == '3' ||
-          lowerText == 'btn_edit_bank' ||
-          lowerText == 'bank details') {
-        await _firestoreService.updateAction(from, UserAction.editBankDetails);
-        await _sendWhatsAppMessage(
-          from,
-          'Okay, send me your **Bank Details**:\n\nBank Name, Account Number, Account Name\n\nType *Cancel* to exit.',
-        );
-      } else if (lowerText == '4' ||
-          lowerText == 'btn_edit_theme' ||
-          lowerText == 'theme') {
-        await _firestoreService.updateAction(from, UserAction.selectTheme);
-        await _sendWhatsAppInteractiveButtons(
-          from,
-          "Select a new **Theme (Color)**:",
-          [
-            {'id': 'theme_classic', 'title': 'B&W (Classic)'},
-            {'id': 'theme_beige', 'title': 'Beige'},
-          ],
-        );
-      } else if (lowerText == '5' ||
-          lowerText == 'btn_edit_layout' ||
-          lowerText == 'layout') {
-        if (!profile.isPremium) {
-          await _sendWhatsAppInteractiveButtons(
-            from,
-            "💎 **Premium Feature**\n\nCustom layouts (Modern, Minimal, Signature) are only available for Premium users!",
-            [
-              {'id': 'btn_upgrade', 'title': '⭐ Upgrade'},
-              {'id': 'cancel', 'title': '❌ Cancel'},
-            ],
-          );
-          return;
-        }
-
-        await _firestoreService.updateAction(from, UserAction.selectLayout);
-        await _sendWhatsAppMessage(
-          from,
-          "Please select a **Layout Structure**.",
-        );
-
-        // Send Layout 1 (Corporate)
-        await _sendWhatsAppInteractiveMedia(
-            from,
-            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fstandard.png?alt=media',
-            'image',
-            bodyText: '1️⃣ Corporate (Premium & High-Impact) ⭐ Recommended',
-            buttons: [
-              {'id': 'theme_layout_4', 'title': 'Select Corporate'}
-            ]);
-
-        // Send Layout 2
-        await _sendWhatsAppInteractiveMedia(
-            from,
-            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fsignature.png?alt=media',
-            'image',
-            bodyText: '2️⃣ Signature (Elegant script font)',
-            buttons: [
-              {'id': 'theme_layout_2', 'title': 'Select Signature'}
-            ]);
-
-        // Send Layout 3
-        await _sendWhatsAppInteractiveMedia(
-            from,
-            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fsimple.png?alt=media',
-            'image',
-            bodyText: '3️⃣ Simple (Strict grid structure)',
-            buttons: [
-              {'id': 'theme_layout_3', 'title': 'Select Simple'}
-            ]);
-
-        // Send Layout 4
-        await _sendWhatsAppInteractiveMedia(
-            from,
-            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fclassic.png?alt=media',
-            'image',
-            bodyText: '4️⃣ Legacy (default plain layout)',
-            buttons: [
-              {'id': 'theme_layout_1', 'title': 'Select Legacy'}
-            ]);
-      } else if (lowerText == '6' ||
-          lowerText == 'btn_edit_address' ||
-          lowerText == 'address') {
-        await _firestoreService.updateAction(from, UserAction.editAddress);
-        await _sendWhatsAppMessage(
-          from,
-          'Okay, send me the **New Business Address**.\n\nType *Cancel* to exit.',
-        );
-      } else if (lowerText == '7' ||
-          lowerText == 'btn_change_currency' ||
-          lowerText == 'currency') {
-        await _firestoreService.updateAction(from, UserAction.selectCurrency);
-
-        const currencies = CountryUtils.supportedCurrencies;
-        final listOptions = currencies
-            .asMap()
-            .entries
-            .map((e) => {
-                  'id': (e.key + 1).toString(),
-                  'title': '${e.value['code']} (${e.value['symbol']})',
-                  'description': e.value['name'].toString(),
-                })
-            .toList();
-
-        await _sendWhatsAppInteractiveList(
-          from,
-          'Select your **Currency**:',
-          'Select Currency',
-          'Currencies',
-          listOptions,
-        );
-      } else {
-        await _sendWhatsAppMessage(from,
-            'Please select an option from the list or reply with a number (1-8).');
-      }
+      await _services.settingsHandler
+          .handleEditProfileMenuSelection(from, text, profile);
       break;
 
     case UserAction.selectCurrency:
-      final index = int.tryParse(text) ?? 0;
-      const currencies = CountryUtils.supportedCurrencies;
-
-      if (index > 0 && index <= currencies.length) {
-        final selected = currencies[index - 1];
-        try {
-          await _updateProfileAndOrg(from, profile, {
-            'currencyCode': selected['code'],
-            'currencySymbol': selected['symbol'],
-          });
-
-          // Update local profile instance for immediate use if needed (though we return idle next)
-          profile = profile.copyWith(
-            currencyCode: selected['code'],
-            currencySymbol: selected['symbol'],
-          );
-
-          await _sendWhatsAppMessage(from,
-              'Currency updated to ${selected['code']} (${selected['symbol']})! ✅');
-
-          // LOOP BACK TO MENU
-          await _firestoreService.updateAction(
-              from, UserAction.editProfileMenu);
-          await _sendWhatsAppInteractiveList(
-            from,
-            'What else would you like to update? 👇',
-            'View Options',
-            'Edit Profile',
-            [
-              {'id': 'btn_edit_name', 'title': 'Business Name'},
-              {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-              {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-              {'id': 'btn_edit_theme', 'title': 'Theme'},
-              {'id': 'btn_edit_layout', 'title': 'Layout'},
-              {'id': 'btn_edit_address', 'title': 'Business Address'},
-              {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-              {'id': 'btn_change_currency', 'title': 'Change Currency'},
-            ],
-          );
-        } catch (e) {
-          print('Error updating currency: $e');
-          await _sendWhatsAppMessage(
-              from, 'Failed to update currency. Please try again later.');
-          await _firestoreService.updateAction(from, UserAction.idle);
-        }
-      } else {
-        await _sendWhatsAppMessage(
-            from, 'Please reply with a valid number from the list.');
-      }
+      await _services.settingsHandler
+          .handleCurrencySelection(from, text, profile);
       break;
 
     case UserAction.editBankDetails:
-      // Use Gemini to parse bank details
-      try {
-        final transaction = await _geminiService.parseTransaction(text);
-        if (transaction.bankName != null) {
-          await _updateProfileAndOrg(from, profile, {
-            'bankName': transaction.bankName,
-            'accountNumber': transaction.accountNumber,
-            'accountName': transaction.accountName,
-          });
-          await _sendWhatsAppMessage(from, 'Bank Details Updated! ✅');
-        } else {
-          await _sendWhatsAppMessage(
-            from,
-            "I couldn't find bank details. Please try again (e.g. GTBank, 0123456789, Name).",
-          );
-        }
-        // LOOP BACK TO MENU
-        await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppInteractiveList(
-          from,
-          'What else would you like to update? 👇',
-          'View Options',
-          'Edit Profile',
-          [
-            {'id': 'btn_edit_name', 'title': 'Business Name'},
-            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-            {'id': 'btn_edit_theme', 'title': 'Theme'},
-            {'id': 'btn_edit_layout', 'title': 'Layout'},
-            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-            {'id': 'btn_edit_currency', 'title': 'Currency'},
-            {'id': 'btn_edit_address', 'title': 'Business Address'},
-          ],
-        );
-      } catch (e) {
-        if (e.toString().contains('GEMINI_BUSY')) {
-          await _sendWhatsAppMessage(
-            from,
-            "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try again.",
-          );
-        } else {
-          await _sendWhatsAppMessage(
-            from,
-            'Error parsing details. Please try again.',
-          );
-        }
-      }
+      await _services.settingsHandler
+          .handleEditBankDetails(from, text, profile);
       break;
 
     case UserAction.awaitingInvoiceBankDetails:
-      try {
-        final transactionInfo = await _geminiService.parseTransaction(text);
-        if (transactionInfo.bankName != null) {
-          await _updateProfileAndOrg(from, profile, {
-            'bankName': transactionInfo.bankName,
-            'accountNumber': transactionInfo.accountNumber,
-            'accountName': transactionInfo.accountName,
-          });
-
-          profile = profile.copyWith(
-            bankName: transactionInfo.bankName,
-            accountNumber: transactionInfo.accountNumber,
-            accountName: transactionInfo.accountName,
-          );
-
-          await _sendWhatsAppMessage(from, 'Bank Details Saved! ✅');
-
-          if (profile.pendingTransaction != null) {
-            final pendingTx = profile.pendingTransaction!;
-
-            if (profile.themeIndex != null) {
-              await _generateAndSendPDF(
-                from,
-                profile,
-                pendingTx,
-                profile.themeIndex!,
-              );
-            } else {
-              await _sendWhatsAppInteractiveButtons(
-                from,
-                "Got it! 🧾\n\nSelect a style for your Invoice:",
-                [
-                  {'id': 'theme_classic', 'title': 'B&W (Classic)'},
-                  {'id': 'theme_beige', 'title': 'Beige'},
-                ],
-              );
-              await _firestoreService.updateAction(
-                  from, UserAction.selectTheme);
-            }
-          } else {
-            // Unlikely fallback
-            await _firestoreService.updateAction(from, UserAction.idle);
-          }
-        } else {
-          await _sendWhatsAppMessage(
-            from,
-            "I couldn't find bank details. Please try again (e.g. Bank, 0123456789, Name). Type *Cancel* to exit.",
-          );
-        }
-      } catch (e) {
-        if (e.toString().contains('GEMINI_BUSY')) {
-          await _sendWhatsAppMessage(
-            from,
-            "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try again.",
-          );
-        } else {
-          await _sendWhatsAppMessage(
-            from,
-            'Error parsing details. Please try again.',
-          );
-        }
-      }
+      await _services.receiptHandler
+          .handleInvoiceBankDetails(from, text, profile);
       break;
 
     case UserAction.selectTheme:
-      await _handleThemeSelection(from, text, profile);
+      await _services.receiptHandler.handleThemeSelection(from, text, profile);
       break;
 
     case UserAction.editName:
-      if (type == 'text') {
-        try {
-          await _updateProfileAndOrg(from, profile, {'businessName': text});
-          await _sendWhatsAppMessage(
-              from, "Business Name updated to '$text'! ✅");
-        } catch (e) {
-          print('Error updating business name: $e');
-          await _sendWhatsAppMessage(
-              from, 'Failed to update business name. Please try again.');
-        }
-
-        // LOOP BACK TO MENU
-        await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppInteractiveList(
-          from,
-          'What else would you like to update? 👇',
-          'View Options',
-          'Edit Profile',
-          [
-            {'id': 'btn_edit_name', 'title': 'Business Name'},
-            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-            {'id': 'btn_edit_theme', 'title': 'Theme'},
-            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-            {'id': 'btn_edit_layout', 'title': 'Layout'},
-            {'id': 'btn_edit_Currency', 'title': 'Currency'},
-            {'id': 'btn_edit_address', 'title': 'Business Address'},
-          ],
-        );
-      } else {
-        await _sendWhatsAppMessage(from, 'Please send text for the name.');
-      }
+      await _services.settingsHandler.handleEditName(from, text, type, profile);
       break;
 
     case UserAction.editPhone:
-      if (type == 'text') {
-        try {
-          await _updateProfileAndOrg(
-              from, profile, {'displayPhoneNumber': text});
-          await _sendWhatsAppMessage(
-              from, "Phone Number updated to '$text'! ✅");
-        } catch (e) {
-          print('Error updating phone number: $e');
-          await _sendWhatsAppMessage(
-              from, 'Failed to update phone number. Please try again.');
-        }
-        // LOOP BACK TO MENU
-        await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppInteractiveList(
-          from,
-          'What else would you like to update? 👇',
-          'View Options',
-          'Edit Profile',
-          [
-            {'id': 'btn_edit_name', 'title': 'Business Name'},
-            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-            {'id': 'btn_edit_theme', 'title': 'Theme'},
-            {'id': 'btn_edit_layout', 'title': 'Layout'},
-            {'id': 'btn_edit_currency', 'title': 'Currency'},
-            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-            {'id': 'btn_edit_address', 'title': 'Business Address'},
-          ],
-        );
-      } else {
-        await _sendWhatsAppMessage(
-          from,
-          'Please send text for the phone number.',
-        );
-      }
+      await _services.settingsHandler
+          .handleEditPhone(from, text, type, profile);
       break;
 
     case UserAction.editAddress:
-      if (type == 'text') {
-        try {
-          await _updateProfileAndOrg(from, profile, {'businessAddress': text});
-          await _sendWhatsAppMessage(from, "Address updated to '$text'! ✅");
-        } catch (e) {
-          print('Error updating address: $e');
-          await _sendWhatsAppMessage(
-              from, 'Failed to update address. Please try again.');
-        }
-        // LOOP BACK TO MENU
-        await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppInteractiveList(
-          from,
-          'What else would you like to update? 👇',
-          'View Options',
-          'Edit Profile',
-          [
-            {'id': 'btn_edit_name', 'title': 'Business Name'},
-            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-            {'id': 'btn_edit_theme', 'title': 'Theme'},
-            {'id': 'btn_edit_layout', 'title': 'Layout'},
-            {'id': 'btn_edit_currency', 'title': 'Currency'},
-            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-            {'id': 'btn_edit_address', 'title': 'Business Address'},
-          ],
-        );
-      } else {
-        await _sendWhatsAppMessage(
-          from,
-          'Please send text for the address.',
-        );
-      }
+      await _services.settingsHandler
+          .handleEditAddress(from, text, type, profile);
       break;
 
     case UserAction.editLogo:
-      if (type == 'image' || type == 'document') {
-        try {
-          final mediaId = type == 'image'
-              ? messageData['image']['id']
-              : messageData['document']['id'];
-          final tempUrl = await _getWhatsAppMediaUrl(mediaId as String);
-
-          final bytes = await _downloadFileBytes(tempUrl);
-          final publicUrl = await _firestoreService.uploadFile(
-            'logos/$from.jpg',
-            bytes,
-            'image/jpeg',
-          );
-          await _sendWhatsAppMessage(from, 'Saving Logo...... ');
-          await _updateProfileAndOrg(from, profile, {'logoUrl': publicUrl});
-          await _sendWhatsAppMessage(from, 'Logo updated successfully! 🖼️');
-        } catch (e) {
-          print('Error updating logo: $e');
-          await _sendWhatsAppMessage(
-              from, 'Failed to save logo. Please try again.');
-        }
-
-        // LOOP BACK TO MENU
-        await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-        await _sendWhatsAppInteractiveList(
-          from,
-          'What else would you like to update? 👇',
-          'View Options',
-          'Edit Profile',
-          [
-            {'id': 'btn_edit_name', 'title': 'Business Name'},
-            {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-            {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-            {'id': 'btn_edit_theme', 'title': 'Theme'},
-            {'id': 'btn_edit_currency', 'title': 'Currency'},
-            {'id': 'btn_edit_layout', 'title': 'Layout'},
-            {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-            {'id': 'btn_edit_address', 'title': 'Business Address'},
-          ],
-        );
-      } else {
-        await _sendWhatsAppMessage(from, 'Please send an image or document.');
-      }
+      await _services.settingsHandler
+          .handleEditLogo(from, type, messageData, profile);
       break;
 
     case UserAction.idle:
       // CONVERSATIONAL ROUTER
 
       try {
-        final intentResult = await _geminiService.determineUserIntent(text);
+        final intentResult =
+            await _services.geminiService.determineUserIntent(text);
 
         switch (intentResult.type) {
           case UserIntent.chat:
             if (intentResult.response != null) {
-              await _sendWhatsAppMessage(from, intentResult.response!);
+              await _services.whatsappService
+                  .sendMessage(from, intentResult.response!);
             } else {
-              await _sendWhatsAppMessage(from,
+              await _services.whatsappService.sendMessage(from,
                   "I'm here to help! Would you like to create a receipt or invoice?");
             }
             break;
 
           case UserIntent.createReceipt:
-            await _processReceiptResult(from, text, profile, isInvoice: false);
+            await _services.receiptHandler
+                .processReceiptResult(from, text, profile, isInvoice: false);
             break;
 
           case UserIntent.createInvoice:
-            await _processReceiptResult(from, text, profile, isInvoice: true);
+            await _services.receiptHandler
+                .processReceiptResult(from, text, profile, isInvoice: true);
             break;
 
           case UserIntent.help:
@@ -1016,17 +473,17 @@ Future<void> _handleActiveUser(
           case UserIntent.unknown:
             // Relaxed Fallback: If intent is unknown but text is long, try parsing.
             if (text.length > 20) {
-              await _processReceiptResult(from, text, profile,
-                  isInvoice: false);
+              await _services.receiptHandler
+                  .processReceiptResult(from, text, profile, isInvoice: false);
             } else {
-              await _sendWhatsAppMessage(from,
+              await _services.whatsappService.sendMessage(from,
                   "I didn't quite catch that. You can type 'Menu' to see options or just tell me what you sold!");
             }
             break;
         }
       } catch (e) {
         print('Router Error: $e');
-        await _sendWhatsAppMessage(from,
+        await _services.whatsappService.sendMessage(from,
             "I'm having a little trouble thinking right now. 😵‍💫 Try telling me what you sold again.");
       }
       break;
@@ -1064,207 +521,46 @@ Future<bool> _handleGlobalCommands(
 
   if (lower == 'premium' ||
       lower == 'upgrade' ||
-      lower == 'btn_upgrade' ||
+      lower == ButtonIds.upgrade ||
       lower == '⭐ upgrade to premium') {
-    if (profile.role != UserRole.admin) {
-      await _sendWhatsAppMessage(
-        from,
-        'Only Admins can upgrade the business profile.',
-      );
-      return true;
-    }
-
-    await _firestoreService.updateAction(
-        from, UserAction.selectingSubscriptionPlan);
-
-    if (profile.isPremium) {
-      final tierName = profile.pendingSubscriptionTier ?? "Premium";
-      final expiry = profile.premiumExpiresAt;
-      final dateStr = expiry != null
-          ? "${expiry.day}/${expiry.month}/${expiry.year}"
-          : "an unknown date";
-
-      if (tierName.toLowerCase() == 'annual') {
-        // ANNUAL TIER: Only allow extension, no downgrade
-        final isPaystack = CountryUtils.isPaystackRegion(from);
-        final desc =
-            isPaystack ? 'Add 365 Days (₦35,000)' : r'Add 365 Days ($200)';
-
-        await _sendWhatsAppInteractiveList(
-          from,
-          '💎 *Manage Subscription*\n\nYou are currently on the *Annual Plan* (Valid until $dateStr).\n\nWould you like to extend your subscription for another year?',
-          'View Options',
-          'Select Option',
-          [
-            {'id': 'btn_yearly', 'title': 'Extend Annual', 'description': desc},
-            {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
-          ],
-        );
-      } else {
-        // MONTHLY TIER: Allow extension OR upgrade to Annual
-        final isPaystack = CountryUtils.isPaystackRegion(from);
-        final monthlyDesc =
-            isPaystack ? 'Add 30 Days (₦3,500)' : r'Add 30 Days ($20)';
-        final annualDesc =
-            isPaystack ? 'Save 20%! (₦35,000/yr)' : r'Save $40! ($200/yr)';
-
-        await _sendWhatsAppInteractiveList(
-          from,
-          '💎 *Manage Subscription*\n\nYou are currently on the **Monthly Plan** (Valid until $dateStr).\n\nWould you like to extend your month, or upgrade to Annual?',
-          'View Options',
-          'Select Option',
-          [
-            {
-              'id': 'btn_monthly',
-              'title': 'Extend Monthly',
-              'description': monthlyDesc
-            },
-            {
-              'id': 'btn_yearly',
-              'title': 'Upgrade to Annual',
-              'description': annualDesc
-            },
-            {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
-          ],
-        );
-      }
-    } else {
-      // FREE TIER: Standard Upgrade Pitch
-      final isPaystack = CountryUtils.isPaystackRegion(from);
-      final monthlyDesc =
-          isPaystack ? 'Flexible (₦3,500/mo)' : r'Flexible ($20/mo)';
-      final annualDesc =
-          isPaystack ? 'Save 20%! (₦35,000/yr)' : r'Save $40! ($200/yr)';
-
-      await _sendWhatsAppInteractiveList(
-        from,
-        '💎 *Upgrade to Premium*\nUnlock pro layouts, remove watermarks, and get monthly sales reports!\n\nSelect a plan below: 👇',
-        'View Plans',
-        'Select Plan',
-        [
-          {
-            'id': 'btn_monthly',
-            'title': 'Monthly Plan',
-            'description': monthlyDesc
-          },
-          {
-            'id': 'btn_yearly',
-            'title': 'Annual Plan',
-            'description': annualDesc
-          },
-          {'id': 'cancel', 'title': 'Cancel', 'description': 'Return to menu'}
-        ],
-      );
-    }
+    await _services.subscriptionHandler.showUpgradeMenu(from, profile);
     return true;
   }
 
   // Handle Subscription Status check
-  if (lower == 'btn_sub_status' || lower == '💎 subscription status') {
-    if (profile.role != UserRole.admin) {
-      await _sendWhatsAppMessage(from, "Only Admins can view this info.");
-      return true;
-    }
-
-    if (profile.isPremium) {
-      final tierName = profile.pendingSubscriptionTier ?? "Premium";
-      if (profile.premiumExpiresAt != null) {
-        final expiry = profile.premiumExpiresAt!;
-        final daysLeft = expiry.difference(DateTime.now()).inDays;
-        final dateStr = "${expiry.day}/${expiry.month}/${expiry.year}";
-
-        await _sendWhatsAppMessage(from,
-            "💎 **Subscription Active**\n\nYou are currently on the *$tierName* tier.\nYour access expires on *$dateStr* ($daysLeft days remaining).\n\nIf you'd like to extend your time, type *Upgrade*.");
-      } else {
-        await _sendWhatsAppMessage(from,
-            "💎 **Subscription Active**\n\nYou are currently on the *$tierName* tier, however your expiration date could not be read.");
-      }
-    } else {
-      await _sendWhatsAppMessage(from,
-          "You are currently on the **Free Tier**. Upgrade today to unlock pro layouts and remove limits!");
-    }
+  if (lower == ButtonIds.subStatus || lower == '💎 subscription status') {
+    await _services.subscriptionHandler.showSubscriptionStatus(from, profile);
     return true;
   }
 
-  if (lower == 'verify payment' || lower == 'btn_verify_payment') {
-    if (profile.pendingPaymentReference == null ||
-        profile.pendingPaymentReference!.isEmpty) {
-      await _sendWhatsAppMessage(
-        from,
-        "You don't have any pending payments. Type *Upgrade* to start one!",
-      );
-      return true;
-    }
-
-    if (profile.pendingPaymentReference!.startsWith('ls_')) {
-      await _sendWhatsAppMessage(
-        from,
-        "🌍 International payments are verified automatically by our system.\n\nIf you just completed your checkout, please wait a minute or two for your Premium status to activate. Contact support if you need further assistance.",
-      );
-      return true;
-    }
-
-    await _sendWhatsAppMessage(from, "Checking your payment status... ⏳");
-    try {
-      final verifyData = await _paystackService
-          .verifyTransaction(profile.pendingPaymentReference!);
-      final status = verifyData['status'];
-      final amountInKobo = verifyData['amount'] as num;
-
-      if (status == 'success' && amountInKobo >= 200000) {
-        await _firestoreService.updateProfileData(from, {
-          'isPremium': true,
-          'premiumExpiresAt':
-              DateTime.now().add(const Duration(days: 30)).toIso8601String(),
-          'pendingPaymentReference': '',
-        });
-        await _sendWhatsAppMessage(
-          from,
-          "🎉 **Payment Successful!** 🎉\n\nYou are now a Premium user! Enjoy advanced layouts and watermark-free receipts!",
-        );
-      } else if (status == 'success') {
-        final amountNgn = amountInKobo / 100;
-        await _sendWhatsAppMessage(
-          from,
-          "⚠️ **Partial Payment Received** ⚠️\n\nWe received a payment of ₦$amountNgn, but Premium upgrade requires ₦2000. Please contact support to resolve this.",
-        );
-      } else {
-        await _sendWhatsAppMessage(
-          from,
-          "Your payment is still pending or was not successful.\n\nIf you just paid, please wait a minute and try again. If you haven't paid yet, you can still use the payment link provided earlier.",
-        );
-      }
-    } catch (e) {
-      print("Manual verify error: $e");
-      await _sendWhatsAppMessage(
-        from,
-        "Sorry, I couldn't verify your payment right now. Please try again later.",
-      );
-    }
+  if (lower == 'verify payment' || lower == ButtonIds.verifyPayment) {
+    await _services.subscriptionHandler.handleVerifyPayment(from, profile);
     return true;
   }
 
-  if (lower.contains('create receipt') || lower == 'btn_create_receipt') {
-    await _firestoreService.updateAction(from, UserAction.createReceipt);
-    await _sendWhatsAppMessage(
+  if (lower.contains('create receipt') || lower == ButtonIds.createReceipt) {
+    await _services.firestoreService
+        .updateAction(from, UserAction.createReceipt);
+    await _services.whatsappService.sendMessage(
       from,
       'Please provide the receipt details:\n\n- Customer Name\n- Items Bought & Prices\n- Tax (optional)\n- Customer Address (optional)\n- Customer Phone Number (optional)\n\nType *Cancel* to exit.',
     );
     return true;
   }
 
-  if (lower.contains('create invoice') || lower == 'btn_create_invoice') {
-    await _firestoreService.updateAction(from, UserAction.createInvoice);
+  if (lower.contains('create invoice') || lower == ButtonIds.createInvoice) {
+    await _services.firestoreService
+        .updateAction(from, UserAction.createInvoice);
     // Check if bank details exist
     final hasBankDetails =
         profile.bankName != null && profile.accountNumber != null;
     if (hasBankDetails) {
-      await _sendWhatsAppMessage(
+      await _services.whatsappService.sendMessage(
         from,
         'Please provide the INVOICE details:\n\n- Client Name\n- Items & Prices\n- Tax (optional)\n- Due Date (optional)\n- Client Address (optional)\n- Client Phone Number (optional)\n\nType *Cancel* to exit.',
       );
     } else {
-      await _sendWhatsAppMessage(
+      await _services.whatsappService.sendMessage(
         from,
         'Please provide the INVOICE details:\n\n- Client Name\n- Items & Prices\n- Tax (optional)\n- Due Date\n\n⚠️ **Also, please include your Bank Details (Bank Name, Account Number, Name) to save for future invoices.**\n\nType *Cancel* to exit.',
       );
@@ -1273,878 +569,138 @@ Future<bool> _handleGlobalCommands(
   }
 
   if (lower == 'settings' ||
-      lower == 'btn_settings' ||
+      lower == ButtonIds.settings ||
       lower == '⚙️ settings') {
     if (profile.role != UserRole.admin) {
-      await _sendWhatsAppMessage(
-        from,
-        'Only Admins can access settings.',
-      );
+      await _services.whatsappService
+          .sendMessage(from, 'Only Admins can access settings.');
       return true;
     }
-    await _sendWhatsAppInteractiveList(
-      from,
-      '⚙️ *Settings Menu*\nWhat would you like to configure? 👇',
-      'View Options',
-      'Settings',
-      [
-        {
-          'id': 'btn_edit_profile',
-          'title': 'Edit Profile',
-          'description': 'Update business details'
-        },
-        {
-          'id': 'btn_manage_team',
-          'title': 'Manage Team',
-          'description': 'Invite or remove staff'
-        },
-        {
-          'id': 'help',
-          'title': 'Help & Support',
-          'description': 'View guide or contact'
-        },
-        {
-          'id': 'btn_sub_status',
-          'title': 'Subscription Status',
-          'description': 'View plan & expiry'
-        },
-        if (!profile.isPremium)
-          {
-            'id': 'btn_upgrade',
-            'title': 'Upgrade to Premium',
-            'description': 'Unlock advanced features ⭐'
-          },
-      ],
-    );
+    await _services.settingsHandler.showSettingsMenu(from, profile.isPremium);
     return true;
   }
 
-  if (lower == 'edit profile' || lower == 'btn_edit_profile') {
+  if (lower == 'edit profile' || lower == ButtonIds.editProfile) {
     if (profile.role != UserRole.admin) {
-      await _sendWhatsAppMessage(
-        from,
-        'Only Admins can edit the business profile.',
-      );
+      await _services.whatsappService
+          .sendMessage(from, 'Only Admins can edit the business profile.');
       return true;
     }
-    await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-    await _sendWhatsAppInteractiveList(
-      from,
-      'What would you like to update? 👇',
-      'View Options',
-      'Edit Profile',
-      [
-        {
-          'id': 'btn_edit_name',
-          'title': 'Business Name',
-          'description': 'Change your company name'
-        },
-        {
-          'id': 'btn_edit_phone',
-          'title': 'Phone Number',
-          'description': 'Change contact number'
-        },
-        {
-          'id': 'btn_edit_bank',
-          'title': 'Bank Details',
-          'description': 'Update payment info'
-        },
-        {
-          'id': 'btn_edit_theme',
-          'title': 'Theme (Color)',
-          'description': 'Change receipt colors'
-        },
-        {
-          'id': 'btn_edit_layout',
-          'title': 'Layout Structure',
-          'description': 'Change receipt design'
-        },
-        {
-          'id': 'btn_edit_address',
-          'title': 'Business Address',
-          'description': 'Update location'
-        },
-        {
-          'id': 'btn_edit_logo',
-          'title': 'Upload Logo',
-          'description': 'Update business logo'
-        },
-        {
-          'id': 'btn_change_currency',
-          'title': 'Change Currency',
-          'description': 'Update default currency'
-        },
-      ],
-    );
+    await _services.firestoreService
+        .updateAction(from, UserAction.editProfileMenu);
+    await _services.settingsHandler.showEditProfileMenu(from);
     return true;
   }
 
-  if (lower == 'manage team' || lower == 'btn_manage_team') {
+  if (lower == 'manage team' || lower == ButtonIds.manageTeam) {
     if (profile.role != UserRole.admin) {
-      await _sendWhatsAppMessage(
-        from,
-        'Only Admins can manage team members.',
-      );
+      await _services.whatsappService
+          .sendMessage(from, 'Only Admins can manage team members.');
       return true;
     }
-
-    if (profile.orgId != null) {
-      final teamMembers =
-          await _firestoreService.getTeamMembers(profile.orgId!);
-      // Filter out the admin themselves from the removal list
-      final agents = teamMembers.where((m) => m.phoneNumber != from).toList();
-
-      String message = '👥 *Team Management*\n\n';
-
-      final org = await _firestoreService.getOrganization(profile.orgId!);
-      message += 'Your Team Invite Code is:\n*${org?.inviteCode ?? "N/A"}*\n\n';
-
-      if (agents.isEmpty) {
-        message +=
-            'You currently have no other team members.\nShare the code above for them to join!';
-        await _sendWhatsAppMessage(from, message);
-      } else {
-        message += 'Select a team member to remove:';
-
-        final listOptions = agents.map((agent) {
-          return {
-            'id': 'rm_${agent.phoneNumber}',
-            'title': agent.businessName ?? agent.phoneNumber,
-            'description': 'Remove this member'
-          };
-        }).toList();
-
-        await _firestoreService.updateAction(from, UserAction.removeTeamMember);
-        await _sendWhatsAppInteractiveList(
-          from,
-          message,
-          'Select Member',
-          'Team Members',
-          listOptions,
-        );
-      }
-    } else {
-      await _sendWhatsAppMessage(
-        from,
-        'You are not currently part of an organization. Please recreate your profile to get an invite code.',
-      );
-    }
+    await _services.settingsHandler.showTeamManagement(from, profile);
     return true;
   }
 
-  if (lower == 'change currency' || lower == 'btn_change_currency') {
+  if (lower == 'change currency' || lower == ButtonIds.changeCurrency) {
     // Handled in the edit profile section now
     return false;
   }
 
-  if (lower == 'upload logo' || lower == 'btn_edit_logo') {
+  if (lower == 'upload logo' || lower == ButtonIds.editLogo) {
     if (profile.role != UserRole.admin) {
-      await _sendWhatsAppMessage(
-        from,
-        'Only Admins can upload the business logo.',
-      );
+      await _services.whatsappService
+          .sendMessage(from, 'Only Admins can upload the business logo.');
       return true;
     }
-    await _firestoreService.updateAction(from, UserAction.editLogo);
-    await _sendWhatsAppMessage(from,
-        'Okay, send me the **New Logo Image**.\n\n⚠️ *If your logo has a transparent background, upload it as a Document so WhatsApp keeps it transparent!*\n\nType *Cancel* to exit.');
+    await _services.firestoreService.updateAction(from, UserAction.editLogo);
+    await _services.whatsappService.sendMessage(from,
+        'Okay, send me the *New Logo Image*.\n\n⚠️ *If your logo has a transparent background, upload it as a Document so WhatsApp keeps it transparent!*\n\nType *Back* to return or *Cancel* to exit.');
     return true;
   }
 
   if (lower.startsWith('cancel') ||
-      lower == 'btn_cancel' ||
+      lower == ButtonIds.cancel ||
       lower == 'exit' ||
       lower.startsWith('quit')) {
-    await _firestoreService.updateAction(from, UserAction.idle);
-    await _sendWhatsAppMessage(from, 'Action cancelled.');
+    await _services.firestoreService.updateAction(from, UserAction.idle);
+    await _services.whatsappService.sendMessage(from, 'Action cancelled.');
     return true;
+  }
+
+  // Back navigation - returns to parent menu instead of exiting
+  if (lower == 'back' || lower == ButtonIds.back) {
+    final action = profile.currentAction ?? UserAction.idle;
+
+    // Route to appropriate parent menu based on current action
+    switch (action) {
+      case UserAction.editName:
+      case UserAction.editPhone:
+      case UserAction.editAddress:
+      case UserAction.editBankDetails:
+      case UserAction.editLogo:
+      case UserAction.selectTheme:
+      case UserAction.selectLayout:
+      case UserAction.selectCurrency:
+        // Return to Edit Profile menu
+        await _services.settingsHandler.showEditProfileMenu(from);
+        return true;
+
+      case UserAction.editProfileMenu:
+      case UserAction.removeTeamMember:
+      case UserAction.confirmRemoveTeamMember:
+        // Return to Settings menu
+        await _services.settingsHandler
+            .showSettingsMenu(from, profile.isPremium);
+        return true;
+
+      case UserAction.selectingSubscriptionPlan:
+      case UserAction.awaitingEmailForUpgrade:
+        // Return to Settings menu
+        await _services.settingsHandler
+            .showSettingsMenu(from, profile.isPremium);
+        return true;
+
+      default:
+        // For other actions, just go idle
+        await _services.firestoreService.updateAction(from, UserAction.idle);
+        await _services.whatsappService
+            .sendMessage(from, 'Returned to main menu.');
+        return true;
+    }
   }
 
   return false;
 }
 
-Future<void> _processReceiptResult(
-  String from,
-  String text,
-  BusinessProfile profile, {
-  required bool isInvoice,
-}) async {
-  // Conversational filter: prevent chatting during document generation phase
-  if (text.length < 100) {
-    try {
-      final intentResult = await _geminiService.determineUserIntent(text);
-      if (intentResult.type == UserIntent.chat) {
-        await _sendWhatsAppMessage(
-            from,
-            intentResult.response ??
-                "Please provide the document details, or type 'Cancel' to exit.");
-        return;
-      } else if (intentResult.type == UserIntent.help) {
-        await _sendHelpMessage(from);
-        return;
-      }
-    } catch (_) {
-      // Ignore intent failure and proceed
-    }
-  }
-
-  // --- FREEMIUM CHECK ---
-  if (!profile.isPremium) {
-    final now = DateTime.now();
-    final currentMonthStr =
-        "${now.year}-${now.month.toString().padLeft(2, '0')}";
-    int currentCount = profile.receiptCount;
-
-    if (profile.lastReceiptMonth != currentMonthStr) {
-      currentCount = 0;
-    }
-
-    if (currentCount >= 5) {
-      await _firestoreService.updateAction(from, UserAction.idle);
-
-      final isPaystack = CountryUtils.isPaystackRegion(from);
-      final monthlyDesc =
-          isPaystack ? 'Unlimited (₦3,500/mo)' : r'Flexible ($20/mo)';
-      final annualDesc =
-          isPaystack ? 'Save 20%! (₦35,000/yr)' : r'Save $40! ($200/yr)';
-
-      await _sendWhatsAppInteractiveList(
-          from,
-          "🚫 **Monthly Limit Reached**\n\nYou have generated 5 free receipts/invoices this month. Tap below to unlock unlimited generations!",
-          "View Plans",
-          "Select Plan", [
-        {
-          'id': 'btn_monthly',
-          'title': 'Monthly Plan',
-          'description': monthlyDesc
-        },
-        {'id': 'btn_yearly', 'title': 'Annual Plan', 'description': annualDesc},
-      ]);
-      return;
-    }
-  }
-
-  await _sendWhatsAppMessage(
-    from,
-    'Generating ${isInvoice ? "Invoice" : "Receipt"}... ⏳',
-  );
-
-  print(
-      'DEBUG: Processing receipt with Currency: ${profile.currencyCode} (${profile.currencySymbol})');
-
-  try {
-    // AI Parsing
-    print('DEBUG: Starting Gemini Parse...');
-    final swGemini = Stopwatch()..start();
-    final transaction = await _geminiService.parseTransaction(
-      text,
-      currencySymbol: profile.currencySymbol,
-      currencyCode: profile.currencyCode,
-    );
-    swGemini.stop();
-    print('DEBUG: Gemini Parse took ${swGemini.elapsedMilliseconds} ms');
-
-    // Validate Transaction
-    if (transaction.items.isEmpty && transaction.totalAmount == 0) {
-      await _sendWhatsAppMessage(
-        from,
-        "I couldn't find any items or prices in that message. Please try again with details like: 'Customer Name, Items, Prices'.",
-      );
-      // Keep them in the same action state to try again
-      return;
-    }
-
-    // 4. Update Profile with new bank details if found
-    if (transaction.bankName != null || transaction.accountNumber != null) {
-      final updates = <String, dynamic>{};
-      if (transaction.bankName != null) {
-        updates['bankName'] = transaction.bankName;
-      }
-      if (transaction.accountNumber != null) {
-        updates['accountNumber'] = transaction.accountNumber;
-      }
-      if (transaction.accountName != null) {
-        updates['accountName'] = transaction.accountName;
-      }
-
-      if (updates.isNotEmpty) {
-        await _firestoreService.updateProfileData(from, updates);
-        // Update local profile for PDF generation
-        profile = profile.copyWith(
-          bankName: transaction.bankName ?? profile.bankName,
-          accountNumber: transaction.accountNumber ?? profile.accountNumber,
-          accountName: transaction.accountName ?? profile.accountName,
-        );
-      }
-    }
-
-    // Phase B check: Handle missing bank details for Invoices
-    if (isInvoice) {
-      final hasBankDetails =
-          profile.bankName != null && profile.accountNumber != null;
-      if (!hasBankDetails) {
-        await _firestoreService.updateProfileData(from, {
-          'pendingTransaction': jsonEncode(transaction.toJson()),
-          'currentAction': UserAction.awaitingInvoiceBankDetails.name,
-        });
-
-        await _sendWhatsAppMessage(
-          from,
-          "I have your invoice details ready! However, you haven't added your payment/bank details to your profile yet.\n\nPlease reply with your **Bank Name, Account Number, and Account Name** so I can add them to this invoice and save them for next time.\n\nType *Cancel* to exit.",
-        );
-        return; // Pause flow here
-      }
-    }
-
-    // Phase B check: If we have a theme preference, use it.
-    if (profile.themeIndex != null) {
-      // Direct Generation
-      transaction.type.index;
-
-      await _generateAndSendPDF(
-        from,
-        profile,
-        transaction,
-        profile.themeIndex!,
-      );
-      return;
-    }
-
-    // 5. Save Pending Transaction & Ask for Theme
-    await _firestoreService.updateProfileData(from, {
-      'pendingTransaction': jsonEncode(transaction.toJson()),
-      'currentAction': UserAction.selectTheme.name,
-    });
-
-    await _sendWhatsAppInteractiveButtons(
-      from,
-      "Got it! 🧾\n\nSelect a style for your ${isInvoice ? 'Invoice' : 'Receipt'}:",
-      [
-        {'id': 'theme_classic', 'title': 'B&W (Classic)'},
-        {'id': 'theme_beige', 'title': 'Beige'},
-      ],
-    );
-  } catch (e) {
-    print('Error generating receipt: $e');
-    if (e.toString().contains('GEMINI_BUSY')) {
-      await _sendWhatsAppMessage(
-        from,
-        "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt details again.",
-      );
-    } else {
-      await _sendWhatsAppMessage(
-        from,
-        "⚠️ Error: I couldn't process that.\n\nDetails: $e\n\nPlease try again or type 'Create Receipt' for help.",
-      );
-    }
-  }
-}
-
-Future<void> _handleThemeSelection(
-  String from,
-  String body,
-  BusinessProfile profile,
-) async {
-  int? themeIndex;
-
-  final lower = body.toLowerCase().trim();
-  if (lower == 'theme_classic' ||
-      lower == '1' ||
-      lower == 'classic' ||
-      lower == 'b&w (classic)') {
-    themeIndex = 0;
-  } else if (lower == 'theme_beige' || lower == '2' || lower == 'beige') {
-    themeIndex = 1;
-  }
-
-  if (themeIndex == null) {
-    await _sendWhatsAppMessage(
-      from,
-      'Please select an option from the menu, or reply with Classic or Beige.',
-    );
-    return;
-  }
-
-  // Update Profile with new theme preference
-  await _updateProfileAndOrg(from, profile, {'themeIndex': themeIndex});
-  profile = profile.copyWith(themeIndex: themeIndex);
-
-  // If no pending transaction, this was just a profile update
-  if (profile.pendingTransaction == null) {
-    await _sendWhatsAppMessage(from, 'Default theme updated! ✅');
-    // Go back to profile menu
-    await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-    await _sendWhatsAppInteractiveList(
-        from,
-        'What else would you like to update? 👇',
-        'View Options',
-        'Edit Profile', [
-      {'id': 'btn_edit_name', 'title': 'Business Name'},
-      {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-      {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-      {'id': 'btn_edit_theme', 'title': 'Theme'},
-      {'id': 'btn_edit_layout', 'title': 'Layout'},
-      {'id': 'btn_edit_currency', 'title': 'Currency'},
-      {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-      {'id': 'btn_edit_address', 'title': 'Business Address'},
-    ]);
-    return;
-  }
-
-  // Otherwise, continue to generate the pending receipt
-  await _generateAndSendPDF(
-      from, profile, profile.pendingTransaction!, themeIndex);
-}
-
-Future<void> _handleLayoutSelection(
-  String from,
-  String body,
-  BusinessProfile profile,
-) async {
-  int? layoutIndex;
-
-  final lower = body.toLowerCase().trim();
-  if (lower == 'theme_layout_1' ||
-      lower == '1' ||
-      lower == 'legacy' ||
-      lower == 'default' ||
-      lower == 'classic') {
-    layoutIndex = 0;
-  } else if (lower == 'theme_layout_2' ||
-      lower == '2' ||
-      lower == 'signature') {
-    layoutIndex = 1;
-  } else if (lower == 'theme_layout_3' || lower == '3' || lower == 'simple') {
-    layoutIndex = 2;
-  } else if (lower == 'theme_layout_4' ||
-      lower == '4' ||
-      lower == 'corporate' ||
-      lower == 'standard') {
-    layoutIndex = 3;
-  }
-
-  if (layoutIndex == null) {
-    await _sendWhatsAppMessage(
-      from,
-      'Please select an option from the menu, or reply with 1, 2, 3, or 4.',
-    );
-    return;
-  }
-
-  // Update Profile with new layout preference
-  await _updateProfileAndOrg(from, profile, {'layoutIndex': layoutIndex});
-  profile = profile.copyWith(layoutIndex: layoutIndex);
-
-  // If no pending transaction, this was just a profile update
-  if (profile.pendingTransaction == null) {
-    await _sendWhatsAppMessage(from, 'Default layout updated! ✅');
-    // Go back to profile menu
-    await _firestoreService.updateAction(from, UserAction.editProfileMenu);
-    await _sendWhatsAppInteractiveList(
-        from,
-        'What else would you like to update? 👇',
-        'View Options',
-        'Edit Profile', [
-      {'id': 'btn_edit_name', 'title': 'Business Name'},
-      {'id': 'btn_edit_phone', 'title': 'Phone Number'},
-      {'id': 'btn_edit_bank', 'title': 'Bank Details'},
-      {'id': 'btn_edit_theme', 'title': 'Theme'},
-      {'id': 'btn_edit_layout', 'title': 'Layout'},
-      {'id': 'btn_edit_currency', 'title': 'Currency'},
-      {'id': 'btn_edit_logo', 'title': 'Upload Logo'},
-      {'id': 'btn_edit_address', 'title': 'Business Address'},
-    ]);
-    return;
-  }
-
-  await _generateAndSendPDF(
-      from, profile, profile.pendingTransaction!, profile.themeIndex ?? 0);
-}
-
-Future<void> _generateAndSendPDF(
-  String from,
-  BusinessProfile profile,
-  Transaction transaction,
-  int themeIndex,
-) async {
-  await _sendWhatsAppMessage(from, 'Generating PDF... ⏳');
-
-  try {
-    Organization? org;
-    if (profile.orgId != null) {
-      org = await _firestoreService.getOrganization(profile.orgId!);
-    }
-
-    print('DEBUG: Starting PDF Generation...');
-    final swPdf = Stopwatch()..start();
-    final pdfBytes = await _pdfService.generateReceipt(
-      profile, // Still passing profile as fallback/context
-      transaction,
-      themeIndex: themeIndex,
-      layoutIndex: profile.layoutIndex ?? 3,
-      org: org,
-    );
-    swPdf.stop();
-    print('DEBUG: PDF generation took ${swPdf.elapsedMilliseconds} ms');
-
-    // Upload and Send
-    final fileName =
-        '${transaction.type == TransactionType.invoice ? "invoice" : "receipt"}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
-    print('DEBUG: Starting Upload to Firebase Storage...');
-    final swUpload = Stopwatch()..start();
-    final pdfUrl = await _firestoreService.uploadFile(
-      'receipts/$from/$fileName',
-      pdfBytes,
-      'application/pdf',
-    );
-    swUpload.stop();
-    print('DEBUG: Firebase upload took ${swUpload.elapsedMilliseconds} ms');
-
-    await _sendWhatsAppMessage(
-      from,
-      "Here is your ${transaction.type == TransactionType.invoice ? "Invoice" : "Receipt"}! 👇",
-    );
-
-    print('DEBUG: Sending WhatsApp Document...');
-    final swSend = Stopwatch()..start();
-    await _sendWhatsAppDocument(from, pdfUrl, fileName);
-    swSend.stop();
-    print(
-        'DEBUG: WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms');
-
-    // --- FREEMIUM INCREMENT & WARNING ---
-    if (!profile.isPremium) {
-      final now = DateTime.now();
-      final currentMonthStr =
-          "${now.year}-${now.month.toString().padLeft(2, '0')}";
-      final int newCount = (profile.lastReceiptMonth == currentMonthStr)
-          ? profile.receiptCount + 1
-          : 1;
-
-      await _firestoreService.updateProfileData(from, {
-        'receiptCount': newCount,
-        'lastReceiptMonth': currentMonthStr,
-      });
-
-      if (newCount == 4) {
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await _sendWhatsAppMessage(from,
-            "⚠️ **Notice:** You have exactly 1 free generation left this month. Type *Upgrade* to unlock unlimited access.");
-      } else if (newCount >= 5) {
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await _sendWhatsAppInteractiveList(
-            from,
-            "🎉 You just used your last free receipt for this month!\n\nTo continue generating unlimited professional receipts, tap below to unlock Premium.",
-            "View Plans",
-            "Select Plan", [
-          {
-            'id': 'btn_monthly',
-            'title': 'Monthly Plan',
-            'description': 'Unlimited (₦3,500/mo)'
-          },
-          {
-            'id': 'btn_yearly',
-            'title': 'Annual Plan',
-            'description': 'Save ₦7,000! (₦35,000/yr)'
-          },
-        ]);
-      } else if (!profile.hasSeenPremiumTip) {
-        await Future<void>.delayed(const Duration(seconds: 1));
-        await _sendWhatsAppMessage(from,
-            "💡 **Tip:** Want your logo on every receipt? Reply with *Upgrade* to unlock custom branding and premium layouts!");
-
-        await _firestoreService.updateProfileData(from, {
-          'hasSeenPremiumTip': true,
-        });
-      }
-    }
-    // ------------------------------------
-
-    await _firestoreService
-        .updateProfileData(from, {'pendingTransaction': ''}); // Clear pending
-    await _firestoreService.updateAction(from, UserAction.idle);
-  } catch (e, stackTrace) {
-    print('Error generating PDF: $e\nStack trace:\n$stackTrace');
-    await _sendWhatsAppMessage(
-      from,
-      'Failed to generate PDF. Please try again.',
-    );
-    await _firestoreService.updateAction(from, UserAction.idle);
-  }
-}
-
-Future<void> _sendWhatsAppMessage(String to, String message) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'text',
-    'text': {'body': message},
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send WhatsApp message: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending WhatsApp message: $e');
-  }
-}
-
-Future<String> _getWhatsAppMediaUrl(String mediaId) async {
-  // 1. Get URL from Media ID
-  final url = Uri.parse('https://graph.facebook.com/v17.0/$mediaId');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-  };
-  final response = await http.get(url, headers: headers);
-  if (response.statusCode == 200) {
-    final json = jsonDecode(response.body);
-    return json['url'] as String; // This is the download URL
-  } else {
-    throw Exception('Failed to get media URL: ${response.body}');
-  }
-}
-
-Future<List<int>> _downloadFileBytes(String url) async {
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken', // Required for WhatsApp media
-  };
-
-  final response = await http.get(Uri.parse(url), headers: headers);
-  if (response.statusCode == 200) {
-    return response.bodyBytes;
-  } else {
-    throw Exception('Failed to download file: ${response.statusCode}');
-  }
-}
-
-Future<void> _sendWhatsAppDocument(
-  String to,
-  String mediaUrl,
-  String filename,
-) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'document',
-    'document': {
-      'link': mediaUrl,
-      'filename': filename,
-    },
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send WhatsApp document: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending WhatsApp document: $e');
-  }
-}
-
-Future<void> _sendWhatsAppInteractiveMedia(
-  String to,
-  String mediaUrl,
-  String mediaType, {
-  required String bodyText,
-  required List<Map<String, String>> buttons,
-}) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-
-  final actionButtons = buttons.map((b) {
-    return {
-      'type': 'reply',
-      'reply': {
-        'id': b['id'],
-        'title': b['title'],
-      }
-    };
-  }).toList();
-
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'interactive',
-    'interactive': {
-      'type': 'button',
-      'header': {
-        'type': mediaType,
-        mediaType: {
-          'link': mediaUrl,
-        }
-      },
-      'body': {'text': bodyText},
-      'action': {
-        'buttons': actionButtons,
-      }
-    }
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send interactive media: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending interactive media: $e');
-  }
-}
-
-Future<void> _sendWhatsAppInteractiveButtons(
-  String to,
-  String bodyText,
-  List<Map<String, String>> buttons,
-) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-
-  final actionButtons = buttons.map((b) {
-    return {
-      'type': 'reply',
-      'reply': {
-        'id': b['id'],
-        'title': b['title'],
-      }
-    };
-  }).toList();
-
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'interactive',
-    'interactive': {
-      'type': 'button',
-      'body': {'text': bodyText},
-      'action': {
-        'buttons': actionButtons,
-      }
-    }
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send interactive buttons: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending interactive buttons: $e');
-  }
-}
-
-Future<void> _sendWhatsAppInteractiveList(
-  String to,
-  String bodyText,
-  String buttonText,
-  String listTitle,
-  List<Map<String, String>> rows,
-) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-
-  final listRows = rows.map((r) {
-    return {
-      'id': r['id'],
-      'title': r['title'],
-      if (r['description'] != null) 'description': r['description'],
-    };
-  }).toList();
-
-  // --- GLOBAL CANCEL BUTTON ---
-  final hasCancel = listRows.any((r) => r['id'] == 'btn_cancel');
-  if (!hasCancel && listRows.length < 10) {
-    listRows.add({
-      'id': 'btn_cancel',
-      'title': '❌ Cancel',
-      'description': 'Exit to main menu'
-    });
-  }
-
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'interactive',
-    'interactive': {
-      'type': 'list',
-      'body': {'text': bodyText},
-      'action': {
-        'button': buttonText,
-        'sections': [
-          {
-            'title': listTitle,
-            'rows': listRows,
-          }
-        ]
-      }
-    }
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send interactive list: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending interactive list: $e');
-  }
-}
-
 Future<void> _sendWelcomeMessage(String to, BusinessProfile profile) async {
-  await _firestoreService.updateAction(to, UserAction.idle);
+  await _services.firestoreService.updateAction(to, UserAction.idle);
 
   const String bodyText = 'Hey! What can I do for you? 🙋‍♂️\n\n'
       '_Or just send me the details of a sale to quickly generate a receipt!_';
 
   final List<Map<String, String>> buttons = [
-    {'id': 'btn_create_receipt', 'title': '🧾 Receipt'},
-    {'id': 'btn_create_invoice', 'title': '📄 Invoice'},
+    {'id': ButtonIds.createReceipt, 'title': '🧾 Receipt'},
+    {'id': ButtonIds.createInvoice, 'title': '📄 Invoice'},
   ];
 
   if (profile.role == UserRole.admin) {
     // If they have a pending payment, prioritize the Verify button
     if (profile.pendingPaymentReference != null &&
         profile.pendingPaymentReference!.isNotEmpty) {
-      buttons.add({'id': 'btn_verify_payment', 'title': '✅ Verify Payment'});
+      buttons.add({'id': ButtonIds.verifyPayment, 'title': '✅ Verify Payment'});
     } else {
-      buttons.add({'id': 'btn_settings', 'title': '⚙️ Settings'});
+      buttons.add({'id': ButtonIds.settings, 'title': '⚙️ Settings'});
     }
   } else {
-    buttons.add({'id': 'help', 'title': '❓ Help'});
+    buttons.add({'id': ButtonIds.help, 'title': '❓ Help'});
   }
 
-  await _sendWhatsAppInteractiveButtons(to, bodyText, buttons);
+  await _services.whatsappService.sendInteractiveButtons(to, bodyText, buttons);
 }
 
 Future<void> _sendHelpMessage(String to) async {
-  await _sendWhatsAppMessage(
+  await _services.whatsappService.sendMessage(
     to,
     '''
 *How to use Remi* 🤖
@@ -2178,17 +734,6 @@ Type *Invite Team Member* to generate a unique 6-character code. Your staff can 
 Need human help? Contact support at woobackbigmlboa@gmail.com
 ''',
   );
-}
-
-Future<void> _updateProfileAndOrg(
-  String from,
-  BusinessProfile profile,
-  Map<String, dynamic> data,
-) async {
-  await _firestoreService.updateProfileData(from, data);
-  if (profile.role == UserRole.admin && profile.orgId != null) {
-    await _firestoreService.updateOrganizationData(profile.orgId!, data);
-  }
 }
 
 /// Helper function to automatically generate and send a Proof of Payment
@@ -2241,7 +786,7 @@ Future<void> generateAndSendSubscriptionReceipt(
 
     // 3. Generate the PDF
     // We use layoutIndex 1 (Signature Layout) and themeIndex 0 (Classic)
-    final pdfBytes = await _pdfService.generateReceipt(
+    final pdfBytes = await _services.pdfService.generateReceipt(
       profile,
       transaction,
       themeIndex: 0,
@@ -2252,14 +797,14 @@ Future<void> generateAndSendSubscriptionReceipt(
     // 4. Upload to Firebase Storage
     final fileName =
         'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    final pdfUrl = await _firestoreService.uploadFile(
+    final pdfUrl = await _services.firestoreService.uploadFile(
       'receipts/$phoneNumber/$fileName',
       pdfBytes,
       'application/pdf',
     );
 
     // 5. Send via WhatsApp
-    await _sendWhatsAppDocument(
+    await _services.whatsappService.sendDocument(
       phoneNumber,
       pdfUrl,
       fileName,

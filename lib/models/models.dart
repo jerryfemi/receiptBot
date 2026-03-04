@@ -32,6 +32,7 @@ enum UserAction {
   awaitingEmailForUpgrade,
   selectingSubscriptionPlan,
   removeTeamMember,
+  confirmRemoveTeamMember,  // Confirmation step before destructive action
 }
 
 enum TransactionType {

@@ -492,4 +492,49 @@ class FirestoreService {
           : null,
     );
   }
+
+  // --- WEBHOOK IDEMPOTENCY ---
+
+  String _webhookPath(String reference) {
+    return 'projects/$projectId/databases/(default)/documents/processed_webhooks/$reference';
+  }
+
+  /// Check if a webhook reference has already been processed
+  Future<bool> isWebhookProcessed(String reference) async {
+    await _ensureInitialized();
+    try {
+      await _firestoreApi!.projects.databases.documents.get(_webhookPath(reference));
+      return true; // Document exists = already processed
+    } catch (e) {
+      if (e.toString().contains('404') || e.toString().contains('Not Found')) {
+        return false;
+      }
+      print('Error checking webhook idempotency: $e');
+      return false; // Fail open to avoid blocking legitimate webhooks
+    }
+  }
+
+  /// Mark a webhook reference as processed (with TTL via timestamp for cleanup)
+  Future<void> markWebhookProcessed(String reference, String provider) async {
+    await _ensureInitialized();
+    try {
+      final fields = <String, Value>{
+        'provider': Value(stringValue: provider),
+        'processedAt': Value(timestampValue: DateTime.now().toUtc().toIso8601String()),
+      };
+
+      final doc = Document(fields: fields);
+      await _firestoreApi!.projects.databases.documents.createDocument(
+        doc,
+        'projects/$projectId/databases/(default)/documents',
+        'processed_webhooks',
+        documentId: reference,
+      );
+    } catch (e) {
+      // If it fails due to already existing, that's fine (race condition protection)
+      if (!e.toString().contains('ALREADY_EXISTS')) {
+        print('Error marking webhook as processed: $e');
+      }
+    }
+  }
 }

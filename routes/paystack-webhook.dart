@@ -3,13 +3,11 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dart_frog/dart_frog.dart';
-import 'package:http/http.dart' as http;
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
+import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'webhook.dart' as webhook_handler;
 
-final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
-final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
 final String _projectId =
     Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
 final String _paystackSecretKey =
@@ -17,31 +15,8 @@ final String _paystackSecretKey =
 
 final _firestoreService = FirestoreService(projectId: _projectId);
 final _paystackService = PaystackService();
+final _whatsappService = WhatsAppService();
 bool _servicesInitialized = false;
-
-Future<void> _sendWhatsAppMessage(String to, String message) async {
-  final url =
-      Uri.parse('https://graph.facebook.com/v17.0/$_phoneNumberId/messages');
-  final headers = {
-    'Authorization': 'Bearer $_whatsappToken',
-    'Content-Type': 'application/json',
-  };
-  final body = jsonEncode({
-    'messaging_product': 'whatsapp',
-    'to': to,
-    'type': 'text',
-    'text': {'body': message},
-  });
-
-  try {
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) {
-      print('Failed to send WhatsApp message: ${response.body}');
-    }
-  } catch (e) {
-    print('Error sending WhatsApp message: $e');
-  }
-}
 
 Future<Response> onRequest(RequestContext context) async {
   final request = context.request;
@@ -79,6 +54,12 @@ Future<Response> onRequest(RequestContext context) async {
         if (!_servicesInitialized) {
           await _firestoreService.initialize();
           _servicesInitialized = true;
+        }
+
+        // Idempotency check - prevent double processing on webhook retries
+        if (await _firestoreService.isWebhookProcessed(reference)) {
+          print('Webhook already processed for reference: $reference. Skipping.');
+          return;
         }
 
         print('Ping received for reference: $reference. Verifying...');
@@ -132,7 +113,10 @@ Future<Response> onRequest(RequestContext context) async {
               'receiptCount': 0, // Reset count on upgrade
             });
 
-            await _sendWhatsAppMessage(phoneNumber,
+            // Mark as processed BEFORE sending messages (prevents double-upgrade even if message fails)
+            await _firestoreService.markWebhookProcessed(reference, 'paystack');
+
+            await _whatsappService.sendMessage(phoneNumber,
                 "🎉 **$planName Payment Successful!** 🎉\n\nYou are now a Premium user! Enjoy advanced layouts, monthly sales stats, and more!\n\nYour access is valid until ${newExpiryDate.day}/${newExpiryDate.month}/${newExpiryDate.year}.");
 
             // Generate and send receipt
@@ -153,12 +137,13 @@ Future<Response> onRequest(RequestContext context) async {
               await _firestoreService.findUserByPaymentReference(reference);
           if (phoneNumber != null) {
             final amountNgn = amountInKobo / 100;
-            await _sendWhatsAppMessage(phoneNumber,
+            await _whatsappService.sendMessage(phoneNumber,
                 "⚠️ **Partial Payment Received** ⚠️\n\nWe received a payment of ₦$amountNgn, which does not exactly match our Monthly (₦3,500) or Annual (₦35,000) plans. Please contact support to have your account manually credited.");
           }
         }
-      } catch (e) {
-        print('Webhook async verification error: $e');
+      } catch (e, stackTrace) {
+        print('Paystack webhook async verification error: $e');
+        print('Stack trace: $stackTrace');
       }
     });
   }

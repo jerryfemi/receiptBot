@@ -11,6 +11,39 @@ import 'package:receipt_bot/layouts/simple_layout.dart';
 
 import 'package:receipt_bot/models/models.dart';
 
+/// Simple LRU cache with max size eviction
+class _LruCache<K, V> {
+  final int maxSize;
+  final Map<K, V> _cache = {};
+  final List<K> _accessOrder = [];
+
+  _LruCache({required this.maxSize});
+
+  V? get(K key) {
+    if (_cache.containsKey(key)) {
+      // Move to end (most recently used)
+      _accessOrder..remove(key)
+      ..add(key);
+      return _cache[key];
+    }
+    return null;
+  }
+
+  void put(K key, V value) {
+    if (_cache.containsKey(key)) {
+      _accessOrder.remove(key);
+    } else if (_cache.length >= maxSize) {
+      // Evict least recently used
+      final lruKey = _accessOrder.removeAt(0);
+      _cache.remove(lruKey);
+    }
+    _cache[key] = value;
+    _accessOrder.add(key);
+  }
+
+  bool containsKey(K key) => _cache.containsKey(key);
+}
+
 class PdfService {
   // Static Caches for Fonts and Logos
   static Uint8List? _regularFontData;
@@ -18,7 +51,7 @@ class PdfService {
   static Uint8List? _scriptFontData;
   static Uint8List? _serifFontData;
   static Uint8List? _notoFontData;
-  static final Map<String, Uint8List> _logoCache = {};
+  static final _LruCache<String, Uint8List> _logoCache = _LruCache(maxSize: 50);
 
   Future<Uint8List> generateReceipt(
     BusinessProfile profile,
@@ -74,11 +107,12 @@ class PdfService {
     final usedAccountNumber = org?.accountNumber ?? profile.accountNumber;
     final usedAccountName = org?.accountName ?? profile.accountName;
 
-    // 1. Load Logo (with Caching) - ONLY for Premium users
+    // 1. Load Logo (with LRU Caching) - ONLY for Premium users
     pw.MemoryImage? logoImage;
     if (profile.isPremium && usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
-      if (_logoCache.containsKey(usedLogoUrl)) {
-        logoImage = pw.MemoryImage(_logoCache[usedLogoUrl]!);
+      final cachedLogo = _logoCache.get(usedLogoUrl);
+      if (cachedLogo != null) {
+        logoImage = pw.MemoryImage(cachedLogo);
       } else {
         try {
           if (usedLogoUrl.startsWith('http')) {
@@ -86,13 +120,13 @@ class PdfService {
                 .get(Uri.parse(usedLogoUrl))
                 .timeout(const Duration(seconds: 15));
             if (response.statusCode == 200) {
-              _logoCache[usedLogoUrl] = response.bodyBytes;
+              _logoCache.put(usedLogoUrl, response.bodyBytes);
               logoImage = pw.MemoryImage(response.bodyBytes);
             }
           } else {
             // Local file fallback
             final bytes = await File(usedLogoUrl).readAsBytes();
-            _logoCache[usedLogoUrl] = bytes;
+            _logoCache.put(usedLogoUrl, bytes);
             logoImage = pw.MemoryImage(bytes);
           }
         } catch (e) {
