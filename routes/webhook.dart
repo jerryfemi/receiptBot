@@ -8,7 +8,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dart_frog/dart_frog.dart';
-import 'package:http/http.dart' as http;
 import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -661,6 +660,7 @@ Future<bool> _handleGlobalCommands(
             .showSettingsMenu(from, profile.isPremium);
         return true;
 
+      // ignore: no_default_cases
       default:
         // For other actions, just go idle
         await _services.firestoreService.updateAction(from, UserAction.idle);

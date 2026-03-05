@@ -2,6 +2,7 @@ analyzer:
   errors:
     always_put_required_named_parameters_first: ignore
     avoid_dynamic_calls: ignore
+    avoid_positional_boolean_parameters: ignore
     avoid_redundant_argument_values: ignore
     cast_nullable_to_non_nullable: ignore
     constant_identifier_names: ignore

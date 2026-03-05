@@ -27,7 +27,7 @@ class PaystackService {
         if (attempt == _maxRetries) rethrow;
         final delay = Duration(milliseconds: 500 * (attempt + 1));
         print('Paystack request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...');
-        await Future.delayed(delay);
+        await Future<void>.delayed(delay);
       }
     }
     throw Exception('Paystack request failed after $_maxRetries retries');

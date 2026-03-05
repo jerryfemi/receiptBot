@@ -300,7 +300,7 @@ class SubscriptionHandler {
         final dateStr = "${expiry.day}/${expiry.month}/${expiry.year}";
 
         await whatsappService.sendMessage(from,
-            "💎 *\*Subscription Active*\n\nYou are currently on the *$tierName* tier.\nYour access expires on *$dateStr* ($daysLeft days remaining).\n\nIf you'd like to extend your time, type *Upgrade*.");
+            "💎 *Subscription Active*\n\nYou are currently on the *$tierName* tier.\nYour access expires on *$dateStr* ($daysLeft days remaining).\n\nIf you'd like to extend your time, type *Upgrade*.");
       } else {
         await whatsappService.sendMessage(from,
             "💎 *Subscription Active*\n\nYou are currently on the *$tierName* tier, however your expiration date could not be read.");

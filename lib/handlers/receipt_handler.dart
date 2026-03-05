@@ -73,7 +73,8 @@ class ReceiptHandler {
     required bool isInvoice,
   }) async {
     // Conversational filter: prevent chatting during document generation
-    if (text.length < 100) {
+    // Only check intent for very short messages to save API calls
+    if (text.length < 50) {
       try {
         final intentResult = await geminiService.determineUserIntent(text);
         if (intentResult.type == UserIntent.chat) {
@@ -231,6 +232,13 @@ class ReceiptHandler {
         currencySymbol: profile.currencySymbol,
         currencyCode: profile.currencyCode,
       );
+
+      // If user has saved theme preference, generate directly
+      if (profile.themeIndex != null) {
+        await generateAndSendPDF(
+            from, profile, transaction, profile.themeIndex!);
+        return;
+      }
 
       // Save & Ask for Theme
       await firestoreService.updateProfileData(from, {
@@ -413,13 +421,18 @@ class ReceiptHandler {
     Transaction transaction,
     int themeIndex,
   ) async {
-    await whatsappService.sendMessage(from, 'Generating PDF... ⏳');
-
     try {
-      Organization? org;
-      if (profile.orgId != null) {
-        org = await firestoreService.getOrganization(profile.orgId!);
-      }
+      // Fetch org in parallel with sending status message (if needed)
+      final orgFuture = profile.orgId != null
+          ? firestoreService.getOrganization(profile.orgId!)
+          : Future.value(null);
+
+      // Send status and fetch org in parallel
+      await Future.wait([
+        whatsappService.sendMessage(from, 'Generating PDF... ⏳'),
+        orgFuture,
+      ]);
+      final org = await orgFuture;
 
       print('DEBUG: Starting PDF Generation...');
       final swPdf = Stopwatch()..start();
@@ -433,7 +446,7 @@ class ReceiptHandler {
       swPdf.stop();
       print('DEBUG: PDF generation took ${swPdf.elapsedMilliseconds} ms');
 
-      // Upload and Send
+      // Upload PDF
       final fileName =
           '${transaction.type == TransactionType.invoice ? "invoice" : "receipt"}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
@@ -447,11 +460,7 @@ class ReceiptHandler {
       swUpload.stop();
       print('DEBUG: Firebase upload took ${swUpload.elapsedMilliseconds} ms');
 
-      await whatsappService.sendMessage(
-        from,
-        "Here is your ${transaction.type == TransactionType.invoice ? "Invoice" : "Receipt"}! 👇",
-      );
-
+      // Send document directly (no extra "Here is your receipt" message)
       print('DEBUG: Sending WhatsApp Document...');
       final swSend = Stopwatch()..start();
       await whatsappService.sendDocument(from, pdfUrl, fileName);
@@ -459,13 +468,14 @@ class ReceiptHandler {
       print(
           'DEBUG: WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms');
 
-      // Handle freemium post-receipt warnings
-      await subscriptionHandler.handleFreemiumPostReceipt(from, profile);
-
-      // Clear pending transaction
-      await firestoreService
-          .updateProfileData(from, {'pendingTransaction': ''});
-      await firestoreService.updateAction(from, UserAction.idle);
+      // Handle freemium warning and clear pending in parallel
+      await Future.wait([
+        subscriptionHandler.handleFreemiumPostReceipt(from, profile),
+        firestoreService.updateProfileData(from, {
+          'pendingTransaction': '',
+          'currentAction': UserAction.idle.name,
+        }),
+      ]);
     } catch (e, stackTrace) {
       print('Error generating PDF: $e\nStack trace:\n$stackTrace');
       await whatsappService.sendMessage(

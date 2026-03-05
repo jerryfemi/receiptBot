@@ -17,7 +17,7 @@ class GeminiService {
       print('Warning: GEMINI_API_KEY is missing.');
     }
     _model = GenerativeModel(
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       apiKey: this.apiKey,
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -124,7 +124,7 @@ class GeminiService {
                 'GEMINI_BUSY: Google AI servers are temporarily overloaded. Please wait a minute and try again.');
           }
           await Future<void>.delayed(
-              Duration(seconds: 2 * retryCount)); // Exponential backoff
+              Duration(seconds: retryCount)); // 1s, 2s, 3s backoff
         } else {
           // If it's another type of error, don't retry, just throw
           print('Gemini Service Error: $e');
@@ -200,7 +200,7 @@ class GeminiService {
             throw Exception(
                 'GEMINI_BUSY: Google AI servers are temporarily overloaded. Please wait a minute and try again.');
           }
-          await Future<void>.delayed(Duration(seconds: 2 * retryCount));
+          await Future<void>.delayed(Duration(seconds: retryCount));
         } else {
           print('Gemini Image Parse Error: $e');
           rethrow; // Throw other errors immediately
@@ -293,7 +293,7 @@ class GeminiService {
             return IntentResult(
                 UserIntent.unknown); // Fallback gracefully if overloaded
           }
-          await Future<void>.delayed(Duration(seconds: 2 * retryCount));
+          await Future<void>.delayed(Duration(seconds: retryCount));
         } else {
           print('Gemini Intent Parse Error: $e');
           return IntentResult(UserIntent.unknown);

@@ -15,8 +15,8 @@ class WhatsAppService {
   WhatsAppService({
     String? token,
     String? phoneNumberId,
-    this.timeout = const Duration(seconds: 30),
-    this.maxRetries = 2,
+    this.timeout = const Duration(seconds: 15),
+    this.maxRetries = 1,
   })  : token = token ?? Platform.environment['WHATSAPP_TOKEN'] ?? '',
         phoneNumberId =
             phoneNumberId ?? Platform.environment['PHONE_NUMBER_ID'] ?? '';
@@ -192,14 +192,14 @@ class WhatsAppService {
 
         if (attempt < maxRetries) {
           await Future<void>.delayed(
-              Duration(milliseconds: 500 * (attempt + 1)));
+              Duration(milliseconds: 200 * (attempt + 1)));
           continue;
         }
 
         throw Exception('Failed to get media URL: ${response.body}');
       } catch (e) {
         if (attempt >= maxRetries) rethrow;
-        await Future<void>.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+        await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
       }
     }
 
@@ -221,14 +221,14 @@ class WhatsAppService {
 
         if (attempt < maxRetries) {
           await Future<void>.delayed(
-              Duration(milliseconds: 500 * (attempt + 1)));
+              Duration(milliseconds: 200 * (attempt + 1)));
           continue;
         }
 
         throw Exception('Failed to download file: ${response.statusCode}');
       } catch (e) {
         if (attempt >= maxRetries) rethrow;
-        await Future<void>.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+        await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
       }
     }
 
@@ -256,7 +256,7 @@ class WhatsAppService {
 
         if (attempt < maxRetries) {
           await Future<void>.delayed(
-              Duration(milliseconds: 500 * (attempt + 1)));
+              Duration(milliseconds: 200 * (attempt + 1)));
           continue;
         }
 
@@ -264,7 +264,7 @@ class WhatsAppService {
       } catch (e) {
         print('WhatsApp request error (attempt ${attempt + 1}): $e');
         if (attempt >= maxRetries) return false;
-        await Future<void>.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+        await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
       }
     }
 

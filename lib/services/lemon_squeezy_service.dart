@@ -34,7 +34,7 @@ class LemonSqueezyService {
         if (attempt == _maxRetries) rethrow;
         final delay = Duration(milliseconds: 500 * (attempt + 1));
         print('LemonSqueezy request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...');
-        await Future.delayed(delay);
+        await Future<void>.delayed(delay);
       }
     }
     throw Exception('LemonSqueezy request failed after $_maxRetries retries');
