@@ -10,6 +10,7 @@ enum OnboardingStatus {
   awaiting_invite_code,
   awaiting_address,
   awaiting_phone,
+  awaiting_logo,
   active,
 }
 

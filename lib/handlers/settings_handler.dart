@@ -163,7 +163,7 @@ class SettingsHandler {
         return;
       }
 
-      await _showLayoutSelection(from);
+      await showLayoutSelection(from);
       return;
     }
 
@@ -181,7 +181,7 @@ class SettingsHandler {
     if (lower == '7' ||
         lower == ButtonIds.changeCurrency ||
         lower == 'currency') {
-      await _showCurrencySelection(from);
+      await showCurrencySelection(from);
       return;
     }
 
@@ -361,7 +361,7 @@ class SettingsHandler {
   // CURRENCY SELECTION
   // ==========================================================
 
-  Future<void> _showCurrencySelection(String from) async {
+  Future<void> showCurrencySelection(String from) async {
     await firestoreService.updateAction(from, UserAction.selectCurrency);
 
     const currencies = CountryUtils.supportedCurrencies;
@@ -453,7 +453,7 @@ class SettingsHandler {
   // LAYOUT SELECTION
   // ==========================================================
 
-  Future<void> _showLayoutSelection(String from) async {
+  Future<void> showLayoutSelection(String from) async {
     await firestoreService.updateAction(from, UserAction.selectLayout);
     await whatsappService.sendMessage(
         from, "Please select a *Layout Structure*.");

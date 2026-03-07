@@ -278,6 +278,11 @@ Future<void> _handleMessage(
             .handleBusinessAddress(from, text, profile);
         break;
 
+      case OnboardingStatus.awaiting_logo:
+        await _services.onboardingHandler
+            .handleOnboardingLogo(from, text, type, messageData, profile);
+        break;
+
       case OnboardingStatus.active:
         await _handleActiveUser(from, text, type, messageData, profile);
         break;
@@ -438,7 +443,7 @@ Future<void> _handleActiveUser(
       break;
 
     case UserAction.idle:
-      // CONVERSATIONAL ROUTER
+      // CONVERSATIONAL ROUTER - Let Gemini decide what the user wants
 
       try {
         final intentResult =
@@ -446,44 +451,89 @@ Future<void> _handleActiveUser(
 
         switch (intentResult.type) {
           case UserIntent.chat:
-            if (intentResult.response != null) {
-              await _services.whatsappService
-                  .sendMessage(from, intentResult.response!);
-            } else {
-              await _services.whatsappService.sendMessage(from,
-                  "I'm here to help! Would you like to create a receipt or invoice?");
-            }
-            break;
-
-          case UserIntent.createReceipt:
-            await _services.receiptHandler
-                .processReceiptResult(from, text, profile, isInvoice: false);
-            break;
-
-          case UserIntent.createInvoice:
-            await _services.receiptHandler
-                .processReceiptResult(from, text, profile, isInvoice: true);
+            // Casual conversation - just respond
+            await _services.whatsappService.sendMessage(
+              from,
+              intentResult.response ??
+                  "I'm here to help! Type 'Menu' to see what I can do.",
+            );
             break;
 
           case UserIntent.help:
             await _sendHelpMessage(from);
             break;
 
-          case UserIntent.unknown:
-            // Relaxed Fallback: If intent is unknown but text is long, try parsing.
-            if (text.length > 20) {
-              await _services.receiptHandler
-                  .processReceiptResult(from, text, profile, isInvoice: false);
+          case UserIntent.wantsReceipt:
+            // User wants to create receipt but hasn't given details yet
+            // Send encouraging response and start guided flow
+            await _services.firestoreService
+                .updateAction(from, UserAction.createReceipt);
+            await _services.whatsappService.sendMessage(
+              from,
+              intentResult.response ??
+                  "Great! Tell me the sale details:\n\n*Customer name, items bought, and prices*\n\nExample: _John bought 2 shoes for 15k each and a bag for 8000_\n\nType *Cancel* to exit.",
+            );
+            break;
+
+          case UserIntent.wantsInvoice:
+            // User wants to create invoice but hasn't given details yet
+            await _services.firestoreService
+                .updateAction(from, UserAction.createInvoice);
+            final hasBankDetails =
+                profile.bankName != null && profile.accountNumber != null;
+            if (hasBankDetails) {
+              await _services.whatsappService.sendMessage(
+                from,
+                intentResult.response ??
+                    "Let's create that invoice! Tell me:\n\n*Client name, items, prices, and due date*\n\nType *Cancel* to exit.",
+              );
             } else {
-              await _services.whatsappService.sendMessage(from,
-                  "I didn't quite catch that. You can type 'Menu' to see options or just tell me what you sold!");
+              await _services.whatsappService.sendMessage(
+                from,
+                intentResult.response ??
+                    "Let's create that invoice! Tell me:\n\n*Client name, items, prices*\n\n⚠️ Also include your *Bank Details* so clients know where to pay.\n\nType *Cancel* to exit.",
+              );
             }
+            break;
+
+          case UserIntent.hasReceiptData:
+            // User provided actual receipt data - parse it!
+            await _services.receiptHandler
+                .processReceiptResult(from, text, profile, isInvoice: false);
+            break;
+
+          case UserIntent.hasInvoiceData:
+            // User provided actual invoice data - parse it!
+            await _services.receiptHandler
+                .processReceiptResult(from, text, profile, isInvoice: true);
+            break;
+
+          case UserIntent.question:
+            // User is asking a question - respond with the AI's answer
+            if (intentResult.response != null) {
+              await _services.whatsappService
+                  .sendMessage(from, intentResult.response!);
+            } else {
+              // Fallback for questions we can't answer
+              await _services.whatsappService.sendMessage(
+                from,
+                "I'm not sure about that. Type *Menu* to see your options, or *Help* for instructions!",
+              );
+            }
+            break;
+
+          case UserIntent.unknown:
+            // Truly unknown - be helpful
+            await _services.whatsappService.sendMessage(
+              from,
+              "I'm not sure what you mean. 🤔\n\nYou can:\n• Tell me what you sold to generate a receipt\n• Type *Menu* to see options\n• Type *Help* for instructions",
+            );
             break;
         }
       } catch (e) {
         print('Router Error: $e');
         await _services.whatsappService.sendMessage(from,
-            "I'm having a little trouble thinking right now. 😵‍💫 Try telling me what you sold again.");
+            "I'm having a little trouble thinking right now. 😵‍💫 Please try again!");
       }
       break;
   }
@@ -495,6 +545,17 @@ Future<bool> _handleGlobalCommands(
   String originalText,
   BusinessProfile profile,
 ) async {
+  // ===========================================================================
+  // INTERACTIVE BUTTON OVERRIDES (highest priority)
+  // Intercept button payloads REGARDLESS of current state to prevent
+  // stale-button collisions when users click old interactive messages.
+  // ===========================================================================
+  if (lower.startsWith('btn_') || lower.startsWith('theme_')) {
+    final handled =
+        await _handleButtonOverride(from, lower, originalText, profile);
+    if (handled) return true;
+  }
+
   // Greetings / Menu
   if (lower == 'menu' ||
       lower == 'hey' ||
@@ -601,11 +662,6 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
-  if (lower == 'change currency' || lower == ButtonIds.changeCurrency) {
-    // Handled in the edit profile section now
-    return false;
-  }
-
   if (lower == 'upload logo' || lower == ButtonIds.editLogo) {
     if (profile.role != UserRole.admin) {
       await _services.whatsappService
@@ -673,6 +729,154 @@ Future<bool> _handleGlobalCommands(
   return false;
 }
 
+/// Handles interactive button payloads as global overrides.
+/// This ensures clicking old buttons always works, regardless of current state.
+Future<bool> _handleButtonOverride(
+  String from,
+  String lower,
+  String originalText,
+  BusinessProfile profile,
+) async {
+  switch (lower) {
+    // -------------------------------------------------------------------------
+    // PROFILE EDIT FIELD OVERRIDES (Admin only)
+    // -------------------------------------------------------------------------
+    case ButtonIds.editName:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      await _services.firestoreService.updateAction(from, UserAction.editName);
+      await _services.whatsappService.sendMessage(
+        from,
+        'Okay, send me the *New Business Name*.\n\nType *Back* to return or *Cancel* to exit.',
+      );
+      return true;
+
+    case ButtonIds.editPhone:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      await _services.firestoreService.updateAction(from, UserAction.editPhone);
+      await _services.whatsappService.sendMessage(
+        from,
+        'Okay, send me the *New Phone Number*.\n\nType *Back* to return or *Cancel* to exit.',
+      );
+      return true;
+
+    case ButtonIds.editBank:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      await _services.firestoreService
+          .updateAction(from, UserAction.editBankDetails);
+      await _services.whatsappService.sendMessage(
+        from,
+        'Okay, send me your *Bank Details*:\n\nBank Name, Account Number, Account Name\n\nType *Back* to return or *Cancel* to exit.',
+      );
+      return true;
+
+    case ButtonIds.editAddress:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      await _services.firestoreService
+          .updateAction(from, UserAction.editAddress);
+      await _services.whatsappService.sendMessage(
+        from,
+        'Okay, send me the *New Business Address*.\n\nType *Back* to return or *Cancel* to exit.',
+      );
+      return true;
+
+    case ButtonIds.editTheme:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      await _services.firestoreService
+          .updateAction(from, UserAction.selectTheme);
+      await _services.whatsappService.sendInteractiveButtons(
+        from,
+        'Select a new *Theme (Color)*:',
+        MenuOptions.themes,
+      );
+      return true;
+
+    case ButtonIds.editLayout:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      if (!profile.isPremium) {
+        await _services.whatsappService.sendInteractiveButtons(
+          from,
+          '💎 *Premium Feature*\n\nCustom layouts are only available for Premium users!',
+          [
+            {'id': ButtonIds.upgrade, 'title': '⭐ Upgrade'},
+            {'id': ButtonIds.back, 'title': '⬅ Back'},
+          ],
+        );
+        return true;
+      }
+      await _services.settingsHandler.showLayoutSelection(from);
+      return true;
+
+    case ButtonIds.changeCurrency:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can edit the business profile.');
+        return true;
+      }
+      await _services.settingsHandler.showCurrencySelection(from);
+      return true;
+
+    case ButtonIds.editLogo:
+      if (profile.role != UserRole.admin) {
+        await _services.whatsappService
+            .sendMessage(from, 'Only Admins can upload the business logo.');
+        return true;
+      }
+      await _services.firestoreService.updateAction(from, UserAction.editLogo);
+      await _services.whatsappService.sendMessage(
+        from,
+        'Okay, send me the *New Logo Image*.\n\n⚠️ *If your logo has a transparent background, upload it as a Document so WhatsApp keeps it transparent!*\n\nType *Back* to return or *Cancel* to exit.',
+      );
+      return true;
+
+    // -------------------------------------------------------------------------
+    // LAYOUT OVERRIDES — call handler directly (one-shot, no pending state)
+    // -------------------------------------------------------------------------
+    case ButtonIds.layoutCorporate:
+    case ButtonIds.layoutSignature:
+    case ButtonIds.layoutSimple:
+    case ButtonIds.layoutLegacy:
+      await _services.receiptHandler
+          .handleLayoutSelection(from, originalText, profile);
+      return true;
+
+    // -------------------------------------------------------------------------
+    // THEME OVERRIDES — call handler directly (one-shot, no pending state)
+    // -------------------------------------------------------------------------
+    case ButtonIds.themeClassic:
+    case ButtonIds.themeBeige:
+      await _services.receiptHandler
+          .handleThemeSelection(from, originalText, profile);
+      return true;
+
+    default:
+      return false;
+  }
+}
+
 Future<void> _sendWelcomeMessage(String to, BusinessProfile profile) async {
   await _services.firestoreService.updateAction(to, UserAction.idle);
 
@@ -731,7 +935,7 @@ Type *Invite Team Member* to generate a unique 6-character code. Your staff can 
 • Type *Cancel* at any time to stop a current action.
 • Type *Upgrade* to view Premium features! 💎
 
-Need human help? Contact support at woobackbigmlboa@gmail.com
+Need human help? Contact support at remireceiptbot@gmail.com
 ''',
   );
 }

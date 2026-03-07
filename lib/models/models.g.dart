@@ -45,7 +45,7 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
     <String, dynamic>{
       'phoneNumber': instance.phoneNumber,
       'orgId': instance.orgId,
-      'role': _$UserRoleEnumMap[instance.role],
+      'role': _$UserRoleEnumMap[instance.role]!,
       'status': _$OnboardingStatusEnumMap[instance.status],
       'currentAction': _$UserActionEnumMap[instance.currentAction],
       'businessName': instance.businessName,
@@ -81,6 +81,7 @@ const _$OnboardingStatusEnumMap = {
   OnboardingStatus.awaiting_invite_code: 'awaiting_invite_code',
   OnboardingStatus.awaiting_address: 'awaiting_address',
   OnboardingStatus.awaiting_phone: 'awaiting_phone',
+  OnboardingStatus.awaiting_logo: 'awaiting_logo',
   OnboardingStatus.active: 'active',
 };
 
@@ -100,6 +101,8 @@ const _$UserActionEnumMap = {
   UserAction.awaitingInvoiceBankDetails: 'awaitingInvoiceBankDetails',
   UserAction.awaitingEmailForUpgrade: 'awaitingEmailForUpgrade',
   UserAction.selectingSubscriptionPlan: 'selectingSubscriptionPlan',
+  UserAction.removeTeamMember: 'removeTeamMember',
+  UserAction.confirmRemoveTeamMember: 'confirmRemoveTeamMember',
 };
 
 ReceiptItem _$ReceiptItemFromJson(Map<String, dynamic> json) => ReceiptItem(
@@ -145,7 +148,7 @@ Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
       'totalAmount': instance.totalAmount,
       'amountInWords': instance.amountInWords,
       'date': instance.date.toIso8601String(),
-      'type': _$TransactionTypeEnumMap[instance.type],
+      'type': _$TransactionTypeEnumMap[instance.type]!,
       'dueDate': instance.dueDate?.toIso8601String(),
       'bankName': instance.bankName,
       'accountNumber': instance.accountNumber,

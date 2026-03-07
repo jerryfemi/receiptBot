@@ -142,13 +142,14 @@ class OnboardingHandler {
 
     final address = text.trim();
 
+    // Save address and move to logo step
     await firestoreService.updateOnboardingStep(
       from,
-      OnboardingStatus.active,
+      OnboardingStatus.awaiting_logo,
       data: {
         'businessAddress': address,
-        'themeIndex': 0,   // Default to Classic theme
-        'layoutIndex': 3,  // Default to Corporate layout
+        'themeIndex': 0, // Default to Classic theme
+        'layoutIndex': 3, // Default to Corporate layout
       },
     );
 
@@ -158,6 +159,115 @@ class OnboardingHandler {
         {'businessAddress': address},
       );
     }
+
+    // Ask for logo (optional)
+    await whatsappService.sendInteractiveButtons(
+      from,
+      "Almost done! 🎨\n\nWould you like to add your *Business Logo* to your receipts?\n\n_You can always add or change it later in Settings._",
+      [
+        {'id': 'onboarding_upload_logo', 'title': '📷 Upload Logo'},
+        {'id': 'onboarding_skip_logo', 'title': '⏭️ Skip for now'},
+      ],
+    );
+  }
+
+  /// Handles logo upload or skip during onboarding.
+  Future<void> handleOnboardingLogo(
+    String from,
+    String text,
+    String type,
+    Map<String, dynamic> messageData,
+    BusinessProfile profile,
+  ) async {
+    final lower = text.toLowerCase().trim();
+
+    // Handle skip
+    if (lower == 'onboarding_skip_logo' ||
+        lower == 'skip' ||
+        lower == 'skip for now') {
+      await _completeOnboarding(from, profile);
+      return;
+    }
+
+    // Handle "Upload Logo" button - prompt for image
+    if (lower == 'onboarding_upload_logo' || lower == 'upload logo') {
+      await whatsappService.sendMessage(
+        from,
+        "Great! Send me your logo image now.\n\n💡 *Tip:* For best results, use a square image with a transparent background. Upload as a *Document* to keep transparency!\n\nOr type *Skip* to continue without a logo.",
+      );
+      return;
+    }
+
+    // Handle cancel
+    if (lower == 'cancel') {
+      await firestoreService.updateOnboardingStep(
+          from, OnboardingStatus.new_user);
+      await whatsappService.sendMessage(from, 'Action cancelled.');
+      await handleNewUser(from);
+      return;
+    }
+
+    // Handle image upload
+    if (type == 'image' || type == 'document') {
+      await whatsappService.sendMessage(from, 'Uploading logo... ⏳');
+
+      try {
+        String? mediaId;
+        if (type == 'image') {
+          mediaId = messageData['image']?['id'] as String?;
+        } else if (type == 'document') {
+          mediaId = messageData['document']?['id'] as String?;
+        }
+
+        if (mediaId == null) {
+          await whatsappService.sendMessage(from,
+              "Couldn't process that file. Please try again or type *Skip*.");
+          return;
+        }
+
+        final mediaUrl = await whatsappService.getMediaUrl(mediaId);
+        final fileBytes = await whatsappService.downloadFileBytes(mediaUrl);
+
+        final logoUrl = await firestoreService.uploadFile(
+          'logos/${profile.orgId ?? from}.png',
+          fileBytes,
+          'image/png',
+        );
+
+        // Save to profile and org
+        await firestoreService.updateProfileData(from, {'logoUrl': logoUrl});
+        if (profile.orgId != null) {
+          await firestoreService
+              .updateOrganizationData(profile.orgId!, {'logoUrl': logoUrl});
+        }
+
+        await whatsappService.sendMessage(from, 'Logo uploaded! ✅');
+        await _completeOnboarding(from, profile);
+      } catch (e) {
+        print('Onboarding logo upload error: $e');
+        await whatsappService.sendMessage(
+          from,
+          "Something went wrong uploading your logo. You can add it later in Settings.\n\nLet's continue!",
+        );
+        await _completeOnboarding(from, profile);
+      }
+      return;
+    }
+
+    // Unknown input - remind them
+    await whatsappService.sendInteractiveButtons(
+      from,
+      "Please send a logo image, or skip for now:",
+      [
+        {'id': 'onboarding_upload_logo', 'title': '📷 Upload Logo'},
+        {'id': 'onboarding_skip_logo', 'title': '⏭️ Skip for now'},
+      ],
+    );
+  }
+
+  /// Completes onboarding and shows welcome message.
+  Future<void> _completeOnboarding(String from, BusinessProfile profile) async {
+    await firestoreService.updateOnboardingStep(from, OnboardingStatus.active);
 
     // Build completion buttons based on role
     final List<Map<String, String>> buttons = [

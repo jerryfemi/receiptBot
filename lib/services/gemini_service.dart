@@ -241,18 +241,52 @@ class GeminiService {
   // --- Intent Classification ---
   Future<IntentResult> determineUserIntent(String text) async {
     final prompt = """
-    You are Remi, a friendly, professional AI assistant for business owners.
-    Analyze the user's message: "$text"
-    
-    Decide if they are:
-    1. Just chatting/greeting (INTENT: chat)
-    2. Providing details to make a receipt (INTENT: createReceipt)
-    3. Providing details to make an invoice (INTENT: createInvoice)
-    4. Asking for help (INTENT: help)
-    
-    If it's a greeting or general chat, provide a short, friendly,  professional response.
-    Return JSON ONLY: {"intent": "chat|createReceipt|createInvoice|help|unknown", "reply": "your friendly response if chat (optional)"}
-    """;
+You are Remi, a friendly AI receipt/invoice assistant for business owners.
+
+Analyze this message: "$text"
+
+CLASSIFY the intent into ONE of these categories:
+
+1. **chat** - Greetings, thanks, casual conversation, reactions
+   Examples: "hello", "thanks!", "wow nice", "good morning", "you're awesome"
+
+2. **help** - Asking how to use the bot or for instructions
+   Examples: "how do I use this?", "what can you do?", "help me"
+
+3. **wantsReceipt** - User WANTS to create a receipt but hasn't provided the details yet
+   Examples: "I want to create a receipt", "generate receipt", "make a receipt", "I need a receipt", "I sold something today"
+   NOTE: If they mention selling but don't include specific items/prices, this is wantsReceipt
+
+4. **wantsInvoice** - User WANTS to create an invoice but hasn't provided the details yet
+   Examples: "create invoice", "I need to make an invoice", "generate an invoice for me"
+
+5. **hasReceiptData** - User is PROVIDING actual transaction data (has items + prices)
+   Examples: "John bought 3 shirts for 5000 each", "Sold rice 2 bags 15k, beans 3k to Mrs Akin"
+   MUST have: at least one item with a price/amount
+
+6. **hasInvoiceData** - User is providing invoice data (items + prices + mentions due date or bank)
+   Examples: "Invoice for John: 2 laptops at 500k each, due in 7 days"
+   MUST have: items with prices AND mention of "invoice", "due date", or bank details
+
+7. **question** - User is asking a question about their account, subscription, or stats
+   Examples: "when does my subscription end?", "how many receipts have I made?", "am I premium?", "what's my plan?"
+
+8. **unknown** - Cannot determine intent
+
+RESPOND with JSON only:
+{
+  "intent": "chat|help|wantsReceipt|wantsInvoice|hasReceiptData|hasInvoiceData|question|unknown",
+  "reply": "Your friendly conversational response (required for chat/question/wantsReceipt/wantsInvoice)"
+}
+
+RULES:
+- For "chat": provide a warm, brief response
+- For "question": answer helpfully if you can, or say you'll check
+- For "wantsReceipt": encourage them to share the sale details (customer, items, prices)
+- For "wantsInvoice": encourage them to share invoice details
+- For "hasReceiptData"/"hasInvoiceData": reply can be empty, we'll parse the data
+- If unsure between wantsReceipt and hasReceiptData, check: does it have SPECIFIC items with PRICES? If no → wantsReceipt
+""";
 
     const maxRetries = 3;
     int retryCount = 0;
@@ -272,15 +306,36 @@ class GeminiService {
           cleanText = cleanText.replaceAll('```', '');
         }
 
-        final decoded = jsonDecode(cleanText) as Map<String, dynamic>;
+        final decoded = jsonDecode(cleanText.trim()) as Map<String, dynamic>;
         final intentString = decoded['intent'] as String?;
         final reply = decoded['reply'] as String?;
 
         UserIntent intent = UserIntent.unknown;
-        if (intentString == 'chat') intent = UserIntent.chat;
-        if (intentString == 'createReceipt') intent = UserIntent.createReceipt;
-        if (intentString == 'createInvoice') intent = UserIntent.createInvoice;
-        if (intentString == 'help') intent = UserIntent.help;
+        switch (intentString) {
+          case 'chat':
+            intent = UserIntent.chat;
+            break;
+          case 'help':
+            intent = UserIntent.help;
+            break;
+          case 'wantsReceipt':
+            intent = UserIntent.wantsReceipt;
+            break;
+          case 'wantsInvoice':
+            intent = UserIntent.wantsInvoice;
+            break;
+          case 'hasReceiptData':
+            intent = UserIntent.hasReceiptData;
+            break;
+          case 'hasInvoiceData':
+            intent = UserIntent.hasInvoiceData;
+            break;
+          case 'question':
+            intent = UserIntent.question;
+            break;
+          default:
+            intent = UserIntent.unknown;
+        }
 
         return IntentResult(intent, response: reply);
       } catch (e) {
@@ -304,7 +359,25 @@ class GeminiService {
   }
 }
 
-enum UserIntent { chat, createReceipt, createInvoice, help, unknown }
+enum UserIntent {
+  // Casual/conversational
+  chat,           // Greetings, thanks, casual chatter
+  help,           // Asking for help/instructions
+  
+  // User WANTS to do something (start flow)
+  wantsReceipt,   // "I want to create a receipt", "generate receipt"
+  wantsInvoice,   // "I want to create an invoice", "make an invoice"
+  
+  // User is PROVIDING data (actual transaction details)
+  hasReceiptData, // Contains customer + items + prices
+  hasInvoiceData, // Contains client + items + prices + due date/bank
+  
+  // Questions about the service
+  question,       // "When does my subscription end?", "How many receipts?"
+  
+  // Fallback
+  unknown,
+}
 
 class IntentResult {
   final UserIntent type;

@@ -107,9 +107,9 @@ class PdfService {
     final usedAccountNumber = org?.accountNumber ?? profile.accountNumber;
     final usedAccountName = org?.accountName ?? profile.accountName;
 
-    // 1. Load Logo (with LRU Caching) - ONLY for Premium users
+    // 1. Load Logo (with LRU Caching) - Available for all users
     pw.MemoryImage? logoImage;
-    if (profile.isPremium && usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
+    if (usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
       final cachedLogo = _logoCache.get(usedLogoUrl);
       if (cachedLogo != null) {
         logoImage = pw.MemoryImage(cachedLogo);

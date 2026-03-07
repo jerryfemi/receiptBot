@@ -72,24 +72,41 @@ class ReceiptHandler {
     BusinessProfile profile, {
     required bool isInvoice,
   }) async {
-    // Conversational filter: prevent chatting during document generation
-    // Only check intent for very short messages to save API calls
-    if (text.length < 50) {
+    // For short messages in the receipt flow, check if user is chatting vs providing data
+    if (text.length < 60) {
       try {
         final intentResult = await geminiService.determineUserIntent(text);
+        
+        // If they're chatting or asking questions, respond and wait for real data
         if (intentResult.type == UserIntent.chat) {
           await whatsappService.sendMessage(
             from,
             intentResult.response ??
-                "Please provide the document details, or type 'Cancel' to exit.",
+                "I'm waiting for your ${isInvoice ? 'invoice' : 'receipt'} details! Please send the customer name, items, and prices. Type *Cancel* to exit.",
           );
           return;
         } else if (intentResult.type == UserIntent.help) {
           await _sendHelpMessage(from);
           return;
+        } else if (intentResult.type == UserIntent.question) {
+          await whatsappService.sendMessage(
+            from,
+            intentResult.response ??
+                "Let me answer that after we finish your ${isInvoice ? 'invoice' : 'receipt'}! Send the details or type *Cancel* to exit.",
+          );
+          return;
+        } else if (intentResult.type == UserIntent.wantsReceipt || 
+                   intentResult.type == UserIntent.wantsInvoice) {
+          // They're repeating intent but still no data
+          await whatsappService.sendMessage(
+            from,
+            "I'm ready! Just send me the details:\n\n*Customer name, items bought, and prices*\n\nExample: _John bought 2 shoes @ 15k, 1 bag 8000_",
+          );
+          return;
         }
+        // hasReceiptData/hasInvoiceData - proceed to parsing below
       } catch (_) {
-        // Ignore intent failure and proceed
+        // Ignore intent failure and proceed with parsing attempt
       }
     }
 
@@ -122,7 +139,7 @@ class ReceiptHandler {
       if (transaction.items.isEmpty && transaction.totalAmount == 0) {
         await whatsappService.sendMessage(
           from,
-          "I couldn't find any items or prices in that message. Please try again with details like: 'Customer Name, Items, Prices'.",
+          "Hmm, I couldn't find specific items with prices in that message. 🤔\n\nTry something like:\n_\"John bought 2 shoes for 15k each and a bag for 8000\"_\n\nOr type *Cancel* to exit.",
         );
         return;
       }
