@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
+import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
@@ -50,6 +51,7 @@ class _ServiceHolder {
   late final SettingsHandler settingsHandler;
   late final SubscriptionHandler subscriptionHandler;
   late final ReceiptHandler receiptHandler;
+  late final StatsHandler statsHandler;
 
   /// Thread-safe initialization. Only the first caller initializes;
   /// subsequent callers wait on the same Completer.
@@ -103,6 +105,11 @@ class _ServiceHolder {
         pdfService: pdfService,
         settingsHandler: settingsHandler,
         subscriptionHandler: subscriptionHandler,
+      );
+      statsHandler = StatsHandler(
+        firestoreService,
+        whatsappService,
+        geminiService,
       );
 
       _isInitialized = true;
@@ -662,6 +669,19 @@ Future<bool> _handleGlobalCommands(
     return true;
   }
 
+  if (lower == 'stats' ||
+      lower == ButtonIds.stats ||
+      lower.contains('view stats')) {
+    if (!profile.isPremium) {
+      await _services.whatsappService.sendMessage(from,
+          '⭐️ *Premium Feature*\n\nSales Stats and Business Intelligence is available on our Premium plan. Upgrade to view your Daily, Weekly, and Monthly performance charts!');
+      await _services.subscriptionHandler.showUpgradeMenu(from, profile);
+      return true;
+    }
+    await _services.statsHandler.showStatsMenu(from);
+    return true;
+  }
+
   if (lower == 'upload logo' || lower == ButtonIds.editLogo) {
     if (profile.role != UserRole.admin) {
       await _services.whatsappService
@@ -850,6 +870,23 @@ Future<bool> _handleButtonOverride(
         from,
         'Okay, send me the *New Logo Image*.\n\n⚠️ *If your logo has a transparent background, upload it as a Document so WhatsApp keeps it transparent!*\n\nType *Back* to return or *Cancel* to exit.',
       );
+      return true;
+
+    // -------------------------------------------------------------------------
+    // STATS OVERRIDES
+    // -------------------------------------------------------------------------
+    case ButtonIds.statsWeekly:
+    case ButtonIds.statsMonthly:
+    case ButtonIds.statsYearly:
+      if (!profile.isPremium) {
+        await _services.whatsappService.sendMessage(from,
+            '⭐️ *Premium Feature*\n\nSales Stats and Business Intelligence is available on our Premium plan. Upgrade to view your Daily, Weekly, Monthly, and Yearly performance charts!');
+        await _services.subscriptionHandler.showUpgradeMenu(from, profile);
+        return true;
+      }
+      final timeframe = lower.replaceAll('btn_stats_', '');
+      await _services.statsHandler
+          .processStatsRequest(from, timeframe, profile);
       return true;
 
     // -------------------------------------------------------------------------

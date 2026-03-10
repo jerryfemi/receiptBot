@@ -45,6 +45,12 @@ abstract class ButtonIds {
   static const String manageTeam = 'btn_manage_team';
   static const String removeTeamMemberPrefix = 'rm_';
   static const String confirmRemovePrefix = 'confirm_rm_';
+
+  // === STATS ===
+  static const String stats = 'btn_stats';
+  static const String statsWeekly = 'btn_stats_weekly';
+  static const String statsMonthly = 'btn_stats_monthly';
+  static const String statsYearly = 'btn_stats_yearly';
 }
 
 /// Shared menu option definitions to avoid duplication.

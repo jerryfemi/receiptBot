@@ -33,7 +33,7 @@ enum UserAction {
   awaitingEmailForUpgrade,
   selectingSubscriptionPlan,
   removeTeamMember,
-  confirmRemoveTeamMember,  // Confirmation step before destructive action
+  confirmRemoveTeamMember, // Confirmation step before destructive action
 }
 
 enum TransactionType {
@@ -314,4 +314,19 @@ class Organization {
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
     );
   }
+}
+
+class SalesLedgerStats {
+  double totalRevenue;
+  int receiptCount;
+  Map<String, double> customerSpending;
+  Map<String, double> dailyTotals;
+
+  SalesLedgerStats({
+    this.totalRevenue = 0.0,
+    this.receiptCount = 0,
+    Map<String, double>? customerSpending,
+    Map<String, double>? dailyTotals,
+  })  : customerSpending = customerSpending ?? {},
+        dailyTotals = dailyTotals ?? {};
 }

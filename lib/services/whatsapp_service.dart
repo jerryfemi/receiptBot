@@ -136,6 +136,22 @@ class WhatsAppService {
     return _sendRequest('/messages', body);
   }
 
+  /// Sends an image with optional caption.
+  Future<bool> sendImage(String to, String mediaUrl, {String? caption}) async {
+    final bodyMap = {
+      'messaging_product': 'whatsapp',
+      'to': to,
+      'type': 'image',
+      'image': {
+        'link': mediaUrl,
+      },
+    };
+    if (caption != null && caption.isNotEmpty) {
+      (bodyMap['image'] as Map<String, dynamic>)['caption'] = caption;
+    }
+    return _sendRequest('/messages', jsonEncode(bodyMap));
+  }
+
   /// Sends an interactive message with media header (image/video/document).
   Future<bool> sendInteractiveMedia(
     String to,

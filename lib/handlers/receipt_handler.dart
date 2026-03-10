@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
@@ -76,7 +77,7 @@ class ReceiptHandler {
     if (text.length < 60) {
       try {
         final intentResult = await geminiService.determineUserIntent(text);
-        
+
         // If they're chatting or asking questions, respond and wait for real data
         if (intentResult.type == UserIntent.chat) {
           await whatsappService.sendMessage(
@@ -95,8 +96,8 @@ class ReceiptHandler {
                 "Let me answer that after we finish your ${isInvoice ? 'invoice' : 'receipt'}! Send the details or type *Cancel* to exit.",
           );
           return;
-        } else if (intentResult.type == UserIntent.wantsReceipt || 
-                   intentResult.type == UserIntent.wantsInvoice) {
+        } else if (intentResult.type == UserIntent.wantsReceipt ||
+            intentResult.type == UserIntent.wantsInvoice) {
           // They're repeating intent but still no data
           await whatsappService.sendMessage(
             from,
@@ -476,6 +477,21 @@ class ReceiptHandler {
       );
       swUpload.stop();
       print('DEBUG: Firebase upload took ${swUpload.elapsedMilliseconds} ms');
+
+      // --- ADD SALES LEDGER ENTRY ---
+      // We purposefully don't await this to speed up sending the receipt message!
+      firestoreService
+          .addSalesLedgerEntry(
+        profile.orgId ?? from,
+        fileName,
+        transaction.customerName,
+        transaction.transactionTotal,
+        profile.currencyCode,
+        transaction.date,
+      )
+          .catchError((e) {
+        print('DEBUG: Failed to add ledger entry: $e');
+      });
 
       // Send document directly (no extra "Here is your receipt" message)
       print('DEBUG: Sending WhatsApp Document...');

@@ -493,6 +493,105 @@ class FirestoreService {
     );
   }
 
+  // --- SALES LEDGER ---
+
+  Future<void> addSalesLedgerEntry(
+    String ownerId,
+    String receiptId,
+    String customerName,
+    double amount,
+    String currency,
+    DateTime createdAt,
+  ) async {
+    await _ensureInitialized();
+    final fields = <String, Value>{
+      'owner_id': Value(stringValue: ownerId),
+      'receipt_id': Value(stringValue: receiptId),
+      'customer_name': Value(stringValue: customerName),
+      'amount': Value(doubleValue: amount),
+      'currency': Value(stringValue: currency),
+      'created_at': Value(timestampValue: createdAt.toUtc().toIso8601String()),
+    };
+
+    await _firestoreApi!.projects.databases.documents.createDocument(
+      Document(fields: fields),
+      'projects/$projectId/databases/(default)/documents',
+      'sales_ledger',
+    );
+  }
+
+  Future<Map<String, SalesLedgerStats>> getSalesStats(
+      String ownerId, DateTime start, DateTime end) async {
+    await _ensureInitialized();
+    final query = RunQueryRequest(
+      structuredQuery: StructuredQuery(
+        from: [CollectionSelector(collectionId: 'sales_ledger')],
+        where: Filter(
+            compositeFilter: CompositeFilter(
+          op: 'AND',
+          filters: [
+            Filter(
+                fieldFilter: FieldFilter(
+              field: FieldReference(fieldPath: 'owner_id'),
+              op: 'EQUAL',
+              value: Value(stringValue: ownerId),
+            )),
+            Filter(
+                fieldFilter: FieldFilter(
+              field: FieldReference(fieldPath: 'created_at'),
+              op: 'GREATER_THAN_OR_EQUAL',
+              value: Value(timestampValue: start.toUtc().toIso8601String()),
+            )),
+            Filter(
+                fieldFilter: FieldFilter(
+              field: FieldReference(fieldPath: 'created_at'),
+              op: 'LESS_THAN_OR_EQUAL',
+              value: Value(timestampValue: end.toUtc().toIso8601String()),
+            )),
+          ],
+        )),
+      ),
+    );
+
+    final results = await _firestoreApi!.projects.databases.documents.runQuery(
+      query,
+      'projects/$projectId/databases/(default)/documents',
+    );
+
+    final Map<String, SalesLedgerStats> currencyData = {};
+
+    for (final result in results) {
+      if (result.document?.fields != null) {
+        final fields = result.document!.fields!;
+        final amount = fields['amount']?.doubleValue ??
+            double.tryParse(fields['amount']?.integerValue ?? '0') ??
+            0.0;
+        final currency = fields['currency']?.stringValue ?? 'NGN';
+        final customerName = fields['customer_name']?.stringValue ?? 'Unknown';
+        final createdAtStr = fields['created_at']?.timestampValue;
+
+        if (createdAtStr != null) {
+          final createdAt = DateTime.parse(createdAtStr).toLocal();
+          final dayKey =
+              "${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}";
+
+          if (!currencyData.containsKey(currency)) {
+            currencyData[currency] = SalesLedgerStats();
+          }
+
+          final data = currencyData[currency]!;
+          data.totalRevenue += amount;
+          data.receiptCount += 1;
+          data.customerSpending[customerName] =
+              (data.customerSpending[customerName] ?? 0.0) + amount;
+          data.dailyTotals[dayKey] = (data.dailyTotals[dayKey] ?? 0.0) + amount;
+        }
+      }
+    }
+
+    return currencyData;
+  }
+
   // --- WEBHOOK IDEMPOTENCY ---
 
   String _webhookPath(String reference) {
@@ -503,7 +602,8 @@ class FirestoreService {
   Future<bool> isWebhookProcessed(String reference) async {
     await _ensureInitialized();
     try {
-      await _firestoreApi!.projects.databases.documents.get(_webhookPath(reference));
+      await _firestoreApi!.projects.databases.documents
+          .get(_webhookPath(reference));
       return true; // Document exists = already processed
     } catch (e) {
       if (e.toString().contains('404') || e.toString().contains('Not Found')) {
@@ -520,7 +620,8 @@ class FirestoreService {
     try {
       final fields = <String, Value>{
         'provider': Value(stringValue: provider),
-        'processedAt': Value(timestampValue: DateTime.now().toUtc().toIso8601String()),
+        'processedAt':
+            Value(timestampValue: DateTime.now().toUtc().toIso8601String()),
       };
 
       final doc = Document(fields: fields);

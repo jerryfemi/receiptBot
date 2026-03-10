@@ -238,6 +238,42 @@ class GeminiService {
     }
   }
 
+  /// Generates a brief business insight based on the provided stats summary.
+  Future<String> generateBusinessInsight(String statsSummary) async {
+    const fallbackInsight = 'Keep up the great work!';
+    final prompt = '''
+You are Remi, an AI business assistant for small business owners.
+The user requested their sales stats. I am providing you with their raw sales data.
+
+Sales Data:
+$statsSummary
+
+Write a VERY BRIEF (1-2 sentences maximum) encouraging business insight or tip based on this data.
+Keep it punchy, professional, and directly related to the numbers. Do not include greetings like "Hi" or "Here is your insight". Just the insight. Use minimal emojis (max 1 or 2).
+''';
+
+    const maxRetries = 2;
+    int retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        final content = [Content.text(prompt)];
+        final response = await _model.generateContent(content);
+
+        if (response.text != null && response.text!.isNotEmpty) {
+          return response.text!.trim();
+        }
+        break;
+      } catch (e) {
+        print('DEBUG: Gemini insight generation failed: $e');
+        retryCount++;
+        if (retryCount >= maxRetries) break;
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    }
+    return fallbackInsight;
+  }
+
   // --- Intent Classification ---
   Future<IntentResult> determineUserIntent(String text) async {
     final prompt = """
@@ -361,20 +397,20 @@ RULES:
 
 enum UserIntent {
   // Casual/conversational
-  chat,           // Greetings, thanks, casual chatter
-  help,           // Asking for help/instructions
-  
+  chat, // Greetings, thanks, casual chatter
+  help, // Asking for help/instructions
+
   // User WANTS to do something (start flow)
-  wantsReceipt,   // "I want to create a receipt", "generate receipt"
-  wantsInvoice,   // "I want to create an invoice", "make an invoice"
-  
+  wantsReceipt, // "I want to create a receipt", "generate receipt"
+  wantsInvoice, // "I want to create an invoice", "make an invoice"
+
   // User is PROVIDING data (actual transaction details)
   hasReceiptData, // Contains customer + items + prices
   hasInvoiceData, // Contains client + items + prices + due date/bank
-  
+
   // Questions about the service
-  question,       // "When does my subscription end?", "How many receipts?"
-  
+  question, // "When does my subscription end?", "How many receipts?"
+
   // Fallback
   unknown,
 }
