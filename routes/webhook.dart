@@ -515,8 +515,35 @@ Future<void> _handleActiveUser(
                 .processReceiptResult(from, text, profile, isInvoice: true);
             break;
 
+          case UserIntent.getStats:
+            // Send the friendly AI response first
+            if (intentResult.response != null) {
+              await _services.whatsappService
+                  .sendMessage(from, intentResult.response!);
+            }
+            await _services.statsHandler.showStatsMenu(from);
+            break;
+
+          case UserIntent.checkSubscription:
+            if (intentResult.response != null) {
+              await _services.whatsappService
+                  .sendMessage(from, intentResult.response!);
+            }
+            await _services.subscriptionHandler
+                .showSubscriptionStatus(from, profile);
+            break;
+
+          case UserIntent.settings:
+            if (intentResult.response != null) {
+              await _services.whatsappService
+                  .sendMessage(from, intentResult.response!);
+            }
+            await _services.settingsHandler
+                .showSettingsMenu(from, profile.isPremium);
+            break;
+
           case UserIntent.question:
-            // User is asking a question - respond with the AI's answer
+            // User is asking a general question - respond with the AI's answer
             if (intentResult.response != null) {
               await _services.whatsappService
                   .sendMessage(from, intentResult.response!);

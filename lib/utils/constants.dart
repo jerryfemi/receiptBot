@@ -157,7 +157,7 @@ abstract class Pricing {
   static const int annualNgnKobo = 3500000; // 35,000 * 100
 
   // === LEMON SQUEEZY (USD) ===
-  static const int monthlyUsd = 20;
+  static const int monthlyUsd = 18;
   static const int annualUsd = 200;
 
   /// Minimum kobo amount to consider a payment valid for Premium.

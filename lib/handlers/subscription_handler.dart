@@ -92,7 +92,7 @@ class SubscriptionHandler {
           : r'Add 30 Days ($' '${Pricing.monthlyUsd})';
       final annualDesc = isPaystack
           ? 'Save 20%! (₦${Pricing.annualNgn}/yr)'
-          : r'Save $40! ($' '${Pricing.annualUsd}/yr)';
+          : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
 
       await whatsappService.sendInteractiveList(
         from,
@@ -127,7 +127,7 @@ class SubscriptionHandler {
         : r'Flexible ($' '${Pricing.monthlyUsd}/mo)';
     final annualDesc = isPaystack
         ? 'Save 20%! (₦${Pricing.annualNgn}/yr)'
-        : r'Save $40! ($' '${Pricing.annualUsd}/yr)';
+        : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
 
     await whatsappService.sendInteractiveList(
       from,
@@ -409,7 +409,7 @@ class SubscriptionHandler {
           : r'Flexible ($' '${Pricing.monthlyUsd}/mo)';
       final annualDesc = isPaystack
           ? 'Save ₦7,000! (₦${Pricing.annualNgn}/yr)'
-          : r'Save $40! ($' '${Pricing.annualUsd}/yr)';
+          : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
 
       await whatsappService.sendInteractiveList(
         from,
@@ -480,7 +480,7 @@ class SubscriptionHandler {
             'title': 'Annual Plan',
             'description': isPaystack
                 ? 'Save ₦7,000! (₦${Pricing.annualNgn}/yr)'
-                : r'Save $40! ($' '${Pricing.annualUsd}/yr)'
+                : r'Save $16! ($' '${Pricing.annualUsd}/yr)'
           },
         ],
       );

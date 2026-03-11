@@ -304,20 +304,31 @@ CLASSIFY the intent into ONE of these categories:
    Examples: "Invoice for John: 2 laptops at 500k each, due in 7 days"
    MUST have: items with prices AND mention of "invoice", "due date", or bank details
 
-7. **question** - User is asking a question about their account, subscription, or stats
-   Examples: "when does my subscription end?", "how many receipts have I made?", "am I premium?", "what's my plan?"
+7. **getStats** - User wants to see their sales performance, revenue, or stats
+   Examples: "how many sales have I made?", "show my stats", "what is my revenue for this month?", "stats report"
 
-8. **unknown** - Cannot determine intent
+8. **checkSubscription** - User is asking about their account plan, premium status, or expiry
+   Examples: "when does my subscription end?", "am I premium?", "what's my plan?", "check my subscription status"
+
+9. **settings** - User wants to change business details, currency, logo, or layouts
+   Examples: "change my business name", "update my currency", "I want to change the layout", "settings", "edit profile"
+
+10. **question** - General questions about the service that aren't stats or subscription related
+    Examples: "can I use this in the UK?", "who made this bot?"
+
+11. **unknown** - Cannot determine intent
 
 RESPOND with JSON only:
 {
-  "intent": "chat|help|wantsReceipt|wantsInvoice|hasReceiptData|hasInvoiceData|question|unknown",
-  "reply": "Your friendly conversational response (required for chat/question/wantsReceipt/wantsInvoice)"
+  "intent": "chat|help|wantsReceipt|wantsInvoice|hasReceiptData|hasInvoiceData|getStats|checkSubscription|settings|question|unknown",
+  "reply": "Your friendly conversational response (required for chat/question/wantsReceipt/wantsInvoice/getStats/checkSubscription/settings)"
 }
 
 RULES:
 - For "chat": provide a warm, brief response
-- For "question": answer helpfully if you can, or say you'll check
+- For "getStats": Encourage them as you fetch their data (e.g., "Sure! Let me pull up your performance report for you...")
+- For "checkSubscription": Be helpful (e.g., "Let me check your subscription details for you...")
+- For "settings": Acknowledge the request (e.g., "Of course, let's update your business settings...")
 - For "wantsReceipt": encourage them to share the sale details (customer, items, prices)
 - For "wantsInvoice": encourage them to share invoice details
 - For "hasReceiptData"/"hasInvoiceData": reply can be empty, we'll parse the data
@@ -366,6 +377,15 @@ RULES:
           case 'hasInvoiceData':
             intent = UserIntent.hasInvoiceData;
             break;
+          case 'getStats':
+            intent = UserIntent.getStats;
+            break;
+          case 'checkSubscription':
+            intent = UserIntent.checkSubscription;
+            break;
+          case 'settings':
+            intent = UserIntent.settings;
+            break;
           case 'question':
             intent = UserIntent.question;
             break;
@@ -410,6 +430,13 @@ enum UserIntent {
 
   // Questions about the service
   question, // "When does my subscription end?", "How many receipts?"
+
+  // Business Intelligence
+  getStats, // "how many sales have I made?", "show my stats"
+
+  // Account Management
+  checkSubscription, // "when does my subscription end?", "am I premium?"
+  settings, // "change my business name", "update settings"
 
   // Fallback
   unknown,
