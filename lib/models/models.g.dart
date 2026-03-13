@@ -45,7 +45,7 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
     <String, dynamic>{
       'phoneNumber': instance.phoneNumber,
       'orgId': instance.orgId,
-      'role': _$UserRoleEnumMap[instance.role]!,
+      'role': _$UserRoleEnumMap[instance.role],
       'status': _$OnboardingStatusEnumMap[instance.status],
       'currentAction': _$UserActionEnumMap[instance.currentAction],
       'businessName': instance.businessName,
@@ -148,7 +148,7 @@ Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
       'totalAmount': instance.totalAmount,
       'amountInWords': instance.amountInWords,
       'date': instance.date.toIso8601String(),
-      'type': _$TransactionTypeEnumMap[instance.type]!,
+      'type': _$TransactionTypeEnumMap[instance.type],
       'dueDate': instance.dueDate?.toIso8601String(),
       'bankName': instance.bankName,
       'accountNumber': instance.accountNumber,

@@ -140,6 +140,7 @@ class GeminiService {
     Uint8List imageBytes, {
     String currencySymbol = '₦',
     String currencyCode = 'NGN',
+    String mimeType = 'image/jpeg',
   }) async {
     final today = DateTime.now().toIso8601String().split('T')[0];
     final prompt = TextPart('''
@@ -173,8 +174,8 @@ class GeminiService {
       }
     ''');
 
-    // Send Image + Text to Gemini
-    final imagePart = DataPart('image/jpeg', imageBytes);
+    // Send Image/Document + Text to Gemini
+    final imagePart = DataPart(mimeType, imageBytes);
     final content = [
       Content.multi([prompt, imagePart])
     ];

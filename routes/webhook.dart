@@ -905,9 +905,10 @@ Future<bool> _handleButtonOverride(
     case ButtonIds.statsWeekly:
     case ButtonIds.statsMonthly:
     case ButtonIds.statsYearly:
+    case ButtonIds.statsAllTime:
       if (!profile.isPremium) {
         await _services.whatsappService.sendMessage(from,
-            '⭐️ *Premium Feature*\n\nSales Stats and Business Intelligence is available on our Premium plan. Upgrade to view your Daily, Weekly, Monthly, and Yearly performance charts!');
+            '⭐️ *Premium Feature*\n\nSales Stats and Business Intelligence is available on our Premium plan. Upgrade to view your Daily, Weekly, Monthly, Yearly, and All Time performance charts!');
         await _services.subscriptionHandler.showUpgradeMenu(from, profile);
         return true;
       }

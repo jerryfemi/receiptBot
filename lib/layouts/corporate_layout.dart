@@ -213,20 +213,21 @@ List<pw.Widget> corporateInvoice(
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),
-                pw.TableRow(
-                    decoration: pw.BoxDecoration(color: headerBgColor),
-                    children: [
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("TAX :", style: styleLabel)),
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                              formatCurrency(
-                                  transaction.tax ?? 0, currencySymbol),
-                              style: styleBody,
-                              textAlign: pw.TextAlign.right)),
-                    ]),
+                if (transaction.tax != null && transaction.tax! > 0)
+                  pw.TableRow(
+                      decoration: pw.BoxDecoration(color: headerBgColor),
+                      children: [
+                        pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text("TAX :", style: styleLabel)),
+                        pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(
+                                formatCurrency(
+                                    transaction.tax!, currencySymbol),
+                                style: styleBody,
+                                textAlign: pw.TextAlign.right)),
+                      ]),
                 pw.TableRow(
                     decoration: pw.BoxDecoration(color: headerBgColor),
                     children: [
@@ -494,20 +495,21 @@ List<pw.Widget> corporateReceipt(
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),
-                pw.TableRow(
-                    decoration: pw.BoxDecoration(color: headerBgColor),
-                    children: [
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("TAX :", style: styleLabel)),
-                      pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                              formatCurrency(
-                                  transaction.tax ?? 0, currencySymbol),
-                              style: styleBody,
-                              textAlign: pw.TextAlign.right)),
-                    ]),
+                if (transaction.tax != null && transaction.tax! > 0)
+                  pw.TableRow(
+                      decoration: pw.BoxDecoration(color: headerBgColor),
+                      children: [
+                        pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text("TAX :", style: styleLabel)),
+                        pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(
+                                formatCurrency(
+                                    transaction.tax!, currencySymbol),
+                                style: styleBody,
+                                textAlign: pw.TextAlign.right)),
+                      ]),
                 pw.TableRow(
                     decoration: pw.BoxDecoration(color: headerBgColor),
                     children: [

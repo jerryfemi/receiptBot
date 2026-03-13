@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
 import 'package:receipt_bot/models/models.dart';
-import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
-import 'package:receipt_bot/utils/constants.dart';
 
 /// Handles receipt and invoice generation flows.
 class ReceiptHandler {
@@ -186,24 +185,9 @@ class ReceiptHandler {
         }
       }
 
-      // If we have a theme preference, generate directly
-      if (profile.themeIndex != null) {
-        await generateAndSendPDF(
-            from, profile, transaction, profile.themeIndex!);
-        return;
-      }
-
-      // Save pending transaction and ask for theme
-      await firestoreService.updateProfileData(from, {
-        'pendingTransaction': jsonEncode(transaction.toJson()),
-        'currentAction': UserAction.selectTheme.name,
-      });
-
-      await whatsappService.sendInteractiveButtons(
-        from,
-        "Got it! 🧾\n\nSelect a style for your ${isInvoice ? 'Invoice' : 'Receipt'}:",
-        MenuOptions.themes,
-      );
+      // Generate directly using saved theme preference or default
+      await generateAndSendPDF(
+          from, profile, transaction, profile.themeIndex ?? 0);
     } catch (e) {
       print('Error generating receipt: $e');
       if (e.toString().contains('GEMINI_BUSY')) {
@@ -251,27 +235,9 @@ class ReceiptHandler {
         currencyCode: profile.currencyCode,
       );
 
-      // If user has saved theme preference, generate directly
-      if (profile.themeIndex != null) {
-        await generateAndSendPDF(
-            from, profile, transaction, profile.themeIndex!);
-        return;
-      }
-
-      // Save & Ask for Theme
-      await firestoreService.updateProfileData(from, {
-        'pendingTransaction': jsonEncode(transaction.toJson()),
-        'currentAction': UserAction.selectTheme.name
-      });
-
-      await whatsappService.sendInteractiveButtons(
-        from,
-        "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:",
-        [
-          {'id': ButtonIds.themeClassic, 'title': 'Classic'},
-          {'id': ButtonIds.themeBeige, 'title': 'Beige'},
-        ],
-      );
+      // Generate directly using saved theme preference or default
+      await generateAndSendPDF(
+          from, profile, transaction, profile.themeIndex ?? 0);
     } catch (e) {
       print("Image Scan Error: $e");
       if (e.toString().contains('GEMINI_BUSY')) {
@@ -389,21 +355,13 @@ class ReceiptHandler {
         if (profile.pendingTransaction != null) {
           final pendingTx = profile.pendingTransaction!;
 
-          if (profile.themeIndex != null) {
-            await generateAndSendPDF(
-              from,
-              profile,
-              pendingTx,
-              profile.themeIndex!,
-            );
-          } else {
-            await whatsappService.sendInteractiveButtons(
-              from,
-              "Got it! 🧾\n\nSelect a style for your Invoice:",
-              MenuOptions.themes,
-            );
-            await firestoreService.updateAction(from, UserAction.selectTheme);
-          }
+          // If they didn't have a theme selected, use the default (0)
+          await generateAndSendPDF(
+            from,
+            profile,
+            pendingTx,
+            profile.themeIndex ?? 0,
+          );
         } else {
           await firestoreService.updateAction(from, UserAction.idle);
         }

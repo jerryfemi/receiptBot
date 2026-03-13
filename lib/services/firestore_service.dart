@@ -5,6 +5,7 @@ import 'package:googleapis/storage/v1.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/constants.dart';
 import 'package:uuid/uuid.dart';
 
 class FirestoreService {
@@ -84,6 +85,47 @@ class FirestoreService {
       }
       print('Error getting profile: $e');
       rethrow;
+    }
+  }
+
+  /// Counts the total number of users currently marked as premium.
+  /// Used to determine if the early access promotion is still available.
+  Future<int> getPremiumUserCount() async {
+    await _ensureInitialized();
+
+    final query = RunQueryRequest(
+      structuredQuery: StructuredQuery(
+        from: [CollectionSelector(collectionId: 'users')],
+        where: Filter(
+          fieldFilter: FieldFilter(
+            field: FieldReference(fieldPath: 'isPremium'),
+            op: 'EQUAL',
+            value: Value(booleanValue: true),
+          ),
+        ),
+        select: Projection(fields: [FieldReference(fieldPath: 'isPremium')]), // Minimize payload
+        limit: Pricing.earlyAccessMaxUsers, // Optimization: Stop counting once we reach max capacity
+      ),
+    );
+
+    try {
+      final results = await _firestoreApi!.projects.databases.documents.runQuery(
+        query,
+        'projects/$projectId/databases/(default)/documents',
+      );
+      
+      // If no matching documents, result is often empty or has a result with no document.
+      int count = 0;
+      for (final result in results) {
+        if (result.document != null) {
+          count++;
+        }
+      }
+      return count;
+    } catch (e) {
+      print('Error counting premium users: $e');
+      // If it fails (e.g., missing index), return a high number to disable the deal safely
+      return 100;
     }
   }
 
@@ -579,9 +621,9 @@ class FirestoreService {
             currencyData[currency] = SalesLedgerStats();
           }
 
-          final data = currencyData[currency]!;
-          data.totalRevenue += amount;
-          data.receiptCount += 1;
+          final data = currencyData[currency]!
+          ..totalRevenue += amount
+          ..receiptCount += 1;
           data.customerSpending[customerName] =
               (data.customerSpending[customerName] ?? 0.0) + amount;
           data.dailyTotals[dayKey] = (data.dailyTotals[dayKey] ?? 0.0) + amount;

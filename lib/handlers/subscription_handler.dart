@@ -122,16 +122,31 @@ class SubscriptionHandler {
 
   Future<void> _showNewSubscriptionMenu(String from) async {
     final isPaystack = CountryUtils.isPaystackRegion(from);
+    
+    int monthlyPriceNgn = Pricing.monthlyNgn;
+    int annualPriceNgn = Pricing.annualNgn;
+    String headerText = '💎 *Upgrade to Premium*\nUnlock pro layouts, and get monthly sales reports!\n\nSelect a plan below: 👇';
+
+    if (isPaystack) {
+      final premiumCount = await firestoreService.getPremiumUserCount();
+      final spotsLeft = Pricing.earlyAccessMaxUsers - premiumCount;
+      if (spotsLeft > 0) {
+        monthlyPriceNgn = Pricing.earlyAccessMonthlyNgn;
+        annualPriceNgn = Pricing.earlyAccessAnnualNgn;
+        headerText = '🚀 *Early Access Offer: Only $spotsLeft spots left!*\nUnlock pro layouts, Logo, and get monthly sales reports at a huge discount!\n\nSelect a plan below: 👇';
+      }
+    }
+
     final monthlyDesc = isPaystack
-        ? 'Flexible (₦${Pricing.monthlyNgn}/mo)'
+        ? 'Flexible (₦$monthlyPriceNgn/mo)'
         : r'Flexible ($' '${Pricing.monthlyUsd}/mo)';
     final annualDesc = isPaystack
-        ? 'Save 20%! (₦${Pricing.annualNgn}/yr)'
+        ? 'Save big! (₦$annualPriceNgn/yr)'
         : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
 
     await whatsappService.sendInteractiveList(
       from,
-      '💎 *Upgrade to Premium*\nUnlock pro layouts, Logo, and get monthly sales reports!\n\nSelect a plan below: 👇',
+      headerText,
       'View Plans',
       'Select Plan',
       [
@@ -234,12 +249,16 @@ class SubscriptionHandler {
       String referenceOrLocalId;
 
       if (isPaystack) {
-        final amount = plan == 'monthly'
-            ? Pricing.monthlyNgn.toDouble()
-            : Pricing.annualNgn.toDouble();
+        int amount = plan == 'monthly' ? Pricing.monthlyNgn : Pricing.annualNgn;
+        
+        // Apply Early Access discount if available
+        final premiumCount = await firestoreService.getPremiumUserCount();
+        if (premiumCount < Pricing.earlyAccessMaxUsers) {
+          amount = plan == 'monthly' ? Pricing.earlyAccessMonthlyNgn : Pricing.earlyAccessAnnualNgn;
+        }
 
         final result = await paystackService.initializeTransaction(
-            email: email, amount: amount, currency: 'NGN');
+            email: email, amount: amount.toDouble(), currency: 'NGN');
         checkoutUrl = result['authorization_url']!;
         referenceOrLocalId = result['reference']!;
       } else {
@@ -346,8 +365,8 @@ class SubscriptionHandler {
 
       if (status == 'success' &&
           amountInKobo >= Pricing.minimumValidPaymentKobo) {
-        // Determine plan from amount
-        final daysToAdd = amountInKobo >= Pricing.annualNgnKobo ? 365 : 30;
+        // Determine plan from amount (respect early access pricing)
+        final daysToAdd = amountInKobo >= Pricing.earlyAccessAnnualNgnKobo ? 365 : 30;
 
         await firestoreService.updateProfileData(from, {
           'isPremium': true,

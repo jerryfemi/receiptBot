@@ -1,3 +1,4 @@
+
 /// Centralized button and action ID constants.
 /// All interactive button/list IDs should be defined here to ensure consistency.
 abstract class ButtonIds {
@@ -51,6 +52,7 @@ abstract class ButtonIds {
   static const String statsWeekly = 'btn_stats_weekly';
   static const String statsMonthly = 'btn_stats_monthly';
   static const String statsYearly = 'btn_stats_yearly';
+  static const String statsAllTime = 'btn_stats_all_time';
 }
 
 /// Shared menu option definitions to avoid duplication.
@@ -155,11 +157,19 @@ abstract class Pricing {
   static const int annualNgn = 35000;
   static const int monthlyNgnKobo = 350000; // 3,500 * 100
   static const int annualNgnKobo = 3500000; // 35,000 * 100
+  
+  // === EARLY ACCESS PAYSTACK (NGN) ===
+  static const int earlyAccessMaxUsers = 10;
+  static const int earlyAccessMonthlyNgn = 2000;
+  static const int earlyAccessAnnualNgn = 20000;
+  static const int earlyAccessMonthlyNgnKobo = 200000; // 2,000 * 100
+  static const int earlyAccessAnnualNgnKobo = 2000000; // 20,000 * 100
 
   // === LEMON SQUEEZY (USD) ===
   static const int monthlyUsd = 18;
   static const int annualUsd = 200;
 
   /// Minimum kobo amount to consider a payment valid for Premium.
-  static const int minimumValidPaymentKobo = 350000;
+  /// Adjusted dynamically lower to accommodate Early Access users on renewal.
+  static const int minimumValidPaymentKobo = 200000;
 }

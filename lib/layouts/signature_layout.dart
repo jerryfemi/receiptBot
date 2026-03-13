@@ -257,13 +257,15 @@ List<pw.Widget> signatureReceipt(
         children: [
           pw.Expanded(child: pw.Container()),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-              pw.Text("Tax", style: styleLabel),
-              pw.SizedBox(width: 30),
-              pw.Text(formatCurrency(transaction.tax ?? 0, currencySymbol),
-                  style: styleBody),
-            ]),
-            pw.SizedBox(height: 5),
+            if (transaction.tax != null && transaction.tax! > 0) ...[
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("Tax", style: styleLabel),
+                pw.SizedBox(width: 30),
+                pw.Text(formatCurrency(transaction.tax!, currencySymbol),
+                    style: styleBody),
+              ]),
+              pw.SizedBox(height: 5),
+            ],
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
               pw.Text("TOTAL",
                   style: styleLabel.copyWith(
@@ -519,13 +521,15 @@ List<pw.Widget> signatureInvoice(
     // Totals Section (Right Aligned)
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
       pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-          pw.Text("Tax", style: styleLabel),
-          pw.SizedBox(width: 30),
-          pw.Text(formatCurrency(transaction.tax ?? 0, currencySymbol),
-              style: styleBody),
-        ]),
-        pw.SizedBox(height: 5),
+        if (transaction.tax != null && transaction.tax! > 0) ...[
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Text("Tax", style: styleLabel),
+            pw.SizedBox(width: 30),
+            pw.Text(formatCurrency(transaction.tax!, currencySymbol),
+                style: styleBody),
+          ]),
+          pw.SizedBox(height: 5),
+        ],
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
           pw.Text("TOTAL",
               style: styleLabel.copyWith(color: PdfColors.black, fontSize: 12)),

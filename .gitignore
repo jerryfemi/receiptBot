@@ -18,3 +18,4 @@ test_gemini.dart
 test_gemini_raw.dart
 service_account.json
 analysis_*.txt
+.env
