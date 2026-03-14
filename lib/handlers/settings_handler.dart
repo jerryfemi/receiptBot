@@ -371,7 +371,6 @@ class SettingsHandler {
         .map((e) => {
               'id': (e.key + 1).toString(),
               'title': '${e.value['code']} (${e.value['symbol']})',
-              'description': e.value['name'].toString(),
             })
         .toList();
 
@@ -562,7 +561,6 @@ class SettingsHandler {
         return {
           'id': '${ButtonIds.removeTeamMemberPrefix}${agent.phoneNumber}',
           'title': agent.businessName ?? agent.phoneNumber,
-          'description': 'Remove this member'
         };
       }).toList();
 

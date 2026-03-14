@@ -16,10 +16,10 @@ class StatsHandler {
 
   Future<void> showStatsMenu(String from) async {
     final options = [
-      {'id': ButtonIds.statsWeekly, 'title': 'Weekly Report', 'description': 'Sales from this week'},
-      {'id': ButtonIds.statsMonthly, 'title': 'Monthly Summary', 'description': 'Sales from this month'},
-      {'id': ButtonIds.statsYearly, 'title': 'Yearly Overview', 'description': 'Sales from this year'},
-      {'id': ButtonIds.statsAllTime, 'title': 'All Time History', 'description': 'All imported and recent sales'},
+      {'id': ButtonIds.statsWeekly, 'title': 'Weekly Report'},
+      {'id': ButtonIds.statsMonthly, 'title': 'Monthly Summary'},
+      {'id': ButtonIds.statsYearly, 'title': 'Yearly Overview'},
+      {'id': ButtonIds.statsAllTime, 'title': 'All Time History'},
     ];
 
     await whatsappService.sendInteractiveList(

@@ -109,7 +109,6 @@ class WhatsAppService {
         listRows.add({
           'id': 'btn_cancel',
           'title': 'Cancel',
-          'description': 'Exit to main menu'
         });
       }
     }

@@ -1,4 +1,3 @@
-
 /// Centralized button and action ID constants.
 /// All interactive button/list IDs should be defined here to ensure consistency.
 abstract class ButtonIds {
@@ -59,46 +58,14 @@ abstract class ButtonIds {
 abstract class MenuOptions {
   /// Edit Profile menu options - single source of truth.
   static List<Map<String, String>> get editProfile => [
-        {
-          'id': ButtonIds.editName,
-          'title': 'Business Name',
-          'description': 'Change your company name'
-        },
-        {
-          'id': ButtonIds.editPhone,
-          'title': 'Phone Number',
-          'description': 'Change contact number'
-        },
-        {
-          'id': ButtonIds.editBank,
-          'title': 'Bank Details',
-          'description': 'Update payment info'
-        },
-        {
-          'id': ButtonIds.editTheme,
-          'title': 'Theme (Color)',
-          'description': 'Change receipt colors'
-        },
-        {
-          'id': ButtonIds.editLayout,
-          'title': 'Layout Structure',
-          'description': 'Change receipt design'
-        },
-        {
-          'id': ButtonIds.editAddress,
-          'title': 'Business Address',
-          'description': 'Update location'
-        },
-        {
-          'id': ButtonIds.editLogo,
-          'title': 'Upload Logo',
-          'description': 'Update business logo'
-        },
-        {
-          'id': ButtonIds.changeCurrency,
-          'title': 'Change Currency',
-          'description': 'Update default currency'
-        },
+        {'id': ButtonIds.editName, 'title': 'Business Name'},
+        {'id': ButtonIds.editPhone, 'title': 'Phone Number'},
+        {'id': ButtonIds.editBank, 'title': 'Bank Details'},
+        {'id': ButtonIds.editTheme, 'title': 'Theme (Color)'},
+        {'id': ButtonIds.editLayout, 'title': 'Layout Structure'},
+        {'id': ButtonIds.editAddress, 'title': 'Business Address'},
+        {'id': ButtonIds.editLogo, 'title': 'Upload Logo'},
+        {'id': ButtonIds.changeCurrency, 'title': 'Change Currency'},
       ];
 
   /// Short version of edit profile options (for post-action "loop back" menus).
@@ -121,32 +88,13 @@ abstract class MenuOptions {
 
   /// Settings menu options.
   static List<Map<String, String>> settingsMenu({required bool isPremium}) => [
-        {
-          'id': ButtonIds.editProfile,
-          'title': 'Edit Profile',
-          'description': 'Update business details'
-        },
-        {
-          'id': ButtonIds.manageTeam,
-          'title': 'Manage Team',
-          'description': 'Invite or remove staff'
-        },
-        {
-          'id': ButtonIds.help,
-          'title': 'Help & Support',
-          'description': 'View guide or contact'
-        },
-        {
-          'id': ButtonIds.subStatus,
-          'title': 'Subscription Status',
-          'description': 'View plan & expiry'
-        },
+        {'id': ButtonIds.editProfile, 'title': 'Edit Profile'},
+        {'id': ButtonIds.manageTeam, 'title': 'Manage Team'},
+        {'id': ButtonIds.stats, 'title': 'View Stats'},
+        {'id': ButtonIds.help, 'title': 'Help & Support'},
+        {'id': ButtonIds.subStatus, 'title': 'Subscription Status'},
         if (!isPremium)
-          {
-            'id': ButtonIds.upgrade,
-            'title': 'Upgrade to Premium',
-            'description': 'Unlock advanced features ⭐'
-          },
+          {'id': ButtonIds.upgrade, 'title': 'Upgrade to Premium'},
       ];
 }
 
@@ -157,7 +105,7 @@ abstract class Pricing {
   static const int annualNgn = 35000;
   static const int monthlyNgnKobo = 350000; // 3,500 * 100
   static const int annualNgnKobo = 3500000; // 35,000 * 100
-  
+
   // === EARLY ACCESS PAYSTACK (NGN) ===
   static const int earlyAccessMaxUsers = 10;
   static const int earlyAccessMonthlyNgn = 2000;

@@ -5,7 +5,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/country_utils.dart';
@@ -316,54 +315,8 @@ Future<void> _handleActiveUser(
     }
     // B. Otherwise: Default to Image Scanning (Receipt Parsing)
     else {
-      if (!(await _services.subscriptionHandler
-          .checkFreemiumLimit(from, profile))) {
-        return;
-      }
-
-      await _services.whatsappService.sendMessage(from, "Scanning image... 🔎");
-
-      try {
-        // A. Get the image from WhatsApp
-        final imageId = messageData['image']['id'] as String;
-        final url = await _services.whatsappService.getMediaUrl(imageId);
-        // Note: downloadFileBytes returns List<int>, need to convert to Uint8List
-        final imageBytesList =
-            await _services.whatsappService.downloadFileBytes(url);
-        final imageBytes = Uint8List.fromList(imageBytesList);
-
-        // B. Send to Gemini Vision
-        final transaction = await _services.geminiService.parseImageTransaction(
-          imageBytes,
-          currencySymbol: profile.currencySymbol,
-          currencyCode: profile.currencyCode,
-        );
-
-        // C. Save & Ask for Theme (Same as text flow)
-        await _services.firestoreService.updateProfileData(from, {
-          'pendingTransaction': jsonEncode(transaction.toJson()),
-          'currentAction': UserAction.selectTheme.name
-        });
-
-        await _services.whatsappService.sendInteractiveButtons(
-          from,
-          "I found ${transaction.items.length} items totaling ${profile.currencySymbol}${transaction.totalAmount}!\n\nSelect a style:",
-          [
-            {'id': '1', 'title': 'Classic'},
-            {'id': '2', 'title': 'Beige'},
-            {'id': '3', 'title': 'Blue'},
-          ],
-        );
-      } catch (e) {
-        print("Image Scan Error: $e");
-        if (e.toString().contains('GEMINI_BUSY')) {
-          await _services.whatsappService.sendMessage(from,
-              "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt image again.");
-        } else {
-          await _services.whatsappService.sendMessage(from,
-              "⚠️ I couldn't read that image clearly.\n\n*Tips for better results:*\n• Ensure text is clearly visible\n• Keep the image upright (not rotated)\n• Use good lighting, avoid shadows\n• Crop to just the receipt/list\n\nOr type the details manually!");
-        }
-      }
+      await _services.receiptHandler
+          .processImageReceipt(from, messageData, profile);
       return; // Stop here if we scanned
     }
   }
