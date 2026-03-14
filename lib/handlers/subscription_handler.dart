@@ -120,12 +120,16 @@ class SubscriptionHandler {
     }
   }
 
-  Future<void> _showNewSubscriptionMenu(String from) async {
+  Future<void> _showNewSubscriptionMenu(
+    String from, {
+    String? headerOverride,
+  }) async {
     final isPaystack = CountryUtils.isPaystackRegion(from);
-    
+
     int monthlyPriceNgn = Pricing.monthlyNgn;
     int annualPriceNgn = Pricing.annualNgn;
-    String headerText = '💎 *Upgrade to Premium*\nUnlock pro layouts, and get monthly sales reports!\n\nSelect a plan below: 👇';
+    String headerText = headerOverride ??
+        '💎 *Upgrade to Premium*\nUnlock pro layouts, and get monthly sales reports!\n\nSelect a plan below: 👇';
 
     if (isPaystack) {
       final premiumCount = await firestoreService.getPremiumUserCount();
@@ -133,7 +137,8 @@ class SubscriptionHandler {
       if (spotsLeft > 0) {
         monthlyPriceNgn = Pricing.earlyAccessMonthlyNgn;
         annualPriceNgn = Pricing.earlyAccessAnnualNgn;
-        headerText = '🚀 *Early Access Offer: Only $spotsLeft spots left!*\nUnlock pro layouts, Logo, and get monthly sales reports at a huge discount!\n\nSelect a plan below: 👇';
+        headerText =
+            '🚀 *Early Access Offer: Only $spotsLeft spots left!*\nUnlock pro layouts, Logo, and get monthly sales reports at a huge discount!\n\nSelect a plan below: 👇';
       }
     }
 
@@ -250,11 +255,13 @@ class SubscriptionHandler {
 
       if (isPaystack) {
         int amount = plan == 'monthly' ? Pricing.monthlyNgn : Pricing.annualNgn;
-        
+
         // Apply Early Access discount if available
         final premiumCount = await firestoreService.getPremiumUserCount();
         if (premiumCount < Pricing.earlyAccessMaxUsers) {
-          amount = plan == 'monthly' ? Pricing.earlyAccessMonthlyNgn : Pricing.earlyAccessAnnualNgn;
+          amount = plan == 'monthly'
+              ? Pricing.earlyAccessMonthlyNgn
+              : Pricing.earlyAccessAnnualNgn;
         }
 
         final result = await paystackService.initializeTransaction(
@@ -312,6 +319,8 @@ class SubscriptionHandler {
     }
 
     if (profile.isPremium) {
+      await firestoreService.updateAction(from, UserAction.idle);
+
       final tierName = profile.pendingSubscriptionTier ?? "Premium";
       if (profile.premiumExpiresAt != null) {
         final expiry = profile.premiumExpiresAt!;
@@ -325,8 +334,13 @@ class SubscriptionHandler {
             "💎 *Subscription Active*\n\nYou are currently on the *$tierName* tier, however your expiration date could not be read.");
       }
     } else {
-      await whatsappService.sendMessage(from,
-          "You are currently on the *Free Tier*. Upgrade today to unlock pro layouts and remove limits!");
+      await firestoreService.updateAction(
+          from, UserAction.selectingSubscriptionPlan);
+      await _showNewSubscriptionMenu(
+        from,
+        headerOverride:
+            'You are currently on the *Free Tier*. Upgrade today to unlock pro layouts and remove limits!\n\nSelect a plan below: 👇',
+      );
     }
   }
 
@@ -366,7 +380,8 @@ class SubscriptionHandler {
       if (status == 'success' &&
           amountInKobo >= Pricing.minimumValidPaymentKobo) {
         // Determine plan from amount (respect early access pricing)
-        final daysToAdd = amountInKobo >= Pricing.earlyAccessAnnualNgnKobo ? 365 : 30;
+        final daysToAdd =
+            amountInKobo >= Pricing.earlyAccessAnnualNgnKobo ? 365 : 30;
 
         await firestoreService.updateProfileData(from, {
           'isPremium': true,

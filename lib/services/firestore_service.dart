@@ -252,6 +252,30 @@ class FirestoreService {
     return orgId;
   }
 
+  /// Returns a valid invite code for an organization.
+  ///
+  /// If the organization exists but has a missing/empty invite code,
+  /// this method generates a new unique code, persists it, and returns it.
+  Future<String?> ensureOrganizationInviteCode(String orgId) async {
+    await _ensureInitialized();
+
+    final org = await getOrganization(orgId);
+    if (org == null) return null;
+
+    final existingCode = org.inviteCode.trim().toUpperCase();
+    if (existingCode.isNotEmpty) {
+      return existingCode;
+    }
+
+    String inviteCode = _generateInviteCode();
+    while (await findOrganizationByInviteCode(inviteCode) != null) {
+      inviteCode = _generateInviteCode();
+    }
+
+    await updateOrganizationData(orgId, {'inviteCode': inviteCode});
+    return inviteCode;
+  }
+
   String _generateInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final random = Random.secure();

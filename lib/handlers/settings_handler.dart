@@ -547,8 +547,9 @@ class SettingsHandler {
 
     String message = '👥 *Team Management*\n\n';
 
-    final org = await firestoreService.getOrganization(profile.orgId!);
-    message += 'Your Team Invite Code is:\n*${org?.inviteCode ?? "N/A"}*\n\n';
+    final inviteCode =
+        await firestoreService.ensureOrganizationInviteCode(profile.orgId!);
+    message += 'Your Team Invite Code is:\n*${inviteCode ?? "N/A"}*\n\n';
 
     if (agents.isEmpty) {
       message +=
