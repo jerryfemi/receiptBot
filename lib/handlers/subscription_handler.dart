@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
-import 'package:receipt_bot/services/lemon_squeezy_service.dart';
+import 'package:receipt_bot/services/flutterwave_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
@@ -14,14 +14,14 @@ class SubscriptionHandler {
   final FirestoreService firestoreService;
   final WhatsAppService whatsappService;
   final PaystackService paystackService;
-  final LemonSqueezyService lemonSqueezyService;
+  final FlutterwaveService flutterwaveService;
   final PdfService pdfService;
 
   SubscriptionHandler({
     required this.firestoreService,
     required this.whatsappService,
     required this.paystackService,
-    required this.lemonSqueezyService,
+    required this.flutterwaveService,
     required this.pdfService,
   });
 
@@ -61,7 +61,9 @@ class SubscriptionHandler {
 
     final isPaystack = CountryUtils.isPaystackRegion(from);
 
-    if (tierName.toLowerCase() == 'annual') {
+    final normalizedTier = tierName.toLowerCase();
+
+    if (normalizedTier == 'annual' || normalizedTier == 'yearly') {
       // ANNUAL TIER: Only allow extension, no downgrade
       final desc = isPaystack
           ? 'Add 365 Days (₦${Pricing.annualNgn})'
@@ -200,7 +202,7 @@ class SubscriptionHandler {
     });
 
     final isPaystack = CountryUtils.isPaystackRegion(from);
-    final gatewayName = isPaystack ? 'Paystack' : 'our secure checkout';
+    final gatewayName = isPaystack ? 'Paystack' : 'Flutterwave';
     final planLabel = plan == 'monthly' ? 'Monthly' : 'Annual';
 
     String pitchText;
@@ -269,18 +271,22 @@ class SubscriptionHandler {
         checkoutUrl = result['authorization_url']!;
         referenceOrLocalId = result['reference']!;
       } else {
-        // Lemon Squeezy
-        final variantId = plan == 'monthly'
-            ? Platform.environment['LS_VARIANT_MONTHLY'] ?? ''
-            : Platform.environment['LS_VARIANT_ANNUAL'] ?? '';
+        final txRef = 'fw_${DateTime.now().millisecondsSinceEpoch}';
+        final amount =
+            plan == 'monthly' ? Pricing.monthlyUsd : Pricing.annualUsd;
+        final currency = 'USD';
 
-        checkoutUrl = await lemonSqueezyService.createCheckout(
+        final result = await flutterwaveService.initializeTransaction(
           email: email,
-          variantId: variantId,
+          amount: amount,
+          currency: currency,
+          txRef: txRef,
           phoneNumber: from,
           planName: plan == 'monthly' ? 'Monthly' : 'Annual',
         );
-        referenceOrLocalId = 'ls_${DateTime.now().millisecondsSinceEpoch}';
+
+        checkoutUrl = result['link']!;
+        referenceOrLocalId = result['tx_ref']!;
       }
 
       // Save the reference and email
@@ -359,8 +365,8 @@ class SubscriptionHandler {
       return;
     }
 
-    // International payments (Lemon Squeezy) are webhook-verified
-    if (profile.pendingPaymentReference!.startsWith('ls_')) {
+    // International payments (Flutterwave) are webhook-verified
+    if (profile.pendingPaymentReference!.startsWith('fw_')) {
       await whatsappService.sendMessage(
         from,
         "🌍 International payments are verified automatically by our system.\n\nIf you just completed your checkout, please wait a minute or two for your Premium status to activate. Contact support if you need further assistance.",

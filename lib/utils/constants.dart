@@ -113,7 +113,7 @@ abstract class Pricing {
   static const int earlyAccessMonthlyNgnKobo = 200000; // 2,000 * 100
   static const int earlyAccessAnnualNgnKobo = 2000000; // 20,000 * 100
 
-  // === LEMON SQUEEZY (USD) ===
+  // === INTERNATIONAL BASE PRICING (USD) ===
   static const int monthlyUsd = 18;
   static const int annualUsd = 200;
 

@@ -1,6 +1,10 @@
 import 'package:receipt_bot/models/models.dart';
 
 class CountryUtils {
+  static const Set<String> forceInternationalGatewayNumbers = {
+    '2347026964097',
+  };
+
   /// Returns a tuple of (currencyCode, currencySymbol) based on the phone number.
   /// Defaults to ('USD', '$') if the country code is not recognized.
   static ({String code, String symbol}) getCurrencyFromPhone(
@@ -38,9 +42,15 @@ class CountryUtils {
   }
 
   /// Determines if the given phone number belongs to a region supported by Paystack
-  /// (Nigeria, Ghana, Kenya, South Africa). Otherwise, it falls back to international billing (Lemon Squeezy).
+  /// (Nigeria, Ghana, Kenya, South Africa). Otherwise, it falls back to international billing (Flutterwave).
   static bool isPaystackRegion(String phoneNumber) {
     final cleanPhone = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final digitsOnly = cleanPhone.replaceAll(RegExp(r'\D'), '');
+
+    if (forceInternationalGatewayNumbers.contains(digitsOnly)) {
+      return false;
+    }
+
     return cleanPhone.startsWith('234') || // Nigeria
         cleanPhone.startsWith('+234') ||
         cleanPhone.startsWith('233') || // Ghana

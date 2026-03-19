@@ -12,8 +12,8 @@ import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
+import 'package:receipt_bot/services/flutterwave_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
-import 'package:receipt_bot/services/lemon_squeezy_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
@@ -42,7 +42,7 @@ class _ServiceHolder {
   late final GeminiService geminiService;
   late final PdfService pdfService;
   late final PaystackService paystackService;
-  late final LemonSqueezyService lemonSqueezyService;
+  late final FlutterwaveService flutterwaveService;
   late final WhatsAppService whatsappService;
 
   // Handlers
@@ -74,7 +74,7 @@ class _ServiceHolder {
       geminiService = GeminiService(apiKey: _geminiApiKey);
       pdfService = PdfService();
       paystackService = PaystackService();
-      lemonSqueezyService = LemonSqueezyService();
+      flutterwaveService = FlutterwaveService();
       whatsappService = WhatsAppService(
         token: _whatsappToken,
         phoneNumberId: _phoneNumberId,
@@ -94,7 +94,7 @@ class _ServiceHolder {
         firestoreService: firestoreService,
         whatsappService: whatsappService,
         paystackService: paystackService,
-        lemonSqueezyService: lemonSqueezyService,
+        flutterwaveService: flutterwaveService,
         pdfService: pdfService,
       );
       receiptHandler = ReceiptHandler(

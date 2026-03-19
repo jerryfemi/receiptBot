@@ -60,20 +60,20 @@ class BusinessProfile {
   final Transaction?
       pendingTransaction; // Temporary storage for theme selection
 
-  final int? themeIndex; // Changed to nullable
-  final int? layoutIndex; // New field for physical layout structure
-  final String currencyCode; // e.g. NGN, USD, GBP
-  final String currencySymbol; // e.g. ₦, $, £
+  final int? themeIndex; 
+  final int? layoutIndex; 
+  final String currencyCode; 
+  final String currencySymbol; 
 
   final bool isPremium;
   final DateTime? premiumExpiresAt;
   final String? email;
   final String? pendingPaymentReference;
-  final String? pendingSubscriptionTier; // Add the missing field
-  final int receiptCount; // New field for Freemium limit
+  final String? pendingSubscriptionTier; 
+  final int receiptCount; 
   final String?
-      lastReceiptMonth; // New field for Freemium tracking e.g., '2026-03'
-  final bool hasSeenPremiumTip; // Tracks if they saw the post-receipt tip
+      lastReceiptMonth; 
+  final bool hasSeenPremiumTip; 
 
   BusinessProfile({
     required this.phoneNumber,
@@ -89,8 +89,8 @@ class BusinessProfile {
     this.accountNumber,
     this.accountName,
     this.pendingTransaction,
-    this.themeIndex, // Default is null
-    this.layoutIndex = 0, // Default to layout 0
+    this.themeIndex, 
+    this.layoutIndex = 0, 
     this.currencyCode = 'NGN',
     this.currencySymbol = '₦',
     this.isPremium = false,
