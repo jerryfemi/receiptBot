@@ -78,9 +78,9 @@ List<pw.Widget> corporateInvoice(
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text("BILL TO:",
                 style: serifFont != null
-                    ? pw.TextStyle(font: serifFont)
+                    ? pw.TextStyle(font: serifFont, color: primary)
                     : styleLabel.copyWith(
-                        fontSize: 12,
+                        fontSize: 12, color: primary
                       )),
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
@@ -134,7 +134,7 @@ List<pw.Widget> corporateInvoice(
     ),
     pw.SizedBox(height: 10),
     pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+        border: pw.TableBorder.all(color: primary, width: 0.5),
         columnWidths: {
           0: const pw.FlexColumnWidth(3),
           1: const pw.FlexColumnWidth(1),
@@ -143,7 +143,7 @@ List<pw.Widget> corporateInvoice(
         },
         children: [
           pw.TableRow(
-              decoration: pw.BoxDecoration(color: headerBgColor),
+              decoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
               children: [
                 pw.Padding(
                     padding: const pw.EdgeInsets.all(8),
@@ -191,7 +191,7 @@ List<pw.Widget> corporateInvoice(
       pw.Container(
           width: 200,
           child: pw.Table(
-              border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+              border: pw.TableBorder.all(color: primary, width: 0.5),
               columnWidths: {
                 0: const pw.FlexColumnWidth(1),
                 1: const pw.FlexColumnWidth(1),
@@ -380,7 +380,7 @@ List<pw.Widget> corporateReceipt(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text("BILLED TO:", style: styleLabel.copyWith(fontSize: 12)),
+            pw.Text("BILLED TO:", style: styleLabel.copyWith(fontSize: 12, color: primary)),
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
                 style: serifFont != null
@@ -432,7 +432,7 @@ List<pw.Widget> corporateReceipt(
     ),
     pw.SizedBox(height: 10),
     pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+        border: pw.TableBorder.all(color: primary, width: 0.5),
         columnWidths: {
           0: const pw.FlexColumnWidth(3),
           1: const pw.FlexColumnWidth(1),
@@ -441,7 +441,7 @@ List<pw.Widget> corporateReceipt(
         },
         children: [
           pw.TableRow(
-              decoration: pw.BoxDecoration(color: headerBgColor),
+              decoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
               children: [
                 pw.Padding(
                     padding: const pw.EdgeInsets.all(8),
@@ -489,7 +489,7 @@ List<pw.Widget> corporateReceipt(
       pw.Container(
           width: 200,
           child: pw.Table(
-              border: pw.TableBorder.all(color: PdfColors.black, width: 0.5),
+              border: pw.TableBorder.all(color: primary, width: 0.5),
               columnWidths: {
                 0: const pw.FlexColumnWidth(1),
                 1: const pw.FlexColumnWidth(1),
