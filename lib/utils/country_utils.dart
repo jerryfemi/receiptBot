@@ -101,6 +101,7 @@ extension TransactionTotal on Transaction {
 }
 
 String formatCurrency(double amount, String symbol) {
-  // Basic comma formatting
-  return '$symbol${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  final isWholeNumber = amount % 1 == 0;
+  final amountString = isWholeNumber ? amount.toInt().toString() : amount.toStringAsFixed(2);
+  return '$symbol${amountString.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
 }
