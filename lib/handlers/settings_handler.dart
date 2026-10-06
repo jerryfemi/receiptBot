@@ -424,15 +424,18 @@ class SettingsHandler {
   /// Returns the selected theme index, or null if invalid selection.
   int? parseThemeSelection(String text) {
     final lower = text.toLowerCase().trim();
-    if (lower == ButtonIds.themeClassic ||
-        lower == '1' ||
-        lower == 'classic' ||
-        lower == 'b&w (classic)') {
+    if (lower == ButtonIds.themeOceanBlue || lower == '1' || lower == 'ocean blue') {
       return 0;
-    } else if (lower == ButtonIds.themeBeige ||
-        lower == '2' ||
-        lower == 'beige') {
+    } else if (lower == ButtonIds.themeSandBeige || lower == '2' || lower == 'sand beige') {
       return 1;
+    } else if (lower == ButtonIds.themeMidnightNavy || lower == '3' || lower == 'midnight navy') {
+      return 2;
+    } else if (lower == ButtonIds.themeSageGreen || lower == '4' || lower == 'sage green') {
+      return 3;
+    } else if (lower == ButtonIds.themeCharcoalOnyx || lower == '5' || lower == 'charcoal onyx') {
+      return 4;
+    } else if (lower == ButtonIds.themeDeepBurgundy || lower == '6' || lower == 'deep burgundy') {
+      return 5;
     }
     return null;
   }
