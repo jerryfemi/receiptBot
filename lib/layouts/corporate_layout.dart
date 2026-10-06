@@ -110,7 +110,7 @@ List<pw.Widget> corporateInvoice(
             pw.SizedBox(height: 4),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
               pw.Text("DATE: ", style: styleLabel.copyWith(fontSize: 12)),
-              pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+              pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
                   style: styleBody
                       .copyWith(fontSize: 10)
                       .copyWith(color: PdfColors.grey700)),
@@ -119,7 +119,7 @@ List<pw.Widget> corporateInvoice(
               pw.SizedBox(height: 4),
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
                 pw.Text("DUE-DATE: ", style: styleLabel.copyWith(fontSize: 12)),
-                pw.Text(DateFormat('MM.dd.yyyy').format(transaction.dueDate!),
+                pw.Text(DateFormat('MMM dd, yyyy').format(transaction.dueDate!),
                     style: styleBody
                         .copyWith(fontSize: 10)
                         .copyWith(color: PdfColors.grey700)),
@@ -246,8 +246,8 @@ List<pw.Widget> corporateInvoice(
                     ]),
               ]))
     ]),
-    pw.SizedBox(height: 30),
     if (bankName != null || transaction.bankName != null) ...[
+      pw.SizedBox(height: 30),
       pw.Text("PAYMENT METHOD:", style: styleLabel),
       pw.SizedBox(height: 5),
       pw.Text("Bank Name: ${bankName ?? transaction.bankName ?? ''}",
@@ -258,15 +258,6 @@ List<pw.Widget> corporateInvoice(
           style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 2),
       pw.Text("Account Name: ${accountName ?? transaction.accountName ?? ''}",
-          style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
-      pw.SizedBox(height: 20),
-    ] else ...[
-      // Default Payment options if missing
-      pw.Text("PAYMENT METHOD:",
-          style:
-              serifFont != null ? pw.TextStyle(font: serifFont) : styleLabel),
-      pw.SizedBox(height: 5),
-      pw.Text("Cash / Card / Other applicable method",
           style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 20),
     ],
@@ -402,7 +393,7 @@ List<pw.Widget> corporateReceipt(
                 children: [
                   pw.Text("date: ",
                       style: styleLabel.copyWith(color: PdfColors.black)),
-                  pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                  pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
                       style: styleBody),
                 ],
               ),

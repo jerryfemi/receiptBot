@@ -156,11 +156,11 @@ List<pw.Widget> defaultInvoiceLayout(
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text("INVOICE NUMBER: INV-$uniqueId",
               style: styleBody.copyWith(color: PdfColors.grey700)),
-          pw.Text("DATE: ${DateFormat('MM.dd.yyyy').format(transaction.date)}",
+          pw.Text("DATE: ${DateFormat('MMM dd, yyyy').format(transaction.date)}",
               style: styleBody.copyWith(color: PdfColors.grey700)),
           if (transaction.dueDate != null)
             pw.Text(
-                "DUE DATE: ${DateFormat('MM.dd.yyyy').format(transaction.dueDate!)}",
+                "DUE DATE: ${DateFormat('MMM dd, yyyy').format(transaction.dueDate!)}",
                 style: styleBody.copyWith(color: PdfColors.grey700)),
         ]),
       ],
@@ -294,7 +294,6 @@ List<pw.Widget> defaultInvoiceLayout(
       ],
     ),
 
-    pw.SizedBox(height: 50),
   ];
 }
 
@@ -413,7 +412,7 @@ List<pw.Widget> defaultReceiptLayout(
                     color: secondaryColor)),
             pw.SizedBox(height: 4),
             pw.Text(
-                'Date: ${DateFormat('MM.dd.yyyy').format(transaction.date)}',
+                'Date: ${DateFormat('MMM dd, yyyy').format(transaction.date)}',
                 style: const pw.TextStyle(fontSize: 10)),
             pw.Text('No: #R-$uniqueId',
                 style: const pw.TextStyle(fontSize: 10)),

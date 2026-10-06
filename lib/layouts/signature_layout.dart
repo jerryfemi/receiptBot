@@ -132,7 +132,7 @@ List<pw.Widget> signatureReceipt(
                 children: [
                   pw.Text("date: ",
                       style: styleLabel.copyWith(color: PdfColors.black)),
-                  pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                  pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
                       style: styleBody),
                 ],
               ),
@@ -390,14 +390,14 @@ List<pw.Widget> signatureInvoice(
         pw.SizedBox(height: 5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
           pw.Text("date: ", style: styleLabel.copyWith(color: primary)),
-          pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+          pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
               style: styleBody),
         ]),
         if (transaction.dueDate != null) ...[
           pw.SizedBox(height: 5),
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
             pw.Text("due date: ", style: styleLabel.copyWith(color: primary)),
-            pw.Text(DateFormat('MM.dd.yyyy').format(transaction.dueDate!),
+            pw.Text(DateFormat('MMM dd, yyyy').format(transaction.dueDate!),
                 style: styleBody),
           ]),
         ],
@@ -540,46 +540,48 @@ List<pw.Widget> signatureInvoice(
         ]),
       ])
     ]),
-    pw.SizedBox(height: 40),
-    // Footer Section: Payment Options (Left) and Thank You (Right)
-    pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
-        children: [
-          // Payment Options
-          pw.Expanded(
-              child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                if (bankName != null || transaction.bankName != null) ...[
-                  pw.Text("PAYMENT OPTIONS:",
-                      style: styleLabel.copyWith(
-                          color: PdfColors.black,
-                          fontSize: 12,
-                          fontStyle: pw.FontStyle.italic)),
-                  pw.SizedBox(height: 10),
-                  pw.Text(
-                      'Bank Name: ${bankName ?? transaction.bankName ?? ""}',
-                      style: styleBody),
-                  pw.SizedBox(height: 3),
-                  pw.Text(
-                      'Account Name: ${accountName ?? transaction.accountName ?? ""}',
-                      style: styleBody),
-                  pw.SizedBox(height: 3),
-                  pw.Text(
-                      "Account No: ${accountNumber ?? transaction.accountNumber}",
-                      style: styleBody),
-                ]
-              ])),
-          // Thank You Message
-          if (scriptFont != null)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(left: 20),
-              child: pw.Text("thank you!",
-                  style: pw.TextStyle(
-                      font: scriptFont, fontSize: 18, color: primary)),
-            )
-        ])
+    if ((bankName != null || transaction.bankName != null) || scriptFont != null) ...[
+      pw.SizedBox(height: 40),
+      // Footer Section: Payment Options (Left) and Thank You (Right)
+      pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            // Payment Options
+            pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  if (bankName != null || transaction.bankName != null) ...[
+                    pw.Text("PAYMENT OPTIONS:",
+                        style: styleLabel.copyWith(
+                            color: PdfColors.black,
+                            fontSize: 12,
+                            fontStyle: pw.FontStyle.italic)),
+                    pw.SizedBox(height: 10),
+                    pw.Text(
+                        'Bank Name: ${bankName ?? transaction.bankName ?? ""}',
+                        style: styleBody),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                        'Account Name: ${accountName ?? transaction.accountName ?? ""}',
+                        style: styleBody),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                        "Account No: ${accountNumber ?? transaction.accountNumber}",
+                        style: styleBody),
+                  ]
+                ])),
+            // Thank You Message
+            if (scriptFont != null)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 20),
+                child: pw.Text("thank you!",
+                    style: pw.TextStyle(
+                        font: scriptFont, fontSize: 18, color: primary)),
+              )
+          ])
+    ]
   ];
 }
 

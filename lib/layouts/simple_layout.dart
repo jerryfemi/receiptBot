@@ -63,7 +63,7 @@ List<pw.Widget> simpleInvoice(
                         children: [
                           pw.Text("DATE", style: styleLabel),
                           pw.Text(
-                              DateFormat('MM.dd.yyyy').format(transaction.date),
+                              DateFormat('MMM dd, yyyy').format(transaction.date),
                               style: styleBody),
                         ])),
                 if (transaction.dueDate != null) ...[
@@ -75,7 +75,7 @@ List<pw.Widget> simpleInvoice(
                           children: [
                             pw.Text("DUE DATE", style: styleLabel),
                             pw.Text(
-                                DateFormat('MM.dd.yyyy')
+                                DateFormat('MMM dd, yyyy')
                                     .format(transaction.dueDate!),
                                 style: styleBody),
                           ])),
@@ -238,14 +238,12 @@ List<pw.Widget> simpleInvoice(
                 ]),
               ]))
     ]),
-
-    pw.SizedBox(height: 30),
-
     // PAYMENT DETAILS (Bottom Left)
     pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text("PAYMENT METHOD:", style: styleTitle.copyWith(fontSize: 14)),
-      pw.SizedBox(height: 10),
       if (bankName != null || transaction.bankName != null) ...[
+        pw.SizedBox(height: 30),
+        pw.Text("PAYMENT METHOD:", style: styleTitle.copyWith(fontSize: 14)),
+        pw.SizedBox(height: 10),
         pw.Text("Bank Name: ${bankName ?? transaction.bankName}",
             style: styleBody),
         pw.SizedBox(height: 3),
@@ -387,7 +385,7 @@ List<pw.Widget> simpleReceipt(
                 children: [
                   pw.Text("date: ",
                       style: styleLabel.copyWith(color: PdfColors.black)),
-                  pw.Text(DateFormat('MM.dd.yyyy').format(transaction.date),
+                  pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
                       style: styleBody),
                 ],
               ),
