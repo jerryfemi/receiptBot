@@ -219,10 +219,18 @@ List<pw.Widget> simpleInvoice(
                       alignment: pw.TextAlign.center, color: PdfColors.black),
                   _tableCell(
                       formatCurrency(
-                          transaction.transactionTotal - (transaction.tax ?? 0),
+                          transaction.subTotal,
                           currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
+                if (transaction.discount != null && transaction.discount! > 0)
+                  pw.TableRow(children: [
+                    _tableHeader('Discount',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        "-${formatCurrency(transaction.discount!, currencySymbol)}",
+                        alignment: pw.TextAlign.right),
+                  ]),
                 pw.TableRow(children: [
                   _tableHeader('Tax',
                       alignment: pw.TextAlign.center, color: PdfColors.black),
@@ -256,6 +264,18 @@ List<pw.Widget> simpleInvoice(
             style: styleBody),
       ]
     ]),
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("NOTES:", style: styleTitle.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: styleBody),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("TERMS & CONDITIONS:", style: styleTitle.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8)),
+    ],
   ];
 }
 
@@ -469,10 +489,18 @@ List<pw.Widget> simpleReceipt(
                       alignment: pw.TextAlign.center, color: PdfColors.black),
                   _tableCell(
                       formatCurrency(
-                          transaction.transactionTotal - (transaction.tax ?? 0),
+                          transaction.subTotal,
                           currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
+                if (transaction.discount != null && transaction.discount! > 0)
+                  pw.TableRow(children: [
+                    _tableHeader('Discount',
+                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                    _tableCell(
+                        "-${formatCurrency(transaction.discount!, currencySymbol)}",
+                        alignment: pw.TextAlign.right),
+                  ]),
                 pw.TableRow(children: [
                   _tableHeader('Tax',
                       alignment: pw.TextAlign.center, color: PdfColors.black),
@@ -491,6 +519,18 @@ List<pw.Widget> simpleReceipt(
               ]))
     ]),
     pw.SizedBox(height: 30),
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.Text("NOTES:", style: styleTitle.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: styleBody),
+      pw.SizedBox(height: 20),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.Text("TERMS & CONDITIONS:", style: styleTitle.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8)),
+      pw.SizedBox(height: 30),
+    ],
     pw.Center(
         child: pw.Text("Thank you for shopping with ${businessName ?? "us"}.",
             style: pw.TextStyle(
