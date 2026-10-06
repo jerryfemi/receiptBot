@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
-import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -18,6 +17,7 @@ import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 // Configuration
 final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
@@ -159,7 +159,8 @@ final _services = _ServiceHolder();
 final _idempotencyCache = _IdempotencyCache();
 
 /// Helper to ensure services are initialized when called from other webhook handlers.
-Future<void> initializeServicesForExternalWebhooks() => _services.ensureInitialized();
+Future<void> initializeServicesForExternalWebhooks() =>
+    _services.ensureInitialized();
 
 Future<Response> onRequest(RequestContext context) async {
   print('HIT!');

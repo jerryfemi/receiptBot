@@ -1,6 +1,6 @@
 
 
-import 'package:receipt_bot/country_utils.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/flutterwave_service.dart';

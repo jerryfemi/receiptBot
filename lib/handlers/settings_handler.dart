@@ -1,9 +1,9 @@
-import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 /// URLs for layout preview images.
 abstract class LayoutUrls {

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:receipt_bot/country_utils.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -9,6 +9,7 @@ import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
+
 
 /// Handles receipt and invoice generation flows.
 class ReceiptHandler {
