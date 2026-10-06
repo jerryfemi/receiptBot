@@ -142,13 +142,32 @@ class PdfService {
     const textColor = PdfColors.black;
 
     switch (themeIndex) {
-      case 1: // Beige
-        bg = PdfColor.fromHex('#EFE9DB');
-        primary = PdfColor.fromHex('#D73138');
+      case 0: // Ocean Blue
+        bg = PdfColors.white;
+        primary = PdfColor.fromHex('#1E40AF');
         break;
-      case 0: // B&W (Default)
+      case 1: // Sand Beige
+        bg = PdfColor.fromHex('#EFE9DB'); // Sand background
+        primary = PdfColor.fromHex('#8B5A2B'); // Muted brown/bronze for text accents
+        break;
+      case 2: // Midnight Navy
+        bg = PdfColor.fromHex('#F8FAFC'); // Very light slate blue BG
+        primary = PdfColor.fromHex('#0F172A'); // Deep Navy
+        break;
+      case 3: // Sage Green
+        bg = PdfColor.fromHex('#F2F5F0'); // Soft earthy green BG
+        primary = PdfColor.fromHex('#4A5D23'); // Sage Green
+        break;
+      case 4: // Charcoal Onyx
+        bg = PdfColor.fromHex('#FAFAFA'); // Off-white minimalist
+        primary = PdfColor.fromHex('#18181B'); // Onyx
+        break;
+      case 5: // Deep Burgundy
+        bg = PdfColor.fromHex('#FFFBFB'); // Soft warm white BG
+        primary = PdfColor.fromHex('#722F37'); // Burgundy
+        break;
       default:
-        bg = layoutIndex == 1 ? PdfColor.fromHex('#FAF7F2') : PdfColors.white;
+        bg = PdfColors.white;
         primary = PdfColors.black;
         break;
     }
