@@ -1,4 +1,4 @@
-import 'dart:io';
+
 
 import 'package:receipt_bot/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -274,7 +274,7 @@ class SubscriptionHandler {
         final txRef = 'fw_${DateTime.now().millisecondsSinceEpoch}';
         final amount =
             plan == 'monthly' ? Pricing.monthlyUsd : Pricing.annualUsd;
-        final currency = 'USD';
+        const currency = 'USD';
 
         final result = await flutterwaveService.initializeTransaction(
           email: email,
