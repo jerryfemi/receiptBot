@@ -1,9 +1,8 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/layouts/shared_components.dart';
-import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/models/models.dart';
 
 List<pw.Widget> defaultInvoiceLayout(
     pw.Context context,
@@ -179,7 +178,8 @@ List<pw.Widget> defaultInvoiceLayout(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("Bill To:", style: styleLabel.copyWith(color: primary)),
+              pw.Text("Bill To:",
+                  style: styleLabel.copyWith(color: primary)),
               pw.SizedBox(height: 5),
               pw.Text(transaction.customerName.toUpperCase(),
                   style: styleBody.copyWith(font: serifFont)),
@@ -220,14 +220,39 @@ List<pw.Widget> defaultInvoiceLayout(
 
     pw.SizedBox(height: 30),
 
-    SharedComponents.buildTransactionTable(
-      transaction: transaction,
-      currencySymbol: currencySymbol,
-      headerStyle: styleLabel,
-      bodyStyle: styleBody,
-      tableBorder: tableBorder,
-      cellPadding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      headerPadding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+    // 4. Items Table (Structured Grid)
+    pw.Table(
+      border: tableBorder,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(3), // Description
+        1: const pw.FlexColumnWidth(1), // Qty
+        2: const pw.FlexColumnWidth(1.2), // Price
+        3: const pw.FlexColumnWidth(1.2), // Subtotal
+      },
+      children: [
+        // Header Row
+        pw.TableRow(
+          children: [
+            cell("DESCRIPTION", isHeader: true), // Uppercase implied via input
+            cell("QTY", isHeader: true, align: pw.TextAlign.center),
+            cell("PRICE", isHeader: true, align: pw.TextAlign.center),
+            cell("SUBTOTAL", isHeader: true, align: pw.TextAlign.center),
+          ],
+        ),
+        // Check for empty rows helper
+        ...transaction.items.map((item) {
+          return pw.TableRow(
+            children: [
+              cell(item.description.toUpperCase()),
+              cell(item.quantity.toString(), align: pw.TextAlign.center),
+              cell(formatCurrency(item.amount, currencySymbol),
+                  align: pw.TextAlign.center),
+              cell(formatCurrency(item.amount * item.quantity, currencySymbol),
+                  align: pw.TextAlign.center),
+            ],
+          );
+        }),
+      ],
     ),
 
     pw.Table(
@@ -436,15 +461,47 @@ List<pw.Widget> defaultReceiptLayout(
     ),
 
     // --- ITEMS TABLE ---
-    SharedComponents.buildTransactionTable(
-      transaction: transaction,
-      currencySymbol: currencySymbol,
-      headerStyle: pw.TextStyle(
-          fontSize: 10, fontWeight: pw.FontWeight.bold, color: textColor),
-      bodyStyle: const pw.TextStyle(fontSize: 10),
-      tableBorder: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-      cellPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      headerPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+    pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(3), // Item
+        1: const pw.FlexColumnWidth(1), // Qty
+        2: const pw.FlexColumnWidth(1.5), // Price
+        3: const pw.FlexColumnWidth(1.5), // Total
+      },
+      children: [
+        // Header
+        pw.TableRow(
+          children: [
+            _tableHeader('DESCRIPTION', color: textColor),
+            _tableHeader('QTY',
+                alignment: pw.TextAlign.center, color: textColor),
+            _tableHeader('PRICE',
+                alignment: pw.TextAlign.right, color: textColor),
+            _tableHeader('TOTAL',
+                alignment: pw.TextAlign.right, color: textColor),
+          ],
+        ),
+        // Items
+        ...transaction.items.map((item) {
+          return pw.TableRow(
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.5)),
+            ),
+            children: [
+              _tableCell(item.description),
+              _tableCell(item.quantity.toString(),
+                  alignment: pw.TextAlign.center),
+              _tableCell(formatCurrency(item.amount, currencySymbol),
+                  alignment: pw.TextAlign.right),
+              _tableCell(
+                  formatCurrency(item.amount * item.quantity, currencySymbol),
+                  alignment: pw.TextAlign.right),
+            ],
+          );
+        }),
+      ],
     ),
 
     pw.SizedBox(height: 15),
@@ -460,8 +517,8 @@ List<pw.Widget> defaultReceiptLayout(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
               pw.Container(
-                padding:
-                    const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 10),
+                padding: const pw.EdgeInsets.symmetric(
+                    vertical: 2, horizontal: 10),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.end,
                   children: [
@@ -487,8 +544,7 @@ List<pw.Widget> defaultReceiptLayout(
                               fontWeight: pw.FontWeight.bold, fontSize: 10)),
                       pw.Text(
                         "-${formatCurrency(transaction.discount!, currencySymbol)}",
-                        style: const pw.TextStyle(
-                            fontSize: 10, color: PdfColors.red),
+                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.red),
                       ),
                     ],
                   ),
@@ -540,15 +596,13 @@ List<pw.Widget> defaultReceiptLayout(
     pw.SizedBox(height: 30), // Spacer replacement
 
     if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
-      pw.Text("NOTES:",
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+      pw.Text("NOTES:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
       pw.SizedBox(height: 5),
       pw.Text(transaction.notes!, style: pw.TextStyle(fontSize: 10)),
       pw.SizedBox(height: 10),
     ],
     if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
-      pw.Text("TERMS & CONDITIONS:",
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+      pw.Text("TERMS & CONDITIONS:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
       pw.SizedBox(height: 5),
       pw.Text(transaction.terms!, style: pw.TextStyle(fontSize: 8)),
       pw.SizedBox(height: 10),

@@ -1,9 +1,8 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/layouts/shared_components.dart';
-import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/models/models.dart';
 
 List<pw.Widget> simpleInvoice(
     pw.Context context,
@@ -126,8 +125,7 @@ List<pw.Widget> simpleInvoice(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                pw.Text("BILL TO :",
-                    style: styleTitle.copyWith(fontSize: 12, color: primary)),
+                pw.Text("BILL TO :", style: styleTitle.copyWith(fontSize: 12, color: primary)),
                 pw.SizedBox(height: 10),
                 pw.Text(transaction.customerName.toUpperCase(),
                     style: serifFont != null
@@ -154,23 +152,48 @@ List<pw.Widget> simpleInvoice(
     pw.SizedBox(height: 30),
 
     // TABLE: STRICT GRIDS
-    SharedComponents.buildTransactionTable(
-      transaction: transaction,
-      currencySymbol: currencySymbol,
-      headerStyle: styleLabel.copyWith(color: primary),
-      bodyStyle: styleBody,
-      tableBorder: pw.TableBorder(
-        top: pw.BorderSide(color: primary, width: 1),
-        bottom: pw.BorderSide(color: primary, width: 1),
-        left: pw.BorderSide(color: primary, width: 1),
-        right: pw.BorderSide(color: primary, width: 1),
-        verticalInside: pw.BorderSide(color: primary, width: 1),
-      ),
-      headerDecoration: pw.BoxDecoration(
-          border: pw.Border(bottom: pw.BorderSide(color: primary, width: 1))),
-      cellPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
-      headerPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
-    ),
+    pw.Table(
+        border: pw.TableBorder(
+          top: pw.BorderSide(color: primary, width: 1),
+          bottom: pw.BorderSide(color: primary, width: 1),
+          left: pw.BorderSide(color: primary, width: 1),
+          right: pw.BorderSide(color: primary, width: 1),
+          verticalInside: pw.BorderSide(color: primary, width: 1),
+        ),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(3),
+          1: const pw.FlexColumnWidth(1),
+          2: const pw.FlexColumnWidth(1.2),
+          3: const pw.FlexColumnWidth(1.2),
+        },
+        children: [
+          pw.TableRow(
+              decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                      bottom: pw.BorderSide(color: primary, width: 1))),
+              children: [
+                _tableHeader('Description',
+                    alignment: pw.TextAlign.center, color: primary),
+                _tableHeader('Qty.',
+                    alignment: pw.TextAlign.center, color: primary),
+                _tableHeader('Unit Price',
+                    alignment: pw.TextAlign.center, color: primary),
+                _tableHeader('Amount',
+                    alignment: pw.TextAlign.center, color: primary),
+              ]),
+          ...transaction.items.map((item) {
+            return pw.TableRow(children: [
+              _tableCell(item.description, alignment: pw.TextAlign.left),
+              _tableCell(item.quantity.toString(),
+                  alignment: pw.TextAlign.center),
+              _tableCell(formatCurrency(item.amount, currencySymbol),
+                  alignment: pw.TextAlign.center),
+              _tableCell(
+                  formatCurrency(item.amount * item.quantity, currencySymbol),
+                  alignment: pw.TextAlign.center),
+            ]);
+          }),
+        ]),
 
     // FOOTER TOTAL BOX (Bottom Right strict grid)
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -181,8 +204,10 @@ List<pw.Widget> simpleInvoice(
                 left: pw.BorderSide(color: primary, width: 1),
                 right: pw.BorderSide(color: primary, width: 1),
                 bottom: pw.BorderSide(color: primary, width: 1),
-                verticalInside: pw.BorderSide(color: primary, width: 1),
-                horizontalInside: pw.BorderSide(color: primary, width: 1),
+                verticalInside:
+                    pw.BorderSide(color: primary, width: 1),
+                horizontalInside:
+                    pw.BorderSide(color: primary, width: 1),
               ),
               columnWidths: {
                 0: const pw.FlexColumnWidth(1),
@@ -193,7 +218,9 @@ List<pw.Widget> simpleInvoice(
                   _tableHeader('Sub Total',
                       alignment: pw.TextAlign.center, color: primary),
                   _tableCell(
-                      formatCurrency(transaction.subTotal, currencySymbol),
+                      formatCurrency(
+                          transaction.subTotal,
+                          currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
                 if (transaction.discount != null && transaction.discount! > 0)
@@ -395,24 +422,48 @@ List<pw.Widget> simpleReceipt(
     pw.SizedBox(height: 30),
 
     // TABLE: STRICT GRIDS
-    SharedComponents.buildTransactionTable(
-      transaction: transaction,
-      currencySymbol: currencySymbol,
-      headerStyle: styleLabel.copyWith(color: PdfColors.black),
-      bodyStyle: styleBody,
-      tableBorder: const pw.TableBorder(
-        top: pw.BorderSide(color: PdfColors.black, width: 1),
-        bottom: pw.BorderSide(color: PdfColors.black, width: 1),
-        left: pw.BorderSide(color: PdfColors.black, width: 1),
-        right: pw.BorderSide(color: PdfColors.black, width: 1),
-        verticalInside: pw.BorderSide(color: PdfColors.black, width: 1),
-      ),
-      headerDecoration: const pw.BoxDecoration(
-          border: pw.Border(
-              bottom: pw.BorderSide(color: PdfColors.black, width: 1))),
-      cellPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
-      headerPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
-    ),
+    pw.Table(
+        border: const pw.TableBorder(
+          top: pw.BorderSide(color: PdfColors.black, width: 1),
+          bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+          left: pw.BorderSide(color: PdfColors.black, width: 1),
+          right: pw.BorderSide(color: PdfColors.black, width: 1),
+          verticalInside: pw.BorderSide(color: PdfColors.black, width: 1),
+        ),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(3),
+          1: const pw.FlexColumnWidth(1),
+          2: const pw.FlexColumnWidth(1.2),
+          3: const pw.FlexColumnWidth(1.2),
+        },
+        children: [
+          pw.TableRow(
+              decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1))),
+              children: [
+                _tableHeader('Description',
+                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                _tableHeader('Qty.',
+                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                _tableHeader('Unit Price',
+                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                _tableHeader('Amount',
+                    alignment: pw.TextAlign.center, color: PdfColors.black),
+              ]),
+          ...transaction.items.map((item) {
+            return pw.TableRow(children: [
+              _tableCell(item.description, alignment: pw.TextAlign.left),
+              _tableCell(item.quantity.toString(),
+                  alignment: pw.TextAlign.center),
+              _tableCell(formatCurrency(item.amount, currencySymbol),
+                  alignment: pw.TextAlign.center),
+              _tableCell(
+                  formatCurrency(item.amount * item.quantity, currencySymbol),
+                  alignment: pw.TextAlign.center),
+            ]);
+          }),
+        ]),
 
     // FOOTER TOTAL BOX
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -437,7 +488,9 @@ List<pw.Widget> simpleReceipt(
                   _tableHeader('Sub Total',
                       alignment: pw.TextAlign.center, color: PdfColors.black),
                   _tableCell(
-                      formatCurrency(transaction.subTotal, currencySymbol),
+                      formatCurrency(
+                          transaction.subTotal,
+                          currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
                 if (transaction.discount != null && transaction.discount! > 0)
