@@ -77,7 +77,7 @@ List<pw.Widget> defaultInvoiceLayout(
     );
   }
 
-  const tableBorderColor = PdfColors.grey400;
+  final tableBorderColor = primary;
   final tableBorder = pw.TableBorder(
     left: pw.BorderSide(color: tableBorderColor),
     right: pw.BorderSide(color: tableBorderColor),
@@ -179,7 +179,7 @@ List<pw.Widget> defaultInvoiceLayout(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text("Bill To:",
-                  style: styleLabel.copyWith(color: PdfColors.grey700)),
+                  style: styleLabel.copyWith(color: primary)),
               pw.SizedBox(height: 5),
               pw.Text(transaction.customerName.toUpperCase(),
                   style: styleBody.copyWith(font: serifFont)),
@@ -422,7 +422,7 @@ List<pw.Widget> defaultReceiptLayout(
                 style: pw.TextStyle(
                     fontSize: 10,
                     fontWeight: pw.FontWeight.bold,
-                    color: secondaryColor)),
+                    color: accentColor)),
             pw.Text(transaction.customerName,
                 style:
                     pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
@@ -438,7 +438,7 @@ List<pw.Widget> defaultReceiptLayout(
                 style: pw.TextStyle(
                     fontSize: 10,
                     fontWeight: pw.FontWeight.bold,
-                    color: secondaryColor)),
+                    color: accentColor)),
             pw.SizedBox(height: 4),
             pw.Text(
                 'Date: ${DateFormat('MMM dd, yyyy').format(transaction.date)}',
