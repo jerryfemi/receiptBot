@@ -207,12 +207,25 @@ List<pw.Widget> corporateInvoice(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
                               formatCurrency(
-                                  transaction.transactionTotal -
-                                      (transaction.tax ?? 0),
+                                  transaction.subTotal,
                                   currencySymbol),
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),
+                if (transaction.discount != null && transaction.discount! > 0)
+                  pw.TableRow(
+                      decoration: pw.BoxDecoration(color: headerBgColor),
+                      children: [
+                        pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text("DISCOUNT :", style: styleLabel)),
+                        pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(
+                                "-${formatCurrency(transaction.discount!, currencySymbol)}",
+                                style: styleBody.copyWith(color: PdfColors.red700),
+                                textAlign: pw.TextAlign.right)),
+                      ]),
                 if (transaction.tax != null && transaction.tax! > 0)
                   pw.TableRow(
                       decoration: pw.BoxDecoration(color: headerBgColor),
@@ -260,6 +273,18 @@ List<pw.Widget> corporateInvoice(
       pw.Text("Account Name: ${accountName ?? transaction.accountName ?? ''}",
           style: serifFont != null ? pw.TextStyle(font: serifFont) : styleBody),
       pw.SizedBox(height: 20),
+    ],
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("NOTES:", style: styleLabel),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: styleBody),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("TERMS & CONDITIONS:", style: styleLabel),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8, color: PdfColors.grey700)),
     ],
   ];
 }
@@ -480,8 +505,7 @@ List<pw.Widget> corporateReceipt(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
                               formatCurrency(
-                                  transaction.transactionTotal -
-                                      (transaction.tax ?? 0),
+                                  transaction.subTotal,
                                   currencySymbol),
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
