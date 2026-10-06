@@ -143,27 +143,27 @@ class PdfService {
 
     switch (themeIndex) {
       case 0: // Ocean Blue
-        bg = PdfColors.white;
+        bg = PdfColor.fromHex('#F0F4F8'); // Soft pale blue
         primary = PdfColor.fromHex('#1E40AF');
         break;
       case 1: // Sand Beige
-        bg = PdfColor.fromHex('#EFE9DB'); // Sand background
+        bg = PdfColor.fromHex('#EAE0CC'); // Warmer beige background
         primary = PdfColor.fromHex('#8B5A2B'); // Muted brown/bronze for text accents
         break;
       case 2: // Midnight Navy
-        bg = PdfColor.fromHex('#F8FAFC'); // Very light slate blue BG
+        bg = PdfColor.fromHex('#EBF1F6'); // Slate blue tint BG
         primary = PdfColor.fromHex('#0F172A'); // Deep Navy
         break;
       case 3: // Sage Green
-        bg = PdfColor.fromHex('#F2F5F0'); // Soft earthy green BG
+        bg = PdfColor.fromHex('#EAF0E6'); // Noticeable earthy green BG
         primary = PdfColor.fromHex('#4A5D23'); // Sage Green
         break;
       case 4: // Charcoal Onyx
-        bg = PdfColor.fromHex('#FAFAFA'); // Off-white minimalist
+        bg = PdfColor.fromHex('#EEEEEE'); // Light grey minimalist
         primary = PdfColor.fromHex('#18181B'); // Onyx
         break;
       case 5: // Deep Burgundy
-        bg = PdfColor.fromHex('#FFFBFB'); // Soft warm white BG
+        bg = PdfColor.fromHex('#F9EAEB'); // Noticeable blush/rose tint
         primary = PdfColor.fromHex('#722F37'); // Burgundy
         break;
       default:
