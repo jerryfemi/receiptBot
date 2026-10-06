@@ -60,20 +60,19 @@ class BusinessProfile {
   final Transaction?
       pendingTransaction; // Temporary storage for theme selection
 
-  final int? themeIndex; 
-  final int? layoutIndex; 
-  final String currencyCode; 
-  final String currencySymbol; 
+  final int? themeIndex;
+  final int? layoutIndex;
+  final String currencyCode;
+  final String currencySymbol;
 
   final bool isPremium;
   final DateTime? premiumExpiresAt;
   final String? email;
   final String? pendingPaymentReference;
-  final String? pendingSubscriptionTier; 
-  final int receiptCount; 
-  final String?
-      lastReceiptMonth; 
-  final bool hasSeenPremiumTip; 
+  final String? pendingSubscriptionTier;
+  final int receiptCount;
+  final String? lastReceiptMonth;
+  final bool hasSeenPremiumTip;
 
   BusinessProfile({
     required this.phoneNumber,
@@ -89,8 +88,8 @@ class BusinessProfile {
     this.accountNumber,
     this.accountName,
     this.pendingTransaction,
-    this.themeIndex, 
-    this.layoutIndex = 0, 
+    this.themeIndex,
+    this.layoutIndex = 0,
     this.currencyCode = 'NGN',
     this.currencySymbol = '₦',
     this.isPremium = false,

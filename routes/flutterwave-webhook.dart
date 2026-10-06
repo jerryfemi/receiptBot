@@ -37,15 +37,16 @@ Future<Response> onRequest(RequestContext context) async {
   }
 
   final bodyString = await request.body();
-  
+
   print('--- FLUTTERWAVE WEBHOOK PAYLOAD ---');
   print(bodyString);
   print('-----------------------------------');
-  
+
   final payload = jsonDecode(bodyString) as Map<String, dynamic>;
 
   // Flutterwave can send payloads nested under 'data' or as a flat JSON object
-  final event = payload['event']?.toString() ?? payload['event.type']?.toString() ?? '';
+  final event =
+      payload['event']?.toString() ?? payload['event.type']?.toString() ?? '';
   final data = (payload['data'] as Map<String, dynamic>?) ?? payload;
 
   print('Flutterwave Webhook Event/Status: $event / ${data['status']}');
@@ -58,9 +59,10 @@ Future<Response> onRequest(RequestContext context) async {
     final transactionId = rawTransactionId is num
         ? rawTransactionId.toInt()
         : int.tryParse(rawTransactionId?.toString() ?? '');
-    
+
     // Support both tx_ref and txRef formats
-    final payloadTxRef = (data['tx_ref'] ?? data['txRef'])?.toString().trim() ?? '';
+    final payloadTxRef =
+        (data['tx_ref'] ?? data['txRef'])?.toString().trim() ?? '';
 
     print('Parsed Transaction ID: $transactionId, txRef: $payloadTxRef');
 

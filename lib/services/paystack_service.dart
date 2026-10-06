@@ -26,7 +26,8 @@ class PaystackService {
       } catch (e) {
         if (attempt == _maxRetries) rethrow;
         final delay = Duration(milliseconds: 500 * (attempt + 1));
-        print('Paystack request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...');
+        print(
+            'Paystack request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...');
         await Future<void>.delayed(delay);
       }
     }
@@ -45,17 +46,17 @@ class PaystackService {
     final amountInKobo = (amount * 100).toInt();
 
     final response = await _requestWithRetry(() => http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $secretKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'email': email,
-        'amount': amountInKobo,
-        'currency': currency,
-      }),
-    ));
+          url,
+          headers: {
+            'Authorization': 'Bearer $secretKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'email': email,
+            'amount': amountInKobo,
+            'currency': currency,
+          }),
+        ));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -78,11 +79,11 @@ class PaystackService {
     final url = Uri.parse('$baseUrl/transaction/verify/$reference');
 
     final response = await _requestWithRetry(() => http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $secretKey',
-      },
-    ));
+          url,
+          headers: {
+            'Authorization': 'Bearer $secretKey',
+          },
+        ));
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);

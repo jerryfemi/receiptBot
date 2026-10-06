@@ -2,7 +2,8 @@ import 'dart:io';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 
-final String _projectId = Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
+final String _projectId =
+    Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
 
 // Initialize the FirestoreService once
 final _firestoreService = FirestoreService(projectId: _projectId);
@@ -21,8 +22,10 @@ Handler middleware(Handler handler) {
               statusCode: 204,
               headers: {
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
+                'Access-Control-Allow-Methods':
+                    'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers':
+                    'Origin, Content-Type, Accept, Authorization',
               },
             );
           }
@@ -36,7 +39,8 @@ Handler middleware(Handler handler) {
               ...response.headers,
               'Access-Control-Allow-Origin': '*',
               'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-              'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept, Authorization',
+              'Access-Control-Allow-Headers':
+                  'Origin, Content-Type, Accept, Authorization',
             },
           );
         },

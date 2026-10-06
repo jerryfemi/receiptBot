@@ -103,17 +103,21 @@ class FirestoreService {
             value: Value(booleanValue: true),
           ),
         ),
-        select: Projection(fields: [FieldReference(fieldPath: 'isPremium')]), // Minimize payload
-        limit: Pricing.earlyAccessMaxUsers, // Optimization: Stop counting once we reach max capacity
+        select: Projection(fields: [
+          FieldReference(fieldPath: 'isPremium')
+        ]), // Minimize payload
+        limit: Pricing
+            .earlyAccessMaxUsers, // Optimization: Stop counting once we reach max capacity
       ),
     );
 
     try {
-      final results = await _firestoreApi!.projects.databases.documents.runQuery(
+      final results =
+          await _firestoreApi!.projects.databases.documents.runQuery(
         query,
         'projects/$projectId/databases/(default)/documents',
       );
-      
+
       // If no matching documents, result is often empty or has a result with no document.
       int count = 0;
       for (final result in results) {
@@ -646,8 +650,8 @@ class FirestoreService {
           }
 
           final data = currencyData[currency]!
-          ..totalRevenue += amount
-          ..receiptCount += 1;
+            ..totalRevenue += amount
+            ..receiptCount += 1;
           data.customerSpending[customerName] =
               (data.customerSpending[customerName] ?? 0.0) + amount;
           data.dailyTotals[dayKey] = (data.dailyTotals[dayKey] ?? 0.0) + amount;

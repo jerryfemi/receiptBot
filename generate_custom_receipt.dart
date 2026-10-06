@@ -11,9 +11,9 @@ void main() async {
   // Otherwise, the PdfService forces everything to the Corporate layout!
   final BusinessProfile profile = BusinessProfile(
     phoneNumber: '1234567890',
-    currencyCode: 'NGN', 
+    currencyCode: 'NGN',
     currencySymbol: '₦',
-    isPremium: true, 
+    isPremium: true,
   );
 
   final List<ReceiptItem> items = [
@@ -50,15 +50,14 @@ void main() async {
       businessName: 'Black Rock',
       businessAddress: '',
       displayPhoneNumber: '',
-      layoutIndex: i, 
+      layoutIndex: i,
     );
-    
+
     // Generate Invoice
-    final invoiceBytes = await pdfService.generateReceipt(
-        profile, invoice, themeIndex: 0, layoutIndex: i, org: org);
+    final invoiceBytes = await pdfService.generateReceipt(profile, invoice,
+        themeIndex: 0, layoutIndex: i, org: org);
     final invoiceFilename = 'invoice_${layouts[i].toLowerCase()}.pdf';
     await File(invoiceFilename).writeAsBytes(invoiceBytes);
     print('✅ Generated: $invoiceFilename');
-
   }
 }

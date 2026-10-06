@@ -19,6 +19,7 @@ import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/routing/message_router.dart';
+
 // Configuration
 final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
 final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
@@ -247,13 +248,15 @@ Future<Response> onRequest(RequestContext context) async {
           );
         }
 
-        await _services.messageRouter.routeMessage(
-          phoneNumber: from,
-          text: text,
-          type: type,
-          messageData: message as Map<String, dynamic>,
-          profile: profile,
-        ).catchError((e) => print('Background processing error: $e'));
+        await _services.messageRouter
+            .routeMessage(
+              phoneNumber: from,
+              text: text,
+              type: type,
+              messageData: message as Map<String, dynamic>,
+              profile: profile,
+            )
+            .catchError((e) => print('Background processing error: $e'));
       }
     } catch (e) {
       print('Error parsing webhook payload: $e');

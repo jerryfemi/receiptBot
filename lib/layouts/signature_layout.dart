@@ -540,7 +540,8 @@ List<pw.Widget> signatureInvoice(
         ]),
       ])
     ]),
-    if ((bankName != null || transaction.bankName != null) || scriptFont != null) ...[
+    if ((bankName != null || transaction.bankName != null) ||
+        scriptFont != null) ...[
       pw.SizedBox(height: 40),
       // Footer Section: Payment Options (Left) and Thank You (Right)
       pw.Row(

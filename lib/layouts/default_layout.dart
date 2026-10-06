@@ -156,7 +156,8 @@ List<pw.Widget> defaultInvoiceLayout(
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text("INVOICE NUMBER: INV-$uniqueId",
               style: styleBody.copyWith(color: PdfColors.grey700)),
-          pw.Text("DATE: ${DateFormat('MMM dd, yyyy').format(transaction.date)}",
+          pw.Text(
+              "DATE: ${DateFormat('MMM dd, yyyy').format(transaction.date)}",
               style: styleBody.copyWith(color: PdfColors.grey700)),
           if (transaction.dueDate != null)
             pw.Text(
@@ -293,7 +294,6 @@ List<pw.Widget> defaultInvoiceLayout(
         ]),
       ],
     ),
-
   ];
 }
 

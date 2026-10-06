@@ -59,15 +59,18 @@ class MessageRouter {
           break;
 
         case OnboardingStatus.awaiting_phone:
-          await onboardingHandler.handleBusinessAddress(phoneNumber, text, profile);
+          await onboardingHandler.handleBusinessAddress(
+              phoneNumber, text, profile);
           break;
 
         case OnboardingStatus.awaiting_logo:
-          await onboardingHandler.handleOnboardingLogo(phoneNumber, text, type, messageData, profile);
+          await onboardingHandler.handleOnboardingLogo(
+              phoneNumber, text, type, messageData, profile);
           break;
 
         case OnboardingStatus.active:
-          await _handleActiveUser(phoneNumber, text, type, messageData, profile);
+          await _handleActiveUser(
+              phoneNumber, text, type, messageData, profile);
           break;
       }
     } catch (e) {
@@ -109,10 +112,12 @@ class MessageRouter {
     // 4. Handle Current Action (Remaining actions from the original switch)
     switch (profile.currentAction ?? UserAction.idle) {
       case UserAction.createReceipt:
-        await receiptHandler.processReceiptResult(from, text, profile, isInvoice: false);
+        await receiptHandler.processReceiptResult(from, text, profile,
+            isInvoice: false);
         break;
       case UserAction.createInvoice:
-        await receiptHandler.processReceiptResult(from, text, profile, isInvoice: true);
+        await receiptHandler.processReceiptResult(from, text, profile,
+            isInvoice: true);
         break;
       case UserAction.selectLayout:
         await receiptHandler.handleLayoutSelection(from, text, profile);
@@ -132,7 +137,8 @@ class MessageRouter {
         break;
 
       case UserAction.editProfileMenu:
-        await settingsHandler.handleEditProfileMenuSelection(from, text, profile);
+        await settingsHandler.handleEditProfileMenuSelection(
+            from, text, profile);
         break;
 
       case UserAction.selectCurrency:
@@ -178,7 +184,8 @@ class MessageRouter {
               // Casual conversation - just respond
               await whatsappService.sendMessage(
                 from,
-                intentResult.response ?? "I'm here to help! Type 'Menu' to see what I can do.",
+                intentResult.response ??
+                    "I'm here to help! Type 'Menu' to see what I can do.",
               );
               break;
 
@@ -189,7 +196,8 @@ class MessageRouter {
             case UserIntent.wantsReceipt:
               // User wants to create receipt but hasn't given details yet
               // Send encouraging response and start guided flow
-              await firestoreService.updateAction(from, UserAction.createReceipt);
+              await firestoreService.updateAction(
+                  from, UserAction.createReceipt);
               await whatsappService.sendMessage(
                 from,
                 intentResult.response ??
@@ -199,8 +207,10 @@ class MessageRouter {
 
             case UserIntent.wantsInvoice:
               // User wants to create invoice but hasn't given details yet
-              await firestoreService.updateAction(from, UserAction.createInvoice);
-              final hasBankDetails = profile.bankName != null && profile.accountNumber != null;
+              await firestoreService.updateAction(
+                  from, UserAction.createInvoice);
+              final hasBankDetails =
+                  profile.bankName != null && profile.accountNumber != null;
               if (hasBankDetails) {
                 await whatsappService.sendMessage(
                   from,
@@ -218,12 +228,14 @@ class MessageRouter {
 
             case UserIntent.hasReceiptData:
               // User provided actual receipt data - parse it!
-              await receiptHandler.processReceiptResult(from, text, profile, isInvoice: false);
+              await receiptHandler.processReceiptResult(from, text, profile,
+                  isInvoice: false);
               break;
 
             case UserIntent.hasInvoiceData:
               // User provided actual invoice data - parse it!
-              await receiptHandler.processReceiptResult(from, text, profile, isInvoice: true);
+              await receiptHandler.processReceiptResult(from, text, profile,
+                  isInvoice: true);
               break;
 
             case UserIntent.getStats:
@@ -271,8 +283,8 @@ class MessageRouter {
           }
         } catch (e) {
           print('Router Error: $e');
-          await whatsappService.sendMessage(
-              from, "I'm having a little trouble thinking right now. 😵‍💫 Please try again!");
+          await whatsappService.sendMessage(from,
+              "I'm having a little trouble thinking right now. 😵‍💫 Please try again!");
         }
         break;
     }
@@ -290,7 +302,8 @@ class MessageRouter {
     // stale-button collisions when users click old interactive messages.
     // ===========================================================================
     if (lower.startsWith('btn_') || lower.startsWith('theme_')) {
-      final handled = await _handleButtonOverride(from, lower, originalText, profile);
+      final handled =
+          await _handleButtonOverride(from, lower, originalText, profile);
       if (handled) return true;
     }
 
@@ -348,7 +361,8 @@ class MessageRouter {
     if (lower.contains('create invoice') || lower == ButtonIds.createInvoice) {
       await firestoreService.updateAction(from, UserAction.createInvoice);
       // Check if bank details exist
-      final hasBankDetails = profile.bankName != null && profile.accountNumber != null;
+      final hasBankDetails =
+          profile.bankName != null && profile.accountNumber != null;
       if (hasBankDetails) {
         await whatsappService.sendMessage(
           from,
@@ -363,9 +377,12 @@ class MessageRouter {
       return true;
     }
 
-    if (lower == 'settings' || lower == ButtonIds.settings || lower == '⚙️ settings') {
+    if (lower == 'settings' ||
+        lower == ButtonIds.settings ||
+        lower == '⚙️ settings') {
       if (profile.role != UserRole.admin) {
-        await whatsappService.sendMessage(from, 'Only Admins can access settings.');
+        await whatsappService.sendMessage(
+            from, 'Only Admins can access settings.');
         return true;
       }
       await settingsHandler.showSettingsMenu(from, profile.isPremium);
@@ -374,7 +391,8 @@ class MessageRouter {
 
     if (lower == 'edit profile' || lower == ButtonIds.editProfile) {
       if (profile.role != UserRole.admin) {
-        await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+        await whatsappService.sendMessage(
+            from, 'Only Admins can edit the business profile.');
         return true;
       }
       await firestoreService.updateAction(from, UserAction.editProfileMenu);
@@ -384,14 +402,17 @@ class MessageRouter {
 
     if (lower == 'manage team' || lower == ButtonIds.manageTeam) {
       if (profile.role != UserRole.admin) {
-        await whatsappService.sendMessage(from, 'Only Admins can manage team members.');
+        await whatsappService.sendMessage(
+            from, 'Only Admins can manage team members.');
         return true;
       }
       await settingsHandler.showTeamManagement(from, profile);
       return true;
     }
 
-    if (lower == 'stats' || lower == ButtonIds.stats || lower.contains('view stats')) {
+    if (lower == 'stats' ||
+        lower == ButtonIds.stats ||
+        lower.contains('view stats')) {
       if (!profile.isPremium) {
         await whatsappService.sendMessage(from,
             '⭐️ *Premium Feature*\n\nSales Stats and Business Intelligence is available on our Premium plan. Upgrade to view your Daily, Weekly, and Monthly performance charts!');
@@ -404,7 +425,8 @@ class MessageRouter {
 
     if (lower == 'upload logo' || lower == ButtonIds.editLogo) {
       if (profile.role != UserRole.admin) {
-        await whatsappService.sendMessage(from, 'Only Admins can upload the business logo.');
+        await whatsappService.sendMessage(
+            from, 'Only Admins can upload the business logo.');
         return true;
       }
       await firestoreService.updateAction(from, UserAction.editLogo);
@@ -479,7 +501,8 @@ class MessageRouter {
       // -------------------------------------------------------------------------
       case ButtonIds.editName:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         await firestoreService.updateAction(from, UserAction.editName);
@@ -491,7 +514,8 @@ class MessageRouter {
 
       case ButtonIds.editPhone:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         await firestoreService.updateAction(from, UserAction.editPhone);
@@ -503,7 +527,8 @@ class MessageRouter {
 
       case ButtonIds.editBank:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         await firestoreService.updateAction(from, UserAction.editBankDetails);
@@ -515,7 +540,8 @@ class MessageRouter {
 
       case ButtonIds.editAddress:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         await firestoreService.updateAction(from, UserAction.editAddress);
@@ -527,7 +553,8 @@ class MessageRouter {
 
       case ButtonIds.editTheme:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         await firestoreService.updateAction(from, UserAction.selectTheme);
@@ -540,7 +567,8 @@ class MessageRouter {
 
       case ButtonIds.editLayout:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         if (!profile.isPremium) {
@@ -559,7 +587,8 @@ class MessageRouter {
 
       case ButtonIds.changeCurrency:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can edit the business profile.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can edit the business profile.');
           return true;
         }
         await settingsHandler.showCurrencySelection(from);
@@ -567,7 +596,8 @@ class MessageRouter {
 
       case ButtonIds.editLogo:
         if (profile.role != UserRole.admin) {
-          await whatsappService.sendMessage(from, 'Only Admins can upload the business logo.');
+          await whatsappService.sendMessage(
+              from, 'Only Admins can upload the business logo.');
           return true;
         }
         await firestoreService.updateAction(from, UserAction.editLogo);
@@ -632,7 +662,8 @@ class MessageRouter {
       // If they have a pending payment, prioritize the Verify button
       if (profile.pendingPaymentReference != null &&
           profile.pendingPaymentReference!.isNotEmpty) {
-        buttons.add({'id': ButtonIds.verifyPayment, 'title': '✅ Verify Payment'});
+        buttons
+            .add({'id': ButtonIds.verifyPayment, 'title': '✅ Verify Payment'});
       } else {
         buttons.add({'id': ButtonIds.settings, 'title': '⚙️ Settings'});
       }

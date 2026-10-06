@@ -10,7 +10,6 @@ import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 
-
 /// Handles receipt and invoice generation flows.
 class ReceiptHandler {
   final FirestoreService firestoreService;

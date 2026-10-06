@@ -63,7 +63,8 @@ List<pw.Widget> simpleInvoice(
                         children: [
                           pw.Text("DATE", style: styleLabel),
                           pw.Text(
-                              DateFormat('MMM dd, yyyy').format(transaction.date),
+                              DateFormat('MMM dd, yyyy')
+                                  .format(transaction.date),
                               style: styleBody),
                         ])),
                 if (transaction.dueDate != null) ...[
@@ -124,26 +125,27 @@ List<pw.Widget> simpleInvoice(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                pw.Text("BILL TO :",
-                    style: styleTitle.copyWith(fontSize: 12)),
+                pw.Text("BILL TO :", style: styleTitle.copyWith(fontSize: 12)),
                 pw.SizedBox(height: 10),
                 pw.Text(transaction.customerName.toUpperCase(),
                     style: serifFont != null
-                    ? pw.TextStyle(font: serifFont,fontSize: 10)
+                        ? pw.TextStyle(font: serifFont, fontSize: 10)
                         : styleBody),
                 pw.SizedBox(height: 5),
                 if (transaction.customerAddress != null &&
                     transaction.customerAddress!.isNotEmpty) ...[
-                  pw.Text(transaction.customerAddress ?? "", style:  serifFont != null
-                    ? pw.TextStyle(font: serifFont,fontSize: 10)
-                    :styleBody),
+                  pw.Text(transaction.customerAddress ?? "",
+                      style: serifFont != null
+                          ? pw.TextStyle(font: serifFont, fontSize: 10)
+                          : styleBody),
                 ],
                 pw.SizedBox(height: 5),
                 if (transaction.customerPhone != null &&
                     transaction.customerPhone!.isNotEmpty) ...[
-                  pw.Text(transaction.customerPhone ?? "", style: serifFont != null
-                    ? pw.TextStyle(font: serifFont,fontSize: 10)
-                    :styleBody),
+                  pw.Text(transaction.customerPhone ?? "",
+                      style: serifFont != null
+                          ? pw.TextStyle(font: serifFont, fontSize: 10)
+                          : styleBody),
                 ]
               ]))
         ]),
@@ -351,21 +353,26 @@ List<pw.Widget> simpleReceipt(
     pw.SizedBox(height: 30),
 
     // BILLED TO Section
-    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,crossAxisAlignment: pw.CrossAxisAlignment.start,
+    pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text("BILLED TO :", style: styleTitle.copyWith(fontSize: 12)),
             pw.SizedBox(height: 10),
-        pw.Text(transaction.customerName.toUpperCase(), style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+            pw.Text(transaction.customerName.toUpperCase(),
+                style: styleBody.copyWith(font: serifFont, fontSize: 10)),
             pw.SizedBox(height: 5),
             if (transaction.customerAddress != null &&
                 transaction.customerAddress!.isNotEmpty) ...[
-          pw.Text(transaction.customerAddress ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+              pw.Text(transaction.customerAddress ?? "",
+                  style: styleBody.copyWith(font: serifFont, fontSize: 10)),
             ],
             pw.SizedBox(height: 5),
             if (transaction.customerPhone != null &&
                 transaction.customerPhone!.isNotEmpty) ...[
-          pw.Text(transaction.customerPhone ?? "", style: styleBody.copyWith(font: serifFont,fontSize: 10)),
+              pw.Text(transaction.customerPhone ?? "",
+                  style: styleBody.copyWith(font: serifFont, fontSize: 10)),
             ]
           ]), // Right: Receipt Meta
           pw.Column(

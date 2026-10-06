@@ -22,8 +22,9 @@ class _LruCache<K, V> {
   V? get(K key) {
     if (_cache.containsKey(key)) {
       // Move to end (most recently used)
-      _accessOrder..remove(key)
-      ..add(key);
+      _accessOrder
+        ..remove(key)
+        ..add(key);
       return _cache[key];
     }
     return null;
