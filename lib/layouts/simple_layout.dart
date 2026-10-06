@@ -125,7 +125,7 @@ List<pw.Widget> simpleInvoice(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                pw.Text("BILL TO :", style: styleTitle.copyWith(fontSize: 12)),
+                pw.Text("BILL TO :", style: styleTitle.copyWith(fontSize: 12, color: primary)),
                 pw.SizedBox(height: 10),
                 pw.Text(transaction.customerName.toUpperCase(),
                     style: serifFont != null
@@ -153,12 +153,12 @@ List<pw.Widget> simpleInvoice(
 
     // TABLE: STRICT GRIDS
     pw.Table(
-        border: const pw.TableBorder(
-          top: pw.BorderSide(color: PdfColors.black, width: 1),
-          bottom: pw.BorderSide(color: PdfColors.black, width: 1),
-          left: pw.BorderSide(color: PdfColors.black, width: 1),
-          right: pw.BorderSide(color: PdfColors.black, width: 1),
-          verticalInside: pw.BorderSide(color: PdfColors.black, width: 1),
+        border: pw.TableBorder(
+          top: pw.BorderSide(color: primary, width: 1),
+          bottom: pw.BorderSide(color: primary, width: 1),
+          left: pw.BorderSide(color: primary, width: 1),
+          right: pw.BorderSide(color: primary, width: 1),
+          verticalInside: pw.BorderSide(color: primary, width: 1),
         ),
         columnWidths: {
           0: const pw.FlexColumnWidth(3),
@@ -168,18 +168,18 @@ List<pw.Widget> simpleInvoice(
         },
         children: [
           pw.TableRow(
-              decoration: const pw.BoxDecoration(
+              decoration: pw.BoxDecoration(
                   border: pw.Border(
-                      bottom: pw.BorderSide(color: PdfColors.black, width: 1))),
+                      bottom: pw.BorderSide(color: primary, width: 1))),
               children: [
                 _tableHeader('Description',
-                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                    alignment: pw.TextAlign.center, color: primary),
                 _tableHeader('Qty.',
-                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                    alignment: pw.TextAlign.center, color: primary),
                 _tableHeader('Unit Price',
-                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                    alignment: pw.TextAlign.center, color: primary),
                 _tableHeader('Amount',
-                    alignment: pw.TextAlign.center, color: PdfColors.black),
+                    alignment: pw.TextAlign.center, color: primary),
               ]),
           ...transaction.items.map((item) {
             return pw.TableRow(children: [
@@ -201,13 +201,13 @@ List<pw.Widget> simpleInvoice(
           width: 200,
           child: pw.Table(
               border: pw.TableBorder(
-                left: const pw.BorderSide(color: PdfColors.black, width: 1),
-                right: const pw.BorderSide(color: PdfColors.black, width: 1),
-                bottom: const pw.BorderSide(color: PdfColors.black, width: 1),
+                left: pw.BorderSide(color: primary, width: 1),
+                right: pw.BorderSide(color: primary, width: 1),
+                bottom: pw.BorderSide(color: primary, width: 1),
                 verticalInside:
-                    const pw.BorderSide(color: PdfColors.black, width: 1),
+                    pw.BorderSide(color: primary, width: 1),
                 horizontalInside:
-                    const pw.BorderSide(color: PdfColors.black, width: 1),
+                    pw.BorderSide(color: primary, width: 1),
               ),
               columnWidths: {
                 0: const pw.FlexColumnWidth(1),
@@ -216,7 +216,7 @@ List<pw.Widget> simpleInvoice(
               children: [
                 pw.TableRow(children: [
                   _tableHeader('Sub Total',
-                      alignment: pw.TextAlign.center, color: PdfColors.black),
+                      alignment: pw.TextAlign.center, color: primary),
                   _tableCell(
                       formatCurrency(
                           transaction.subTotal,
@@ -226,21 +226,21 @@ List<pw.Widget> simpleInvoice(
                 if (transaction.discount != null && transaction.discount! > 0)
                   pw.TableRow(children: [
                     _tableHeader('Discount',
-                        alignment: pw.TextAlign.center, color: PdfColors.black),
+                        alignment: pw.TextAlign.center, color: primary),
                     _tableCell(
                         "-${formatCurrency(transaction.discount!, currencySymbol)}",
                         alignment: pw.TextAlign.right),
                   ]),
                 pw.TableRow(children: [
                   _tableHeader('Tax',
-                      alignment: pw.TextAlign.center, color: PdfColors.black),
+                      alignment: pw.TextAlign.center, color: primary),
                   _tableCell(
                       formatCurrency(transaction.tax ?? 0, currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
                 pw.TableRow(children: [
                   _tableHeader('Total Amount',
-                      alignment: pw.TextAlign.center, color: PdfColors.black),
+                      alignment: pw.TextAlign.center, color: primary),
                   _tableCell(
                       formatCurrency(
                           transaction.transactionTotal, currencySymbol),
