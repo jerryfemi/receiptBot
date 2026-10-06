@@ -10,15 +10,14 @@ import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/routing/message_router.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/flutterwave_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
-import 'package:receipt_bot/utils/constants.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
-import 'package:receipt_bot/routing/message_router.dart';
 
 // Configuration
 final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
