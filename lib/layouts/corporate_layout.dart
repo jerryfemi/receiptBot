@@ -3,6 +3,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/layouts/shared_components.dart';
+import 'package:receipt_bot/layouts/design_tokens.dart';
 
 List<pw.Widget> corporateInvoice(
     pw.Context context,
@@ -75,57 +77,28 @@ List<pw.Widget> corporateInvoice(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text("BILL TO:",
-                style: serifFont != null
-                    ? pw.TextStyle(font: serifFont, color: primary)
-                    : styleLabel.copyWith(
-                        fontSize: 12, color: primary
-                      )),
-            pw.SizedBox(height: 4),
-            pw.Text(transaction.customerName,
-                style: serifFont != null
-                    ? pw.TextStyle(font: serifFont, fontSize: 10)
-                    : styleBody.copyWith(fontSize: 10)),
-            if (transaction.customerAddress != null &&
-                transaction.customerAddress!.isNotEmpty)
-              pw.Text(transaction.customerAddress!,
-                  style: serifFont != null
-                      ? pw.TextStyle(font: serifFont, fontSize: 10)
-                      : styleBody),
-            if (transaction.customerPhone != null &&
-                transaction.customerPhone!.isNotEmpty)
-              pw.Text(transaction.customerPhone!,
-                  style: serifFont != null
-                      ? pw.TextStyle(font: serifFont, fontSize: 10)
-                      : styleBody),
-          ]),
-          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-              pw.Text("INVOICE NO: ", style: styleLabel.copyWith(fontSize: 12)),
-              pw.Text("INV-$uniqueId",
-                  style: styleBody.copyWith(
-                      fontSize: 10, color: PdfColors.grey700)),
-            ]),
-            pw.SizedBox(height: 4),
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-              pw.Text("DATE: ", style: styleLabel.copyWith(fontSize: 12)),
-              pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
-                  style: styleBody
-                      .copyWith(fontSize: 10)
-                      .copyWith(color: PdfColors.grey700)),
-            ]),
-            if (transaction.dueDate != null) ...[
-              pw.SizedBox(height: 4),
-              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-                pw.Text("DUE-DATE: ", style: styleLabel.copyWith(fontSize: 12)),
-                pw.Text(DateFormat('MMM dd, yyyy').format(transaction.dueDate!),
-                    style: styleBody
-                        .copyWith(fontSize: 10)
-                        .copyWith(color: PdfColors.grey700)),
-              ]),
-            ]
-          ])
+          SharedComponents.buildBilledToSection(
+            transaction: transaction,
+            label: "BILL TO:",
+            labelStyle: serifFont != null
+                ? pw.TextStyle(font: serifFont, color: primary)
+                : styleLabel.copyWith(fontSize: 12, color: primary),
+            nameStyle: serifFont != null
+                ? pw.TextStyle(font: serifFont, fontSize: 10)
+                : styleBody.copyWith(fontSize: 10),
+            bodyStyle: serifFont != null
+                ? pw.TextStyle(font: serifFont, fontSize: 10)
+                : styleBody,
+          ),
+          SharedComponents.buildInvoiceMetadata(
+            transaction: transaction,
+            labelStyle: styleLabel.copyWith(fontSize: 12),
+            valueStyle: styleBody.copyWith(fontSize: 10, color: PdfColors.grey700),
+            prefix: "INV-",
+            titleLabel: "INVOICE NO: ",
+            dateLabel: "DATE: ",
+            dueDateLabel: "DUE-DATE: ",
+          ),
         ]),
     pw.SizedBox(height: 30),
     pw.Center(
@@ -133,59 +106,14 @@ List<pw.Widget> corporateInvoice(
           style: styleTitle.copyWith(fontSize: 10, color: PdfColors.grey600)),
     ),
     pw.SizedBox(height: 10),
-    pw.Table(
-        border: pw.TableBorder.all(color: primary, width: 0.5),
-        columnWidths: {
-          0: const pw.FlexColumnWidth(3),
-          1: const pw.FlexColumnWidth(1),
-          2: const pw.FlexColumnWidth(1),
-          3: const pw.FlexColumnWidth(1.2),
-        },
-        children: [
-          pw.TableRow(
-              decoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
-              children: [
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("ITEM DESCRIPTION",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("PRICE",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("QTY",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("TOTAL",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-              ]),
-          ...transaction.items.map((item) {
-            return pw.TableRow(children: [
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(item.description,
-                      style: styleBody, textAlign: pw.TextAlign.left)),
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(formatCurrency(item.amount, currencySymbol),
-                      style: styleBody, textAlign: pw.TextAlign.center)),
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(item.quantity.toString(),
-                      style: styleBody, textAlign: pw.TextAlign.center)),
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(
-                      formatCurrency(
-                          item.amount * item.quantity, currencySymbol),
-                      style: styleBody,
-                      textAlign: pw.TextAlign.center)),
-            ]);
-          }),
-        ]),
+    SharedComponents.buildTransactionTable(
+      transaction: transaction,
+      currencySymbol: currencySymbol,
+      headerStyle: styleLabel,
+      bodyStyle: styleBody,
+      tableBorder: pw.TableBorder.all(color: primary, width: 0.5),
+      headerDecoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
+    ),
     pw.SizedBox(height: 20),
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
       pw.Container(
@@ -379,50 +307,25 @@ List<pw.Widget> corporateReceipt(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text("BILLED TO:", style: styleLabel.copyWith(fontSize: 12, color: primary)),
-            pw.SizedBox(height: 4),
-            pw.Text(transaction.customerName,
-                style: serifFont != null
-                    ? pw.TextStyle(font: serifFont, fontSize: 10)
-                    : styleBody.copyWith(fontSize: 10)),
-            if (transaction.customerAddress != null &&
-                transaction.customerAddress!.isNotEmpty)
-              pw.Text(transaction.customerAddress ?? "",
-                  style: serifFont != null
-                      ? pw.TextStyle(font: serifFont, fontSize: 10)
-                      : styleBody),
-            if (transaction.customerPhone != null &&
-                transaction.customerPhone!.isNotEmpty)
-              pw.Text(transaction.customerPhone ?? "",
-                  style: serifFont != null
-                      ? pw.TextStyle(font: serifFont, fontSize: 10)
-                      : styleBody),
-          ]),
-
-          // receipt number
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.end,
-            children: [
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
-                children: [
-                  pw.Text("RECEIPT NO: ",
-                      style: styleLabel.copyWith(color: PdfColors.black)),
-                  pw.Text("R-$uniqueId", style: styleBody),
-                ],
-              ),
-              pw.SizedBox(height: 5),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
-                children: [
-                  pw.Text("date: ",
-                      style: styleLabel.copyWith(color: PdfColors.black)),
-                  pw.Text(DateFormat('MMM dd, yyyy').format(transaction.date),
-                      style: styleBody),
-                ],
-              ),
-            ],
+          SharedComponents.buildBilledToSection(
+            transaction: transaction,
+            label: "BILLED TO:",
+            labelStyle: styleLabel.copyWith(fontSize: 12, color: primary),
+            nameStyle: serifFont != null
+                ? pw.TextStyle(font: serifFont, fontSize: 10)
+                : styleBody.copyWith(fontSize: 10),
+            bodyStyle: serifFont != null
+                ? pw.TextStyle(font: serifFont, fontSize: 10)
+                : styleBody,
+          ),
+          SharedComponents.buildInvoiceMetadata(
+            transaction: transaction,
+            labelStyle: styleLabel.copyWith(color: PdfColors.black),
+            valueStyle: styleBody,
+            prefix: "R-",
+            titleLabel: "RECEIPT NO: ",
+            dateLabel: "date: ",
+            dueDateLabel: "due date: ",
           ),
         ]),
     pw.SizedBox(height: 30),
@@ -431,59 +334,14 @@ List<pw.Widget> corporateReceipt(
           style: styleTitle.copyWith(fontSize: 10, color: PdfColors.grey600)),
     ),
     pw.SizedBox(height: 10),
-    pw.Table(
-        border: pw.TableBorder.all(color: primary, width: 0.5),
-        columnWidths: {
-          0: const pw.FlexColumnWidth(3),
-          1: const pw.FlexColumnWidth(1),
-          2: const pw.FlexColumnWidth(1),
-          3: const pw.FlexColumnWidth(1.2),
-        },
-        children: [
-          pw.TableRow(
-              decoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
-              children: [
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("ITEM DESCRIPTION",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("PRICE",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("QTY",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-                pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text("TOTAL",
-                        style: styleLabel, textAlign: pw.TextAlign.center)),
-              ]),
-          ...transaction.items.map((item) {
-            return pw.TableRow(children: [
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(item.description,
-                      style: styleBody, textAlign: pw.TextAlign.left)),
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(formatCurrency(item.amount, currencySymbol),
-                      style: styleBody, textAlign: pw.TextAlign.center)),
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(item.quantity.toString(),
-                      style: styleBody, textAlign: pw.TextAlign.center)),
-              pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(
-                      formatCurrency(
-                          item.amount * item.quantity, currencySymbol),
-                      style: styleBody,
-                      textAlign: pw.TextAlign.center)),
-            ]);
-          }),
-        ]),
+    SharedComponents.buildTransactionTable(
+      transaction: transaction,
+      currencySymbol: currencySymbol,
+      headerStyle: styleLabel,
+      bodyStyle: styleBody,
+      tableBorder: pw.TableBorder.all(color: primary, width: 0.5),
+      headerDecoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
+    ),
     pw.SizedBox(height: 20),
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
       pw.Container(
