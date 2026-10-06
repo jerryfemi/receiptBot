@@ -5,7 +5,6 @@ import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
-import 'package:receipt_bot/utils/country_utils.dart';
 
 class MessageRouter {
   final FirestoreService firestoreService;
@@ -637,8 +636,12 @@ class MessageRouter {
       // -------------------------------------------------------------------------
       // THEME OVERRIDES — call handler directly (one-shot, no pending state)
       // -------------------------------------------------------------------------
-      case ButtonIds.themeClassic:
-      case ButtonIds.themeBeige:
+      case ButtonIds.themeOceanBlue:
+      case ButtonIds.themeSandBeige:
+      case ButtonIds.themeMidnightNavy:
+      case ButtonIds.themeSageGreen:
+      case ButtonIds.themeCharcoalOnyx:
+      case ButtonIds.themeDeepBurgundy:
         await receiptHandler.handleThemeSelection(from, originalText, profile);
         return true;
 
