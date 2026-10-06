@@ -45,7 +45,7 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
     <String, dynamic>{
       'phoneNumber': instance.phoneNumber,
       'orgId': instance.orgId,
-      'role': _$UserRoleEnumMap[instance.role],
+      'role': _$UserRoleEnumMap[instance.role]!,
       'status': _$OnboardingStatusEnumMap[instance.status],
       'currentAction': _$UserActionEnumMap[instance.currentAction],
       'businessName': instance.businessName,
@@ -137,6 +137,9 @@ Transaction _$TransactionFromJson(Map<String, dynamic> json) => Transaction(
       accountNumber: json['accountNumber'] as String?,
       accountName: json['accountName'] as String?,
       tax: (json['tax'] as num?)?.toDouble(),
+      discount: (json['discount'] as num?)?.toDouble(),
+      notes: json['notes'] as String?,
+      terms: json['terms'] as String?,
     );
 
 Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
@@ -148,12 +151,15 @@ Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
       'totalAmount': instance.totalAmount,
       'amountInWords': instance.amountInWords,
       'date': instance.date.toIso8601String(),
-      'type': _$TransactionTypeEnumMap[instance.type],
+      'type': _$TransactionTypeEnumMap[instance.type]!,
       'dueDate': instance.dueDate?.toIso8601String(),
       'bankName': instance.bankName,
       'accountNumber': instance.accountNumber,
       'accountName': instance.accountName,
       'tax': instance.tax,
+      'discount': instance.discount,
+      'notes': instance.notes,
+      'terms': instance.terms,
     };
 
 const _$TransactionTypeEnumMap = {
