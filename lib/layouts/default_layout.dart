@@ -1,10 +1,9 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/utils/country_utils.dart';
-import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/layouts/shared_components.dart';
-import 'package:receipt_bot/layouts/design_tokens.dart';
+import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 List<pw.Widget> defaultInvoiceLayout(
     pw.Context context,
@@ -180,8 +179,7 @@ List<pw.Widget> defaultInvoiceLayout(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("Bill To:",
-                  style: styleLabel.copyWith(color: primary)),
+              pw.Text("Bill To:", style: styleLabel.copyWith(color: primary)),
               pw.SizedBox(height: 5),
               pw.Text(transaction.customerName.toUpperCase(),
                   style: styleBody.copyWith(font: serifFont)),
@@ -441,7 +439,8 @@ List<pw.Widget> defaultReceiptLayout(
     SharedComponents.buildTransactionTable(
       transaction: transaction,
       currencySymbol: currencySymbol,
-      headerStyle: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: textColor),
+      headerStyle: pw.TextStyle(
+          fontSize: 10, fontWeight: pw.FontWeight.bold, color: textColor),
       bodyStyle: const pw.TextStyle(fontSize: 10),
       tableBorder: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
       cellPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -461,8 +460,8 @@ List<pw.Widget> defaultReceiptLayout(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
               pw.Container(
-                padding: const pw.EdgeInsets.symmetric(
-                    vertical: 2, horizontal: 10),
+                padding:
+                    const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 10),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.end,
                   children: [
@@ -488,7 +487,8 @@ List<pw.Widget> defaultReceiptLayout(
                               fontWeight: pw.FontWeight.bold, fontSize: 10)),
                       pw.Text(
                         "-${formatCurrency(transaction.discount!, currencySymbol)}",
-                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.red),
+                        style: const pw.TextStyle(
+                            fontSize: 10, color: PdfColors.red),
                       ),
                     ],
                   ),
@@ -540,13 +540,15 @@ List<pw.Widget> defaultReceiptLayout(
     pw.SizedBox(height: 30), // Spacer replacement
 
     if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
-      pw.Text("NOTES:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+      pw.Text("NOTES:",
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
       pw.SizedBox(height: 5),
       pw.Text(transaction.notes!, style: pw.TextStyle(fontSize: 10)),
       pw.SizedBox(height: 10),
     ],
     if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
-      pw.Text("TERMS & CONDITIONS:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+      pw.Text("TERMS & CONDITIONS:",
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
       pw.SizedBox(height: 5),
       pw.Text(transaction.terms!, style: pw.TextStyle(fontSize: 8)),
       pw.SizedBox(height: 10),

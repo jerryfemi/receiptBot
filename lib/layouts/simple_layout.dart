@@ -1,10 +1,9 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/utils/country_utils.dart';
-import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/layouts/shared_components.dart';
-import 'package:receipt_bot/layouts/design_tokens.dart';
+import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 List<pw.Widget> simpleInvoice(
     pw.Context context,
@@ -127,7 +126,8 @@ List<pw.Widget> simpleInvoice(
               child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                pw.Text("BILL TO :", style: styleTitle.copyWith(fontSize: 12, color: primary)),
+                pw.Text("BILL TO :",
+                    style: styleTitle.copyWith(fontSize: 12, color: primary)),
                 pw.SizedBox(height: 10),
                 pw.Text(transaction.customerName.toUpperCase(),
                     style: serifFont != null
@@ -167,10 +167,7 @@ List<pw.Widget> simpleInvoice(
         verticalInside: pw.BorderSide(color: primary, width: 1),
       ),
       headerDecoration: pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: primary, width: 1)
-        )
-      ),
+          border: pw.Border(bottom: pw.BorderSide(color: primary, width: 1))),
       cellPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
       headerPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
     ),
@@ -184,10 +181,8 @@ List<pw.Widget> simpleInvoice(
                 left: pw.BorderSide(color: primary, width: 1),
                 right: pw.BorderSide(color: primary, width: 1),
                 bottom: pw.BorderSide(color: primary, width: 1),
-                verticalInside:
-                    pw.BorderSide(color: primary, width: 1),
-                horizontalInside:
-                    pw.BorderSide(color: primary, width: 1),
+                verticalInside: pw.BorderSide(color: primary, width: 1),
+                horizontalInside: pw.BorderSide(color: primary, width: 1),
               ),
               columnWidths: {
                 0: const pw.FlexColumnWidth(1),
@@ -198,9 +193,7 @@ List<pw.Widget> simpleInvoice(
                   _tableHeader('Sub Total',
                       alignment: pw.TextAlign.center, color: primary),
                   _tableCell(
-                      formatCurrency(
-                          transaction.subTotal,
-                          currencySymbol),
+                      formatCurrency(transaction.subTotal, currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
                 if (transaction.discount != null && transaction.discount! > 0)
@@ -415,10 +408,8 @@ List<pw.Widget> simpleReceipt(
         verticalInside: pw.BorderSide(color: PdfColors.black, width: 1),
       ),
       headerDecoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.black, width: 1)
-        )
-      ),
+          border: pw.Border(
+              bottom: pw.BorderSide(color: PdfColors.black, width: 1))),
       cellPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
       headerPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
     ),
@@ -446,9 +437,7 @@ List<pw.Widget> simpleReceipt(
                   _tableHeader('Sub Total',
                       alignment: pw.TextAlign.center, color: PdfColors.black),
                   _tableCell(
-                      formatCurrency(
-                          transaction.subTotal,
-                          currencySymbol),
+                      formatCurrency(transaction.subTotal, currencySymbol),
                       alignment: pw.TextAlign.right),
                 ]),
                 if (transaction.discount != null && transaction.discount! > 0)

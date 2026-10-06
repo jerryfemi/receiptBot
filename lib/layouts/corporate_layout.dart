@@ -1,10 +1,8 @@
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/utils/country_utils.dart';
-import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/layouts/shared_components.dart';
-import 'package:receipt_bot/layouts/design_tokens.dart';
+import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 List<pw.Widget> corporateInvoice(
     pw.Context context,
@@ -93,7 +91,8 @@ List<pw.Widget> corporateInvoice(
           SharedComponents.buildInvoiceMetadata(
             transaction: transaction,
             labelStyle: styleLabel.copyWith(fontSize: 12),
-            valueStyle: styleBody.copyWith(fontSize: 10, color: PdfColors.grey700),
+            valueStyle:
+                styleBody.copyWith(fontSize: 10, color: PdfColors.grey700),
             prefix: "INV-",
             titleLabel: "INVOICE NO: ",
             dateLabel: "DATE: ",
@@ -112,7 +111,8 @@ List<pw.Widget> corporateInvoice(
       headerStyle: styleLabel,
       bodyStyle: styleBody,
       tableBorder: pw.TableBorder.all(color: primary, width: 0.5),
-      headerDecoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
+      headerDecoration: pw.BoxDecoration(
+          color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
     ),
     pw.SizedBox(height: 20),
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -135,8 +135,7 @@ List<pw.Widget> corporateInvoice(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
                               formatCurrency(
-                                  transaction.subTotal,
-                                  currencySymbol),
+                                  transaction.subTotal, currencySymbol),
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),
@@ -151,7 +150,8 @@ List<pw.Widget> corporateInvoice(
                             padding: const pw.EdgeInsets.all(6),
                             child: pw.Text(
                                 "-${formatCurrency(transaction.discount!, currencySymbol)}",
-                                style: styleBody.copyWith(color: PdfColors.red700),
+                                style:
+                                    styleBody.copyWith(color: PdfColors.red700),
                                 textAlign: pw.TextAlign.right)),
                       ]),
                 if (transaction.tax != null && transaction.tax! > 0)
@@ -212,7 +212,8 @@ List<pw.Widget> corporateInvoice(
       pw.SizedBox(height: 20),
       pw.Text("TERMS & CONDITIONS:", style: styleLabel),
       pw.SizedBox(height: 5),
-      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8, color: PdfColors.grey700)),
+      pw.Text(transaction.terms!,
+          style: styleBody.copyWith(fontSize: 8, color: PdfColors.grey700)),
     ],
   ];
 }
@@ -340,7 +341,8 @@ List<pw.Widget> corporateReceipt(
       headerStyle: styleLabel,
       bodyStyle: styleBody,
       tableBorder: pw.TableBorder.all(color: primary, width: 0.5),
-      headerDecoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
+      headerDecoration: pw.BoxDecoration(
+          color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
     ),
     pw.SizedBox(height: 20),
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -363,8 +365,7 @@ List<pw.Widget> corporateReceipt(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
                               formatCurrency(
-                                  transaction.subTotal,
-                                  currencySymbol),
+                                  transaction.subTotal, currencySymbol),
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),
