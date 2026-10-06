@@ -158,6 +158,9 @@ class _IdempotencyCache {
 final _services = _ServiceHolder();
 final _idempotencyCache = _IdempotencyCache();
 
+/// Helper to ensure services are initialized when called from other webhook handlers.
+Future<void> initializeServicesForExternalWebhooks() => _services.ensureInitialized();
+
 Future<Response> onRequest(RequestContext context) async {
   print('HIT!');
   final request = context.request;
@@ -220,7 +223,7 @@ Future<Response> onRequest(RequestContext context) async {
           }
         }
 
-        _handleMessage(from, text, type, message as Map<String, dynamic>)
+        await _handleMessage(from, text, type, message as Map<String, dynamic>)
             .catchError((e) => print('Background processing error: $e'));
       }
     } catch (e) {

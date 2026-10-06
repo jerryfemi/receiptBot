@@ -49,17 +49,17 @@ Future<Response> onRequest(RequestContext context) async {
 
     // 3. The "Ping & Verify" Pattern (Industry Gold Standard)
     // Run the heavy lifting asynchronously to immediately return 200 OK to Paystack
-    Future.microtask(() async {
-      try {
-        if (!_servicesInitialized) {
-          await _firestoreService.initialize();
-          _servicesInitialized = true;
-        }
+    try {
+      if (!_servicesInitialized) {
+        await _firestoreService.initialize();
+        await webhook_handler.initializeServicesForExternalWebhooks();
+        _servicesInitialized = true;
+      }
 
         // Idempotency check - prevent double processing on webhook retries
         if (await _firestoreService.isWebhookProcessed(reference)) {
           print('Webhook already processed for reference: $reference. Skipping.');
-          return;
+          return Response(statusCode: 200);
         }
 
         print('Ping received for reference: $reference. Verifying...');
@@ -82,7 +82,7 @@ Future<Response> onRequest(RequestContext context) async {
             final profile = await _firestoreService.getProfile(phoneNumber);
             if (profile == null) {
               print('Error: Profile not found for phone: $phoneNumber');
-              return;
+              return Response(statusCode: 200);
             }
             final bool isCurrentlyPremium = profile.isPremium;
 
@@ -141,11 +141,10 @@ Future<Response> onRequest(RequestContext context) async {
                 "⚠️ **Partial Payment Received** ⚠️\n\nWe received a payment of ₦$amountNgn, which does not exactly match our Monthly (₦3,500) or Annual (₦35,000) plans. Please contact support to have your account manually credited.");
           }
         }
-      } catch (e, stackTrace) {
-        print('Paystack webhook async verification error: $e');
-        print('Stack trace: $stackTrace');
-      }
-    });
+    } catch (e, stackTrace) {
+      print('Paystack webhook verification error: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   return Response(statusCode: 200);
