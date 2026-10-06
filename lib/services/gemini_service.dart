@@ -52,6 +52,9 @@ class GeminiService {
     - bankName (String?): If mentioned, the bank name for payment.
     - accountNumber (String?): If mentioned, the account number.
     - accountName (String?): If mentioned, the account name.
+    - discount (double?): If a discount is mentioned, calculate the absolute amount to deduct.
+    - notes (String?): Any extra notes or messages for the customer (e.g. "Thank you for your business!").
+    - terms (String?): Any terms and conditions (e.g. "No refunds after 7 days").
 
 ### **CRITICAL MATH RULES (READ CAREFULLY)**
     1. **Unit Price vs Total:** - If the user says: "3 items at 5k each", the `amount` (Unit Price) is 5000.
@@ -76,6 +79,7 @@ class GeminiService {
     - If no Customer Name is found, use "Customer".
     - If the user mentions "Tax", "VAT", or similar, extract the amount or calculate it if a percentage is given.
     - If Tax is present, ensure `totalAmount` includes it.
+    - If a Discount is present, ensure `totalAmount` has it subtracted.
 
     Return ONLY valid JSON matching this schema:
     {
@@ -86,6 +90,7 @@ class GeminiService {
         {"description": "String", "amount": 0.0, "quantity": 1}
       ],
       "tax": 0.0,
+      "discount": 0.0,
       "totalAmount": 0.0,
       "amountInWords": "String",
       "date": "ISO8601_Date_String",
@@ -93,7 +98,9 @@ class GeminiService {
       "dueDate": "ISO8601_Date_String or null",
       "bankName": "String or null",
       "accountNumber": "String or null",
-      "accountName": "String or null"
+      "accountName": "String or null",
+      "notes": "String or null",
+      "terms": "String or null"
     }
 
     User Input: "$text"
@@ -166,11 +173,14 @@ class GeminiService {
         "type": "receipt" or "invoice", 
         "dueDate": "String (YYYY-MM-DD) or null",
         "tax": 0.0,
+        "discount": 0.0,
         "amountInWords": "String",
         "date": "ISO8601_Date_String",
         "bankName": "String or null",
         "accountNumber": "String or null",
-        "accountName": "String or null"
+        "accountName": "String or null",
+        "notes": "String or null",
+        "terms": "String or null"
       }
     ''');
 
