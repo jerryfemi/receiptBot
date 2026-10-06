@@ -243,7 +243,7 @@ List<pw.Widget> signatureReceipt(
                   padding: const pw.EdgeInsets.only(right: 8),
                   child: pw.Text(
                       formatCurrency(
-                          transaction.transactionTotal - (transaction.tax ?? 0),
+                          transaction.subTotal,
                           currencySymbol),
                       style: styleBody.copyWith(
                           fontWeight: pw.FontWeight.bold,
@@ -257,6 +257,15 @@ List<pw.Widget> signatureReceipt(
         children: [
           pw.Expanded(child: pw.Container()),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+            if (transaction.discount != null && transaction.discount! > 0) ...[
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+                pw.Text("Discount", style: styleLabel),
+                pw.SizedBox(width: 30),
+                pw.Text("-${formatCurrency(transaction.discount!, currencySymbol)}",
+                    style: styleBody),
+              ]),
+              pw.SizedBox(height: 5),
+            ],
             if (transaction.tax != null && transaction.tax! > 0) ...[
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
                 pw.Text("Tax", style: styleLabel),
@@ -279,6 +288,18 @@ List<pw.Widget> signatureReceipt(
           ])
         ]),
     pw.SizedBox(height: 40),
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.Text("NOTES:", style: styleLabel.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: styleBody),
+      pw.SizedBox(height: 20),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.Text("TERMS & CONDITIONS:", style: styleLabel.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8)),
+      pw.SizedBox(height: 30),
+    ],
     if (scriptFont != null)
       pw.Center(
         child: pw.Text("thank you for shopping $businessName",
@@ -511,7 +532,7 @@ List<pw.Widget> signatureInvoice(
                   padding: const pw.EdgeInsets.only(right: 8),
                   child: pw.Text(
                       formatCurrency(
-                          transaction.transactionTotal - (transaction.tax ?? 0),
+                          transaction.subTotal,
                           currencySymbol),
                       style: styleBody.copyWith(
                           fontWeight: pw.FontWeight.bold,
@@ -521,6 +542,15 @@ List<pw.Widget> signatureInvoice(
     // Totals Section (Right Aligned)
     pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
       pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+        if (transaction.discount != null && transaction.discount! > 0) ...[
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Text("Discount", style: styleLabel),
+            pw.SizedBox(width: 30),
+            pw.Text("-${formatCurrency(transaction.discount!, currencySymbol)}",
+                style: styleBody),
+          ]),
+          pw.SizedBox(height: 5),
+        ],
         if (transaction.tax != null && transaction.tax! > 0) ...[
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
             pw.Text("Tax", style: styleLabel),
@@ -581,8 +611,20 @@ List<pw.Widget> signatureInvoice(
                     style: pw.TextStyle(
                         font: scriptFont, fontSize: 18, color: primary)),
               )
-          ])
-    ]
+          ]),
+    ],
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("NOTES:", style: styleLabel.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: styleBody),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("TERMS & CONDITIONS:", style: styleLabel.copyWith(fontSize: 14)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8)),
+    ],
   ];
 }
 
