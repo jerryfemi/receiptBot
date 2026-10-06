@@ -216,6 +216,9 @@ class Transaction {
   final String? accountNumber;
   final String? accountName;
   final double? tax; // New field
+  final double? discount; // New field
+  final String? notes; // New field
+  final String? terms; // New field
 
   Transaction({
     required this.customerName,
@@ -231,6 +234,9 @@ class Transaction {
     this.accountNumber,
     this.accountName,
     this.tax,
+    this.discount,
+    this.notes,
+    this.terms,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) =>
