@@ -269,6 +269,23 @@ List<pw.Widget> defaultInvoiceLayout(
         3: const pw.FlexColumnWidth(1.2), // Value
       },
       children: [
+        // Subtotal
+        pw.TableRow(children: [
+          pw.SizedBox(),
+          pw.SizedBox(),
+          cell("SUBTOTAL", align: pw.TextAlign.right, bold: true),
+          cell(formatCurrency(transaction.subTotal, currencySymbol),
+              align: pw.TextAlign.center, bold: true),
+        ]),
+        // Discount
+        if (transaction.discount != null && transaction.discount! > 0)
+          pw.TableRow(children: [
+            pw.SizedBox(),
+            pw.SizedBox(),
+            cell("DISCOUNT", align: pw.TextAlign.right, bold: true),
+            cell("-${formatCurrency(transaction.discount!, currencySymbol)}",
+                align: pw.TextAlign.center, bold: true),
+          ]),
         // Tax
         if (transaction.tax != null && transaction.tax! > 0)
           pw.TableRow(children: [
@@ -294,6 +311,18 @@ List<pw.Widget> defaultInvoiceLayout(
         ]),
       ],
     ),
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("NOTES:", style: styleTitle.copyWith(fontSize: 12)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: styleBody),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.SizedBox(height: 20),
+      pw.Text("TERMS & CONDITIONS:", style: styleTitle.copyWith(fontSize: 12)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8)),
+    ],
   ];
 }
 
@@ -487,6 +516,39 @@ List<pw.Widget> defaultReceiptLayout(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                    vertical: 2, horizontal: 10),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.end,
+                  children: [
+                    pw.Text('SUBTOTAL:   ',
+                        style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.Text(
+                      formatCurrency(transaction.subTotal, currencySymbol),
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
+              if (transaction.discount != null && transaction.discount! > 0)
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                      vertical: 2, horizontal: 10),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.end,
+                    children: [
+                      pw.Text('DISCOUNT:   ',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.Text(
+                        "-${formatCurrency(transaction.discount!, currencySymbol)}",
+                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.red),
+                      ),
+                    ],
+                  ),
+                ),
               if (transaction.tax != null && transaction.tax! > 0)
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(
@@ -532,6 +594,19 @@ List<pw.Widget> defaultReceiptLayout(
     ),
 
     pw.SizedBox(height: 30), // Spacer replacement
+
+    if (transaction.notes != null && transaction.notes!.isNotEmpty) ...[
+      pw.Text("NOTES:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.notes!, style: pw.TextStyle(fontSize: 10)),
+      pw.SizedBox(height: 10),
+    ],
+    if (transaction.terms != null && transaction.terms!.isNotEmpty) ...[
+      pw.Text("TERMS & CONDITIONS:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+      pw.SizedBox(height: 5),
+      pw.Text(transaction.terms!, style: pw.TextStyle(fontSize: 8)),
+      pw.SizedBox(height: 10),
+    ],
 
     // --- FOOTER ---
     pw.Divider(color: PdfColors.grey300),
