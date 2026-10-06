@@ -90,10 +90,13 @@ class CountryUtils {
 }
 
 extension TransactionTotal on Transaction {
+  double get subTotal {
+    return items.fold(0, (sum, item) => sum + (item.amount * item.quantity));
+  }
+
   double get transactionTotal {
-    final double subtotal =
-        items.fold(0, (sum, item) => sum + (item.amount * item.quantity));
-    return subtotal + (tax ?? 0);
+    final double discountAmount = discount ?? 0;
+    return subTotal - discountAmount + (tax ?? 0);
   }
 }
 
