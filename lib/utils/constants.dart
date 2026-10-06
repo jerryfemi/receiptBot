@@ -25,8 +25,12 @@ abstract class ButtonIds {
   static const String changeCurrency = 'btn_change_currency';
 
   // === THEMES ===
-  static const String themeClassic = 'theme_classic';
-  static const String themeBeige = 'theme_beige';
+  static const String themeOceanBlue = 'theme_ocean_blue';
+  static const String themeSandBeige = 'theme_sand_beige';
+  static const String themeMidnightNavy = 'theme_midnight_navy';
+  static const String themeSageGreen = 'theme_sage_green';
+  static const String themeCharcoalOnyx = 'theme_charcoal_onyx';
+  static const String themeDeepBurgundy = 'theme_deep_burgundy';
 
   // === LAYOUTS ===
   static const String layoutLegacy = 'theme_layout_1';
@@ -82,8 +86,12 @@ abstract class MenuOptions {
 
   /// Theme selection options.
   static List<Map<String, String>> get themes => [
-        {'id': ButtonIds.themeClassic, 'title': 'B&W (Classic)'},
-        {'id': ButtonIds.themeBeige, 'title': 'Beige'},
+        {'id': ButtonIds.themeOceanBlue, 'title': 'Ocean Blue'},
+        {'id': ButtonIds.themeSandBeige, 'title': 'Sand Beige'},
+        {'id': ButtonIds.themeMidnightNavy, 'title': 'Midnight Navy'},
+        {'id': ButtonIds.themeSageGreen, 'title': 'Sage Green'},
+        {'id': ButtonIds.themeCharcoalOnyx, 'title': 'Charcoal Onyx'},
+        {'id': ButtonIds.themeDeepBurgundy, 'title': 'Deep Burgundy'},
       ];
 
   /// Settings menu options.
