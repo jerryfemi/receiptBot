@@ -3,89 +3,76 @@ import 'dart:io';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 
+/// Writes a sample receipt and invoice for every layout into `samples/`,
+/// so a design change can be checked without sending a WhatsApp message.
+///
+///   dart run bin/generate_all_layouts.dart
 void main() async {
   final pdfService = PdfService();
 
   final profile = BusinessProfile(
-    phoneNumber: '+1234567890',
-    businessName: 'Luxe Aesthetics',
-    businessAddress: '123 Premium Blvd, Beverly Hills, CA 90210',
-    displayPhoneNumber: '+1 (555) 123-4567',
-    currencyCode: 'USD',
-    currencySymbol: r'$',
-    bankName: 'Chase Bank',
-    accountNumber: '123456789',
-    accountName: 'Luxe Aesthetics LLC',
+    phoneNumber: '+2348034567890',
+    businessName: 'Adé Electronics',
+    businessAddress: '14 Allen Avenue, Ikeja, Lagos',
+    displayPhoneNumber: '0803 456 7890',
+    currencyCode: 'NGN',
+    currencySymbol: '₦',
+    bankName: 'GTBank',
+    accountNumber: '0123456789',
+    accountName: 'Adé Electronics Ltd',
     isPremium: true,
   );
 
   final items = [
-    ReceiptItem(description: 'Premium Consultation', quantity: 1, amount: 250),
-    ReceiptItem(
-        description: 'Signature Facial Treatment', quantity: 2, amount: 150),
-    ReceiptItem(description: 'Luxury Skincare Set', quantity: 1, amount: 450),
+    ReceiptItem(description: 'Canon EOS R6 camera', quantity: 3, amount: 500000),
+    ReceiptItem(description: 'Manfrotto tripod', quantity: 1, amount: 350000),
   ];
 
-  final invoice = Transaction(
-    type: TransactionType.invoice,
-    date: DateTime.now(),
-    dueDate: DateTime.now().add(const Duration(days: 14)),
-    customerName: 'Eleanor Vance',
-    customerAddress: '456 Elite Way, Los Angeles, CA 90001',
-    items: items,
-    tax: 50,
-    discount: 50,
-    totalAmount: 1000,
-    notes:
-        'Thank you for visiting Luxe Aesthetics. We look forward to seeing you again.',
-    terms:
-        'Payment is due within 14 days. Late payments may incur a 5% fee. No refunds on services rendered.',
-  );
-
+  final now = DateTime.now();
   final receipt = Transaction(
     type: TransactionType.receipt,
-    date: DateTime.now(),
-    customerName: 'Eleanor Vance',
-    customerAddress: '456 Elite Way, Los Angeles, CA 90001',
+    date: now,
+    customerName: 'John Okafor',
     items: items,
-    tax: 50,
-    discount: 50,
-    totalAmount: 1000,
-    notes:
-        'Thank you for visiting Luxe Aesthetics. We look forward to seeing you again.',
-    terms:
-        'Payment is due within 14 days. Late payments may incur a 5% fee. No refunds on services rendered.',
+    discount: 50000,
+    totalAmount: 1800000,
+  );
+  final invoice = Transaction(
+    type: TransactionType.invoice,
+    date: now,
+    dueDate: now.add(const Duration(days: 14)),
+    customerName: 'John Okafor',
+    items: items,
+    discount: 50000,
+    totalAmount: 1800000,
+    notes: 'Thank you for your business.',
+    terms: 'Payment is due within 14 days.',
   );
 
-  final layouts = [
-    'default',
-    'signature',
-    'simple',
-    'corporate'
-  ]; // Index matches pdf_service.dart
-  const themeIndex = 2; // Midnight Navy
+  const layouts = {
+    DocumentLayout.studio: 'studio',
+    DocumentLayout.signature: 'signature',
+    DocumentLayout.market: 'market',
+    DocumentLayout.till: 'till',
+  };
+  const themeIndex = 5; // Deep Burgundy, used by Signature
 
-  for (int i = 0; i < layouts.length; i++) {
-    try {
-      print('Generating ${layouts[i]} Invoice...');
-      final invBytes = await pdfService.generateReceipt(
-        profile,
-        invoice,
-        themeIndex: themeIndex,
-        layoutIndex: i,
-      );
-      await File('${layouts[i]}_invoice.pdf').writeAsBytes(invBytes);
-
-      print('Generating ${layouts[i]} Receipt...');
-      final recBytes = await pdfService.generateReceipt(
-        profile,
-        receipt,
-        themeIndex: themeIndex,
-        layoutIndex: i,
-      );
-      await File('${layouts[i]}_receipt.pdf').writeAsBytes(recBytes);
-    } catch (e) {
-      print('Error generating ${layouts[i]}: $e');
+  final out = Directory('samples')..createSync();
+  for (final MapEntry(key: index, value: name) in layouts.entries) {
+    for (final (kind, sale) in [('receipt', receipt), ('invoice', invoice)]) {
+      try {
+        final bytes = await pdfService.generateReceipt(
+          profile,
+          sale,
+          themeIndex: themeIndex,
+          layoutIndex: index,
+        );
+        final file = File('${out.path}/${name}_$kind.pdf');
+        await file.writeAsBytes(bytes);
+        stdout.writeln('✓ ${file.path}');
+      } catch (e, stack) {
+        stderr.writeln('✗ $name $kind: $e\n$stack');
+      }
     }
   }
 }
