@@ -5,12 +5,16 @@ import 'package:receipt_bot/documents/studio/studio_body.dart';
 import 'package:receipt_bot/documents/studio/studio_sidebar.dart';
 import 'package:receipt_bot/documents/studio/studio_style.dart';
 
-/// Studio's own electric blue, used when no accent is given.
-final PdfColor _studioBlue = PdfColor.fromHex('#2B37E0');
+/// Receipts are electric blue, invoices deep emerald. Both are mid-tones,
+/// so the usual black logo still reads on the sidebar.
+final PdfColor _receiptBlue = PdfColor.fromHex('#2B37E0');
+final PdfColor _invoiceGreen = PdfColor.fromHex('#0E7C66');
 
 /// The Studio layout: a bold modern page with a full-height sidebar.
 Future<pw.Page> buildStudioPage(DocumentData data, {PdfColor? accent}) async {
-  final s = await StudioStyle.load(accent ?? _studioBlue);
+  final s = await StudioStyle.load(
+    accent ?? (data.isInvoice ? _invoiceGreen : _receiptBlue),
+  );
 
   return pw.MultiPage(
     pageTheme: pw.PageTheme(
