@@ -71,6 +71,22 @@ class DocumentData {
     return id.toString().padLeft(5, '0');
   }
 
+  /// Notes the business wrote for this sale, or null.
+  String? get notes {
+    final value = transaction.notes?.trim() ?? '';
+    return value.isEmpty ? null : value;
+  }
+
+  /// Terms only belong on invoices: a receipt is proof of payment, so
+  /// payment terms there would only confuse the customer.
+  String? get terms {
+    final value = transaction.terms?.trim() ?? '';
+    return !isInvoice || value.isEmpty ? null : value;
+  }
+
+  /// The sign-off every receipt layout uses.
+  static const String thanks = 'Thanks for patronizing us.';
+
   bool get hasBankDetails =>
       (bankName?.isNotEmpty ?? false) && (accountNumber?.isNotEmpty ?? false);
 
