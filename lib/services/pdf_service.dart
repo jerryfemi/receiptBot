@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:receipt_bot/utils/log.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -80,7 +81,7 @@ class PdfService {
           await File('public/fonts/DancingScript-Bold.ttf').readAsBytes();
       scriptFont = pw.Font.ttf(_scriptFontData!.buffer.asByteData());
     } catch (e) {
-      print('Warning: Could not load script font: $e');
+      Log.warn('pdf', 'Could not load script font: $e');
     }
 
     pw.Font? serifFont;
@@ -89,7 +90,7 @@ class PdfService {
           await File('public/fonts/PlayfairDisplay-SemiBold.ttf').readAsBytes();
       serifFont = pw.Font.ttf(_serifFontData!.buffer.asByteData());
     } catch (e) {
-      print('Warning: Could not load serif font: $e');
+      Log.warn('pdf', 'Could not load serif font: $e');
     }
 
     final pdf = pw.Document();
@@ -136,7 +137,7 @@ class PdfService {
             logoImage = pw.MemoryImage(bytes);
           }
         } catch (e) {
-          print('Error loading logo: $e');
+          Log.error('pdf', 'Error loading logo: $e');
         }
       }
     }
