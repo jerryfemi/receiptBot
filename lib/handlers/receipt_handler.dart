@@ -426,16 +426,6 @@ class ReceiptHandler {
       final fileName =
           '${transaction.type == TransactionType.invoice ? "invoice" : "receipt"}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
-      print('DEBUG: Starting Upload to Firebase Storage...');
-      final swUpload = Stopwatch()..start();
-      final pdfUrl = await firestoreService.uploadFile(
-        'receipts/$from/$fileName',
-        pdfBytes,
-        'application/pdf',
-      );
-      swUpload.stop();
-      print('DEBUG: Firebase upload took ${swUpload.elapsedMilliseconds} ms');
-
       // --- ADD SALES LEDGER ENTRY ---
       // We purposefully don't await this to speed up sending the receipt message!
       firestoreService
@@ -454,7 +444,7 @@ class ReceiptHandler {
       // Send document directly (no extra "Here is your receipt" message)
       print('DEBUG: Sending WhatsApp Document...');
       final swSend = Stopwatch()..start();
-      await whatsappService.sendDocument(from, pdfUrl, fileName);
+      await whatsappService.sendDocumentBytes(from, pdfBytes, fileName);
       swSend.stop();
       print(
           'DEBUG: WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms');

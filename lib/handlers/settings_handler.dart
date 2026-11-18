@@ -1,20 +1,26 @@
+import 'dart:io';
+
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
+import 'package:receipt_bot/utils/logo_codec.dart';
 import 'package:receipt_bot/utils/constants.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 
-/// URLs for layout preview images.
+/// URLs for layout preview images, served from the bot's own `public/layouts`
+/// folder. Set PUBLIC_BASE_URL to the server's address (e.g. the Render URL).
 abstract class LayoutUrls {
-  static const String corporate =
-      'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fstandard.png?alt=media';
-  static const String signature =
-      'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fsignature.png?alt=media';
-  static const String simple =
-      'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fsimple.png?alt=media';
-  static const String legacy =
-      'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.firebasestorage.app/o/layouts%2Fclassic.png?alt=media';
+  static final String _base =
+      (Platform.environment['PUBLIC_BASE_URL'] ?? '').replaceAll(RegExp(r'/+$'), '');
+  static String get corporate => '$_base/layouts/standard.png';
+  static String get signature => '$_base/layouts/signature.png';
+  static String get simple => '$_base/layouts/simple.png';
+  static String get legacy => '$_base/layouts/classic.png';
+
+  /// True when the server has a public address and the preview files exist.
+  static bool get previewsAvailable =>
+      _base.isNotEmpty && File('public/layouts/standard.png').existsSync();
 }
 
 /// Handles profile settings, team management, and customization flows.
@@ -339,14 +345,10 @@ class SettingsHandler {
       final tempUrl = await whatsappService.getMediaUrl(mediaId);
       final bytes = await whatsappService.downloadFileBytes(tempUrl);
 
-      final publicUrl = await firestoreService.uploadFile(
-        'logos/$from.jpg',
-        bytes,
-        'image/jpeg',
-      );
+      final logoData = LogoCodec.encode(bytes);
 
       await whatsappService.sendMessage(from, 'Saving Logo...... ');
-      await updateProfileAndOrg(from, profile, {'logoUrl': publicUrl});
+      await updateProfileAndOrg(from, profile, {'logoUrl': logoData});
       await whatsappService.sendMessage(from, 'Logo updated successfully! 🖼️');
     } catch (e) {
       print('Error updating logo: $e');
@@ -459,6 +461,24 @@ class SettingsHandler {
     await firestoreService.updateAction(from, UserAction.selectLayout);
     await whatsappService.sendMessage(
         from, "Please select a *Layout Structure*.");
+
+    // Preview images live in public/layouts. Until they exist (or when
+    // PUBLIC_BASE_URL isn't set), offer a plain list so the flow still works.
+    if (!LayoutUrls.previewsAvailable) {
+      await whatsappService.sendInteractiveList(
+        from,
+        'Pick a layout for your receipts 👇',
+        'View Layouts',
+        'Layouts',
+        [
+          {'id': ButtonIds.layoutCorporate, 'title': 'Corporate', 'description': 'Premium & high-impact (recommended)'},
+          {'id': ButtonIds.layoutSignature, 'title': 'Signature', 'description': 'Elegant script font'},
+          {'id': ButtonIds.layoutSimple, 'title': 'Simple', 'description': 'Strict grid structure'},
+          {'id': ButtonIds.layoutLegacy, 'title': 'Legacy', 'description': 'Default plain layout'},
+        ],
+      );
+      return;
+    }
 
     // Send layout previews with selection buttons
     await whatsappService.sendInteractiveMedia(

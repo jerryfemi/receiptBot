@@ -570,8 +570,7 @@ class SubscriptionHandler {
         businessName: 'ReceiptBot Inc.',
         businessAddress: 'Global Digital Service',
         displayPhoneNumber: '+2348021146844',
-        logoUrl:
-            'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.appspot.com/o/receipts%2Fbot_logo.png?alt=media',
+        logoUrl: null, // TODO: add the bot's own logo to public/logos
         inviteCode: '',
         currencyCode: currencyCode,
         currencySymbol: resolvedCurrencySymbol,
@@ -586,17 +585,10 @@ class SubscriptionHandler {
         org: botOrg,
       );
 
-      // Upload to Firebase Storage
+      // Send via WhatsApp (uploaded straight to WhatsApp's media store)
       final fileName =
           'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final pdfUrl = await firestoreService.uploadFile(
-        'receipts/$phoneNumber/$fileName',
-        pdfBytes,
-        'application/pdf',
-      );
-
-      // Send via WhatsApp
-      await whatsappService.sendDocument(phoneNumber, pdfUrl, fileName);
+      await whatsappService.sendDocumentBytes(phoneNumber, pdfBytes, fileName);
       print('Subscription Receipt sent successfully to $phoneNumber');
     } catch (e) {
       print('Error generating subscription receipt for $phoneNumber: $e');

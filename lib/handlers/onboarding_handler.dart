@@ -1,6 +1,7 @@
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
+import 'package:receipt_bot/utils/logo_codec.dart';
 import 'package:receipt_bot/utils/constants.dart';
 
 /// Handles user onboarding flows (new user, join team, setup profile).
@@ -228,11 +229,7 @@ class OnboardingHandler {
         final mediaUrl = await whatsappService.getMediaUrl(mediaId);
         final fileBytes = await whatsappService.downloadFileBytes(mediaUrl);
 
-        final logoUrl = await firestoreService.uploadFile(
-          'logos/${profile.orgId ?? from}.png',
-          fileBytes,
-          'image/png',
-        );
+        final logoUrl = LogoCodec.encode(fileBytes);
 
         // Save to profile and org
         await firestoreService.updateProfileData(from, {'logoUrl': logoUrl});
