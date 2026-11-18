@@ -9,6 +9,11 @@ abstract class ButtonIds {
   static const String cancel = 'btn_cancel';
   static const String back = 'btn_back';
 
+  // === RECEIPT REVIEW ===
+  static const String receiptSend = 'btn_receipt_send';
+  static const String receiptCancel = 'btn_receipt_cancel';
+  static const String fixLastReceipt = 'btn_fix_last_receipt';
+
   // === ONBOARDING ===
   static const String createProfile = '1';
   static const String joinTeam = '2';
