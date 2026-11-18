@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:http/http.dart' as http;
 
 class FlutterwaveService {
@@ -11,12 +12,11 @@ class FlutterwaveService {
   static const Duration _timeout = Duration(seconds: 30);
 
   FlutterwaveService({String? key, String? redirect})
-      : secretKey = key ?? Platform.environment['FLW_SECRET_KEY'] ?? '',
+      : secretKey = key ?? AppConfig.instance.flutterwaveSecretKey,
         redirectUrl = redirect ??
-            Platform.environment['FLW_REDIRECT_URL'] ??
-            'https://wa.me/message' {
+            AppConfig.instance.flutterwaveRedirectUrl {
     if (secretKey.isEmpty) {
-      print('Warning: FLW_SECRET_KEY is missing.');
+      Log.warn('flutterwave', 'FLW_SECRET_KEY is missing.');
     }
   }
 
@@ -30,8 +30,10 @@ class FlutterwaveService {
       } catch (e) {
         if (attempt == _maxRetries) rethrow;
         final delay = Duration(milliseconds: 500 * (attempt + 1));
-        print(
-            'Flutterwave request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...');
+        Log.warn(
+          'flutterwave',
+          'Flutterwave request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...',
+        );
         await Future<void>.delayed(delay);
       }
     }
