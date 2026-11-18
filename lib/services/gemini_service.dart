@@ -1,16 +1,16 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/services/gemini_client.dart';
 import 'package:receipt_bot/utils/log.dart';
 
 /// Service to interact with Google Gemini API for receipt parsing.
 class GeminiService {
   /// The API key for accessing Gemini.
   final String apiKey;
-  late final GenerativeModel _model;
+  late final GeminiClient _model;
 
   /// Creates a [GeminiService] with the given [apiKey].
   GeminiService({String? apiKey})
@@ -18,14 +18,11 @@ class GeminiService {
     if (this.apiKey.isEmpty) {
       Log.warn('gemini', 'GEMINI_API_KEY is missing.');
     }
-    _model = GenerativeModel(
-      // Set GEMINI_MODEL in the environment to switch models without a code
-      // change when Google retires one.
-      model: AppConfig.instance.geminiModel,
+    // Set GEMINI_MODEL in the environment to switch models without a code
+    // change when Google retires one.
+    _model = GeminiClient(
       apiKey: this.apiKey,
-      generationConfig: GenerationConfig(
-        responseMimeType: 'application/json',
-      ),
+      model: AppConfig.instance.geminiModel,
     );
   }
 
@@ -115,7 +112,7 @@ class GeminiService {
 
     while (retryCount < maxRetries) {
       try {
-        final content = [Content.text(prompt)];
+        final content = [GeminiPart.text(prompt)];
         final response = await _model.generateContent(content);
 
         if (response.text == null) {
@@ -156,7 +153,7 @@ class GeminiService {
     String mimeType = 'image/jpeg',
   }) async {
     final today = DateTime.now().toIso8601String().split('T')[0];
-    final prompt = TextPart('''
+    final prompt = GeminiPart.text('''
       You are an expert receipt parser.
       Look at this image of a receipt, invoice, or handwritten note.
       Extract the transaction details.
@@ -191,10 +188,8 @@ class GeminiService {
     ''');
 
     // Send Image/Document + Text to Gemini
-    final imagePart = DataPart(mimeType, imageBytes);
-    final content = [
-      Content.multi([prompt, imagePart])
-    ];
+    final imagePart = GeminiPart.data(mimeType, imageBytes);
+    final content = [prompt, imagePart];
 
     const maxRetries = 3;
     int retryCount = 0;
@@ -230,6 +225,81 @@ class GeminiService {
   }
 
   // Helper to safely parse Gemini's response
+  // --- Voice Notes ---
+
+  /// Parses a WhatsApp voice note describing a sale into a [Transaction].
+  ///
+  /// Business owners may speak English, Nigerian Pidgin, Yoruba, Igbo or
+  /// Hausa, often mixed; Gemini listens to the audio directly.
+  Future<Transaction> parseVoiceTransaction(
+    Uint8List audioBytes, {
+    String mimeType = 'audio/ogg',
+    String currencySymbol = '₦',
+    String currencyCode = 'NGN',
+  }) async {
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final prompt = GeminiPart.text('''
+You are an expert receipt assistant for small businesses.
+Listen to this voice note. The business owner is describing a sale. They may
+speak English, Nigerian Pidgin, Yoruba, Igbo or Hausa, or mix them.
+
+RULES:
+1. Default currency is $currencyCode ($currencySymbol).
+2. Spoken amounts like "five hundred k", "1.5 million" or "two thousand five
+   hundred" are numbers: 500000, 1500000, 2500.
+3. For `items`, `amount` is the UNIT PRICE and `quantity` the count.
+4. `totalAmount` = sum of quantity × amount, minus discount, plus tax.
+5. If they mention an invoice, a due date or bank details, "type" is
+   "invoice"; otherwise "receipt".
+6. If no customer name is said, use "Customer".
+7. Date: use the date they say, otherwise today ($today).
+8. If the voice note is not about a sale at all, return {"items": []}.
+
+Return ONLY valid JSON matching this schema:
+{
+  "customerName": "String",
+  "items": [{"description": "String", "amount": 0.0, "quantity": 1}],
+  "totalAmount": 0.0,
+  "type": "receipt" or "invoice",
+  "dueDate": "String (YYYY-MM-DD) or null",
+  "tax": 0.0,
+  "discount": 0.0,
+  "amountInWords": "String",
+  "date": "ISO8601_Date_String",
+  "bankName": "String or null",
+  "accountNumber": "String or null",
+  "accountName": "String or null",
+  "notes": "String or null",
+  "terms": "String or null"
+}
+''');
+
+    const maxRetries = 3;
+    var retryCount = 0;
+    while (true) {
+      try {
+        final response = await _model.generateContent(
+          [prompt, GeminiPart.data(mimeType, audioBytes)],
+        );
+        if (response.text == null) {
+          throw Exception('Gemini returned an empty response for audio.');
+        }
+        return _cleanAndParseJson(response.text!);
+      } on GeminiApiException catch (e) {
+        retryCount++;
+        if (!e.isRetryable) rethrow;
+        Log.warn('gemini',
+            'Gemini Voice API Error. Retry $retryCount of $maxRetries: $e');
+        if (retryCount >= maxRetries) {
+          throw Exception(
+              'GEMINI_BUSY: Google AI servers are temporarily overloaded. '
+              'Please wait a minute and try again.');
+        }
+        await Future<void>.delayed(Duration(seconds: retryCount));
+      }
+    }
+  }
+
   // --- Receipt Editing ---
 
   /// Applies a change the user typed (e.g. "tripod is 300k", "remove the
@@ -265,7 +335,7 @@ If the message is instead a completely new, different sale, return exactly:
 Respond with JSON only.
 """;
 
-    final response = await _model.generateContent([Content.text(prompt)]);
+    final response = await _model.generateContent([GeminiPart.text(prompt)]);
     final raw = response.text;
     if (raw == null || raw.trim().isEmpty) {
       throw Exception('Gemini returned an empty response.');
@@ -325,7 +395,7 @@ Keep it punchy, professional, and directly related to the numbers. Do not includ
 
     while (retryCount < maxRetries) {
       try {
-        final content = [Content.text(prompt)];
+        final content = [GeminiPart.text(prompt)];
         final response = await _model.generateContent(content);
 
         if (response.text != null && response.text!.isNotEmpty) {
@@ -408,7 +478,7 @@ RULES:
 
     while (retryCount < maxRetries) {
       try {
-        final response = await _model.generateContent([Content.text(prompt)]);
+        final response = await _model.generateContent([GeminiPart.text(prompt)]);
 
         if (response.text == null) return IntentResult(UserIntent.unknown);
 
