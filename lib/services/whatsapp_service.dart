@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' as http_parser;
 
 /// Service for WhatsApp Cloud API interactions.
 /// Centralizes all WhatsApp messaging with built-in timeout and retry logic.
@@ -45,6 +46,69 @@ class WhatsAppService {
       'type': 'document',
       'document': {
         'link': mediaUrl,
+        'filename': filename,
+      },
+    });
+
+    return _sendRequest('/messages', body);
+  }
+
+  /// Uploads a file to WhatsApp's media store and returns its media ID.
+  /// WhatsApp keeps uploaded media for 30 days, so no storage bucket is needed.
+  Future<String> uploadMedia(
+    List<int> bytes,
+    String mimeType,
+    String filename,
+  ) async {
+    final url = Uri.parse('$_baseUrl/$phoneNumberId/media');
+
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        final request = http.MultipartRequest('POST', url)
+          ..headers['Authorization'] = 'Bearer $token'
+          ..fields['messaging_product'] = 'whatsapp'
+          ..fields['type'] = mimeType
+          ..files.add(http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: filename,
+            contentType: http_parser.MediaType.parse(mimeType),
+          ));
+
+        final streamed = await request.send().timeout(timeout);
+        final response = await http.Response.fromStream(streamed);
+
+        if (response.statusCode == 200) {
+          final json = jsonDecode(response.body) as Map<String, dynamic>;
+          return json['id'] as String;
+        }
+
+        if (attempt >= maxRetries) {
+          throw Exception('Media upload failed: ${response.body}');
+        }
+      } catch (e) {
+        if (attempt >= maxRetries) rethrow;
+      }
+      await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+    }
+
+    throw Exception('Media upload failed after $maxRetries retries');
+  }
+
+  /// Uploads a document to WhatsApp, then sends it to [to].
+  Future<bool> sendDocumentBytes(
+    String to,
+    List<int> bytes,
+    String filename, {
+    String mimeType = 'application/pdf',
+  }) async {
+    final mediaId = await uploadMedia(bytes, mimeType, filename);
+    final body = jsonEncode({
+      'messaging_product': 'whatsapp',
+      'to': to,
+      'type': 'document',
+      'document': {
+        'id': mediaId,
         'filename': filename,
       },
     });
