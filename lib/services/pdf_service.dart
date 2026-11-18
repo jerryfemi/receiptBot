@@ -8,430 +8,127 @@ import 'package:receipt_bot/documents/document_data.dart';
 import 'package:receipt_bot/documents/market/market_document.dart';
 import 'package:receipt_bot/documents/signature/signature_document.dart';
 import 'package:receipt_bot/documents/studio/studio_document.dart';
-import 'package:receipt_bot/layouts/corporate_layout.dart';
-import 'package:receipt_bot/layouts/default_layout.dart';
-import 'package:receipt_bot/layouts/signature_layout.dart';
-import 'package:receipt_bot/layouts/simple_layout.dart';
+import 'package:receipt_bot/documents/till/till_document.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/logo_codec.dart';
 
-/// Simple LRU cache with max size eviction
+/// Layout numbers as stored in Firestore (`layoutIndex`).
+abstract class DocumentLayout {
+  static const till = 0;
+  static const signature = 1;
+  static const market = 2;
+  static const studio = 3;
+}
+
+/// Simple LRU cache with max size eviction.
 class _LruCache<K, V> {
+  _LruCache({required this.maxSize});
+
   final int maxSize;
   final Map<K, V> _cache = {};
   final List<K> _accessOrder = [];
 
-  _LruCache({required this.maxSize});
-
   V? get(K key) {
-    if (_cache.containsKey(key)) {
-      // Move to end (most recently used)
-      _accessOrder
-        ..remove(key)
-        ..add(key);
-      return _cache[key];
-    }
-    return null;
+    if (!_cache.containsKey(key)) return null;
+    _accessOrder
+      ..remove(key)
+      ..add(key);
+    return _cache[key];
   }
 
   void put(K key, V value) {
     if (_cache.containsKey(key)) {
       _accessOrder.remove(key);
     } else if (_cache.length >= maxSize) {
-      // Evict least recently used
-      final lruKey = _accessOrder.removeAt(0);
-      _cache.remove(lruKey);
+      _cache.remove(_accessOrder.removeAt(0));
     }
     _cache[key] = value;
     _accessOrder.add(key);
   }
-
-  bool containsKey(K key) => _cache.containsKey(key);
 }
 
 class PdfService {
-  // Static Caches for Fonts and Logos
-  static Uint8List? _regularFontData;
-  static Uint8List? _boldFontData;
-  static Uint8List? _scriptFontData;
-  static Uint8List? _serifFontData;
-  static Uint8List? _notoFontData;
   static final _LruCache<String, Uint8List> _logoCache = _LruCache(maxSize: 50);
 
+  /// Builds the receipt or invoice PDF in the user's chosen layout.
+  ///
+  /// Free users always get Studio. Signature takes its accent from the
+  /// user's theme; Market, Studio and Till keep their own colours.
   Future<Uint8List> generateReceipt(
     BusinessProfile profile,
     Transaction transaction, {
-    int themeIndex = 0, // 0: B&W, 1: Beige,
-    int layoutIndex = 3, // Default to Studio (3)
+    int themeIndex = 0,
+    int layoutIndex = DocumentLayout.studio,
     Organization? org,
   }) async {
-    // Load Fonts (with Caching)
-    _regularFontData ??=
-        await File('public/fonts/Roboto-Regular.ttf').readAsBytes();
-    final regularFont = pw.Font.ttf(_regularFontData!.buffer.asByteData());
+    if (!profile.isPremium) layoutIndex = DocumentLayout.studio;
 
-    _boldFontData ??= await File('public/fonts/Roboto-Bold.ttf').readAsBytes();
-    final boldFont = pw.Font.ttf(_boldFontData!.buffer.asByteData());
+    final data = DocumentData(
+      transaction: transaction,
+      currencySymbol: org?.currencySymbol ?? profile.currencySymbol,
+      businessName: org?.businessName ?? profile.businessName,
+      businessAddress: org?.businessAddress ?? profile.businessAddress,
+      businessPhone: org?.displayPhoneNumber ?? profile.displayPhoneNumber,
+      bankName: org?.bankName ?? profile.bankName,
+      accountNumber: org?.accountNumber ?? profile.accountNumber,
+      accountName: org?.accountName ?? profile.accountName,
+      logo: await _loadLogo(org?.logoUrl ?? profile.logoUrl),
+    );
 
-    _notoFontData ??=
-        await File('public/fonts/NotoSans-Regular.ttf').readAsBytes();
-    final notoFont = pw.Font.ttf(_notoFontData!.buffer.asByteData());
+    final page = switch (layoutIndex) {
+      DocumentLayout.till => await buildTillPage(data),
+      DocumentLayout.signature =>
+        await buildSignaturePage(data, accent: themeAccent(themeIndex)),
+      DocumentLayout.market => await buildMarketPage(data),
+      _ => await buildStudioPage(data),
+    };
 
-    pw.Font? scriptFont;
-    try {
-      _scriptFontData ??=
-          await File('public/fonts/DancingScript-Bold.ttf').readAsBytes();
-      scriptFont = pw.Font.ttf(_scriptFontData!.buffer.asByteData());
-    } catch (e) {
-      Log.warn('pdf', 'Could not load script font: $e');
-    }
-
-    pw.Font? serifFont;
-    try {
-      _serifFontData ??=
-          await File('public/fonts/PlayfairDisplay-SemiBold.ttf').readAsBytes();
-      serifFont = pw.Font.ttf(_serifFontData!.buffer.asByteData());
-    } catch (e) {
-      Log.warn('pdf', 'Could not load serif font: $e');
-    }
-
-    final pdf = pw.Document();
-
-    // 0. Enforce Freemium Restrictions
-    if (!profile.isPremium) {
-      layoutIndex = 3; // Free tier always gets Studio
-    }
-
-    // Determine values correctly from org or fallback
-    final usedLogoUrl = org?.logoUrl ?? profile.logoUrl;
-    final usedBusinessName = org?.businessName ?? profile.businessName;
-    final usedBusinessAddress = org?.businessAddress ?? profile.businessAddress;
-    final usedDisplayPhoneNumber =
-        org?.displayPhoneNumber ?? profile.displayPhoneNumber;
-    final usedBankName = org?.bankName ?? profile.bankName;
-    final usedAccountNumber = org?.accountNumber ?? profile.accountNumber;
-    final usedAccountName = org?.accountName ?? profile.accountName;
-
-    // 1. Load Logo (with LRU Caching) - Available for all users
-    pw.MemoryImage? logoImage;
-    if (usedLogoUrl != null && usedLogoUrl.isNotEmpty) {
-      final cachedLogo = _logoCache.get(usedLogoUrl);
-      if (cachedLogo != null) {
-        logoImage = pw.MemoryImage(cachedLogo);
-      } else {
-        try {
-          if (LogoCodec.isDataUri(usedLogoUrl)) {
-            final bytes = LogoCodec.decode(usedLogoUrl);
-            _logoCache.put(usedLogoUrl, bytes);
-            logoImage = pw.MemoryImage(bytes);
-          } else if (usedLogoUrl.startsWith('http')) {
-            final response = await http
-                .get(Uri.parse(usedLogoUrl))
-                .timeout(const Duration(seconds: 15));
-            if (response.statusCode == 200) {
-              _logoCache.put(usedLogoUrl, response.bodyBytes);
-              logoImage = pw.MemoryImage(response.bodyBytes);
-            }
-          } else {
-            // Local file fallback
-            final bytes = await File(usedLogoUrl).readAsBytes();
-            _logoCache.put(usedLogoUrl, bytes);
-            logoImage = pw.MemoryImage(bytes);
-          }
-        } catch (e) {
-          Log.error('pdf', 'Error loading logo: $e');
-        }
-      }
-    }
-
-    // Define Theme Colors
-    PdfColor bg;
-    PdfColor primary;
-    const textColor = PdfColors.black;
-
-    switch (themeIndex) {
-      case 0: // Ocean Blue
-        bg = PdfColor.fromHex('#F6F9FB'); // Soft pale blue
-        primary = PdfColor.fromHex('#1E40AF');
-        break;
-      case 1: // Sand Beige
-        bg = PdfColor.fromHex('#F8F5F0'); // Warmer beige background
-        primary =
-            PdfColor.fromHex('#8B5A2B'); // Muted brown/bronze for text accents
-        break;
-      case 2: // Midnight Navy
-        bg = PdfColor.fromHex('#F3F7FA'); // Slate blue tint BG
-        primary = PdfColor.fromHex('#0F172A'); // Deep Navy
-        break;
-      case 3: // Sage Green
-        bg = PdfColor.fromHex('#F3F7F0'); // Noticeable earthy green BG
-        primary = PdfColor.fromHex('#4A5D23'); // Sage Green
-        break;
-      case 4: // Charcoal Onyx
-        bg = PdfColor.fromHex('#F6F6F6'); // Light grey minimalist
-        primary = PdfColor.fromHex('#18181B'); // Onyx
-        break;
-      case 5: // Deep Burgundy
-        bg = PdfColor.fromHex('#FCF4F5'); // Noticeable blush/rose tint
-        primary = PdfColor.fromHex('#722F37'); // Burgundy
-        break;
-      default:
-        bg = PdfColors.white;
-        primary = PdfColors.black;
-        break;
-    }
-
-    // Redesigned layouts build their own A4 pages.
-    if (layoutIndex >= 1 && layoutIndex <= 3) {
-      final data = DocumentData(
-        transaction: transaction,
-        currencySymbol: org?.currencySymbol ?? profile.currencySymbol,
-        businessName: usedBusinessName,
-        businessAddress: usedBusinessAddress,
-        businessPhone: usedDisplayPhoneNumber,
-        bankName: usedBankName,
-        accountNumber: usedAccountNumber,
-        accountName: usedAccountName,
-        logo: logoImage,
-      );
-      // Market and Studio keep their own colours; Signature follows the theme.
-      final page = switch (layoutIndex) {
-        1 => await buildSignaturePage(data, accent: primary),
-        2 => await buildMarketPage(data),
-        _ => await buildStudioPage(data),
-      };
-      pdf.addPage(page);
-      return pdf.save();
-    }
-
-    pdf.addPage(pw.MultiPage(
-      pageTheme: pw.PageTheme(
-        theme: pw.ThemeData.withFont(
-          base: regularFont,
-          bold: boldFont,
-          fontFallback: [notoFont],
-        ),
-        pageFormat: PdfPageFormat.a5,
-        margin: const pw.EdgeInsets.all(20),
-        buildBackground: (context) => pw.FullPage(
-          ignoreMargins: true,
-          child: pw.Container(color: bg),
-        ),
-      ),
-      build: (context) {
-        if (transaction.type == TransactionType.invoice) {
-          return _generateInvoiceLayout(
-              context,
-              transaction,
-              logoImage,
-              primary,
-              textColor,
-              regularFont,
-              boldFont,
-              scriptFont,
-              serifFont,
-              usedBusinessName,
-              usedBusinessAddress,
-              usedDisplayPhoneNumber,
-              usedBankName,
-              usedAccountNumber,
-              usedAccountName,
-              org?.currencySymbol ?? profile.currencySymbol,
-              layoutIndex);
-        } else {
-          return _generateReceiptLayout(
-              context,
-              transaction,
-              logoImage,
-              primary,
-              textColor,
-              regularFont,
-              boldFont,
-              scriptFont,
-              serifFont,
-              usedBusinessName,
-              usedBusinessAddress,
-              usedDisplayPhoneNumber,
-              org?.currencySymbol ?? profile.currencySymbol,
-              layoutIndex);
-        }
-      },
-    ));
-
+    final pdf = pw.Document()..addPage(page);
     return pdf.save();
   }
 
-  // --- INVOICE ROUTER ---
-  List<pw.Widget> _generateInvoiceLayout(
-      pw.Context context,
-      Transaction transaction,
-      pw.MemoryImage? logoImage,
-      PdfColor primary,
-      PdfColor textColor,
-      pw.Font regularFont,
-      pw.Font boldFont,
-      pw.Font? scriptFont,
-      pw.Font? serifFont, // Added serifFont
-      String? businessName,
-      String? businessAddress,
-      String? displayPhoneNumber,
-      String? bankName,
-      String? accountNumber,
-      String? accountName,
-      String currencySymbol,
-      int layoutIndex) {
-    // 0: Classic, 1: Modern Left, 2: Minimal Grid, 3: Standard
-    switch (layoutIndex) {
-      case 3:
-        return corporateInvoice(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            bankName,
-            accountNumber,
-            accountName,
-            currencySymbol);
-      case 1:
-        return signatureInvoice(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            scriptFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            bankName,
-            accountNumber,
-            accountName,
-            currencySymbol);
-      case 2:
-        return simpleInvoice(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            bankName,
-            accountNumber,
-            accountName,
-            currencySymbol);
-      case 0:
-      default:
-        return defaultInvoiceLayout(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            bankName,
-            accountNumber,
-            accountName,
-            currencySymbol);
-    }
+  /// The accent colour of each theme the user can pick in settings.
+  static PdfColor themeAccent(int themeIndex) {
+    const accents = [
+      '#1E40AF', // 0 Ocean Blue
+      '#8B5A2B', // 1 Sand Beige
+      '#0F172A', // 2 Midnight Navy
+      '#4A5D23', // 3 Sage Green
+      '#18181B', // 4 Charcoal Onyx
+      '#722F37', // 5 Deep Burgundy
+    ];
+    return themeIndex >= 0 && themeIndex < accents.length
+        ? PdfColor.fromHex(accents[themeIndex])
+        : PdfColor.fromHex(accents[5]);
   }
 
-// RECEIPT ROUTER
-  List<pw.Widget> _generateReceiptLayout(
-      pw.Context context,
-      Transaction transaction,
-      pw.MemoryImage? logoImage,
-      PdfColor primary,
-      PdfColor textColor,
-      pw.Font regularFont,
-      pw.Font boldFont,
-      pw.Font? scriptFont,
-      pw.Font? serifFont,
-      String? businessName,
-      String? businessAddress,
-      String? displayPhoneNumber,
-      String currencySymbol,
-      int layoutIndex) {
-    // 0: Classic, 1: Modern Left, 2: Minimal Grid, 3: Standard
-    switch (layoutIndex) {
-      case 3:
-        return corporateReceipt(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            currencySymbol);
-      case 1:
-        return signatureReceipt(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            scriptFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            currencySymbol);
-      case 2:
-        return simpleReceipt(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            currencySymbol);
-      case 0:
-      default:
-        return defaultReceiptLayout(
-            context,
-            transaction,
-            logoImage,
-            primary,
-            textColor,
-            regularFont,
-            boldFont,
-            serifFont,
-            businessName,
-            businessAddress,
-            displayPhoneNumber,
-            currencySymbol);
+  /// Loads the logo from a data URI (how logos are stored now), a URL, or a
+  /// local file, with an in-memory cache. A broken logo never stops the PDF.
+  Future<pw.MemoryImage?> _loadLogo(String? source) async {
+    if (source == null || source.isEmpty) return null;
+
+    final cached = _logoCache.get(source);
+    if (cached != null) return pw.MemoryImage(cached);
+
+    try {
+      Uint8List? bytes;
+      if (LogoCodec.isDataUri(source)) {
+        bytes = LogoCodec.decode(source);
+      } else if (source.startsWith('http')) {
+        final response = await http
+            .get(Uri.parse(source))
+            .timeout(const Duration(seconds: 15));
+        if (response.statusCode == 200) bytes = response.bodyBytes;
+      } else {
+        bytes = await File(source).readAsBytes();
+      }
+      if (bytes == null) return null;
+      _logoCache.put(source, bytes);
+      return pw.MemoryImage(bytes);
+    } catch (e) {
+      Log.error('pdf', 'Error loading logo: $e');
+      return null;
     }
   }
 }
