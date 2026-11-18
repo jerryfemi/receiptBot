@@ -130,7 +130,7 @@ class GeminiService {
         if (errorString.contains('503') || errorString.contains('429')) {
           Log.warn(
             'gemini',
-            'Gemini API Error (503/429). Retry $retryCount of $maxRetries...',
+            'Gemini API Error (503/429). Retry $retryCount of $maxRetries: $e',
           );
           if (retryCount >= maxRetries) {
             throw Exception(
@@ -213,7 +213,7 @@ class GeminiService {
         if (errorString.contains('503') || errorString.contains('429')) {
           Log.warn(
             'gemini',
-            'Gemini Image API Error (503/429). Retry $retryCount of $maxRetries...',
+            'Gemini Image API Error (503/429). Retry $retryCount of $maxRetries: $e',
           );
           if (retryCount >= maxRetries) {
             throw Exception(
@@ -419,7 +419,7 @@ RULES:
 
         if (errorString.contains('503') || errorString.contains('429')) {
           Log.warn('gemini',
-              'Gemini Intent API Error. Retry $retryCount of $maxRetries...');
+              'Gemini Intent API Error. Retry $retryCount of $maxRetries: $e');
           if (retryCount >= maxRetries) {
             return IntentResult(
                 UserIntent.unknown); // Fallback gracefully if overloaded
