@@ -483,6 +483,12 @@ class FirestoreService {
               jsonDecode(fields['pendingTransaction']!.stringValue!)
                   as Map<String, dynamic>)
           : null,
+      lastTransaction: fields['lastTransaction']?.stringValue != null &&
+              fields['lastTransaction']!.stringValue!.isNotEmpty
+          ? Transaction.fromJson(
+              jsonDecode(fields['lastTransaction']!.stringValue!)
+                  as Map<String, dynamic>)
+          : null,
       themeIndex: fields['themeIndex']?.integerValue != null
           ? int.tryParse(fields['themeIndex']!.integerValue!)
           : null,
