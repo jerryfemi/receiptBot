@@ -122,8 +122,8 @@ pw.Widget _paymentBox(DocumentData data, SignatureStyle s) {
 
 /// Notes and terms the business added to this sale, in small print.
 List<pw.Widget> signatureNotes(DocumentData data, SignatureStyle s) {
-  final notes = data.transaction.notes?.trim() ?? '';
-  final terms = data.transaction.terms?.trim() ?? '';
+  final notes = data.notes ?? '';
+  final terms = data.terms ?? '';
   return [
     if (notes.isNotEmpty) ...[
       pw.Text('NOTES', style: s.label()),
