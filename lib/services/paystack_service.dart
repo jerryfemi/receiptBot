@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:http/http.dart' as http;
 
 class PaystackService {
@@ -9,9 +10,9 @@ class PaystackService {
   static const Duration _timeout = Duration(seconds: 30);
 
   PaystackService({String? key})
-      : secretKey = key ?? Platform.environment['PAYSTACK_SECRET_KEY'] ?? '' {
+      : secretKey = key ?? AppConfig.instance.paystackSecretKey {
     if (secretKey.isEmpty) {
-      print('Warning: PAYSTACK_SECRET_KEY is missing.');
+      Log.warn('paystack', 'PAYSTACK_SECRET_KEY is missing.');
     }
   }
 
@@ -26,8 +27,10 @@ class PaystackService {
       } catch (e) {
         if (attempt == _maxRetries) rethrow;
         final delay = Duration(milliseconds: 500 * (attempt + 1));
-        print(
-            'Paystack request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...');
+        Log.warn(
+          'paystack',
+          'Paystack request failed (attempt ${attempt + 1}/$_maxRetries): $e. Retrying in ${delay.inMilliseconds}ms...',
+        );
         await Future<void>.delayed(delay);
       }
     }
