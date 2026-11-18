@@ -1,3 +1,4 @@
+import 'package:receipt_bot/utils/log.dart';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
@@ -23,9 +24,9 @@ Future<Response> onRequest(RequestContext context) async {
         now.difference(_lastFetchTime!).inSeconds > 60) {
       _cachedPremiumCount = await firestoreService.getPremiumUserCount();
       _lastFetchTime = now;
-      print("Cache miss: Fetched fresh data from Firestore.");
+      Log.info('pricing', "Cache miss: Fetched fresh data from Firestore.");
     } else {
-      print("Cache hit: Serving from memory.");
+      Log.info('pricing', "Cache hit: Serving from memory.");
     }
 
     final spotsLeft = Pricing.earlyAccessMaxUsers - _cachedPremiumCount!;
@@ -46,7 +47,7 @@ Future<Response> onRequest(RequestContext context) async {
 
     return Response.json(body: responseData);
   } catch (e) {
-    print(r'Error fetching pricing: $e');
+    Log.error('pricing', 'Error fetching pricing: $e');
     // FAILSAFE: If the database is unreachable, return standard pricing
     return Response.json(
       body: {
