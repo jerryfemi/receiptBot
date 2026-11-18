@@ -27,8 +27,13 @@ List<pw.Widget> corporateInvoice(
   final styleTitle =
       pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
 
-  final headerBgColor = PdfColor.fromHex(
-      '#F4F1E9'); // Light beige fill color closely matching Image 1
+  final headerBgColor = primary.toHex() == PdfColors.black.toHex() 
+      ? PdfColors.white 
+      : PdfColor(
+          primary.red * 0.05 + 0.95,
+          primary.green * 0.05 + 0.95,
+          primary.blue * 0.05 + 0.95,
+        );
 
   final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
@@ -143,7 +148,7 @@ List<pw.Widget> corporateInvoice(
         },
         children: [
           pw.TableRow(
-              decoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
+              decoration: pw.BoxDecoration(color: headerBgColor),
               children: [
                 pw.Padding(
                     padding: const pw.EdgeInsets.all(8),
@@ -309,8 +314,13 @@ List<pw.Widget> corporateReceipt(
   final styleTitle =
       pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
 
-  final headerBgColor = PdfColor.fromHex(
-      '#F4F1E9'); // Light beige fill color closely matching Image 1
+  final headerBgColor = primary.toHex() == PdfColors.black.toHex() 
+      ? PdfColors.white 
+      : PdfColor(
+          primary.red * 0.05 + 0.95,
+          primary.green * 0.05 + 0.95,
+          primary.blue * 0.05 + 0.95,
+        );
 
   final uniqueIdString =
       (transaction.hashCode ^ transaction.date.millisecondsSinceEpoch)
@@ -441,7 +451,7 @@ List<pw.Widget> corporateReceipt(
         },
         children: [
           pw.TableRow(
-              decoration: pw.BoxDecoration(color: PdfColor(primary.red, primary.green, primary.blue, 0.1)),
+              decoration: pw.BoxDecoration(color: headerBgColor),
               children: [
                 pw.Padding(
                     padding: const pw.EdgeInsets.all(8),

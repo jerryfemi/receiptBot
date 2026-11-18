@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:receipt_bot/utils/logo_codec.dart';
 import 'package:receipt_bot/layouts/corporate_layout.dart';
 import 'package:receipt_bot/layouts/default_layout.dart';
 import 'package:receipt_bot/layouts/signature_layout.dart';
@@ -116,7 +117,11 @@ class PdfService {
         logoImage = pw.MemoryImage(cachedLogo);
       } else {
         try {
-          if (usedLogoUrl.startsWith('http')) {
+          if (LogoCodec.isDataUri(usedLogoUrl)) {
+            final bytes = LogoCodec.decode(usedLogoUrl);
+            _logoCache.put(usedLogoUrl, bytes);
+            logoImage = pw.MemoryImage(bytes);
+          } else if (usedLogoUrl.startsWith('http')) {
             final response = await http
                 .get(Uri.parse(usedLogoUrl))
                 .timeout(const Duration(seconds: 15));
@@ -143,27 +148,27 @@ class PdfService {
 
     switch (themeIndex) {
       case 0: // Ocean Blue
-        bg = PdfColor.fromHex('#F0F4F8'); // Soft pale blue
+        bg = PdfColor.fromHex('#F6F9FB'); // Soft pale blue
         primary = PdfColor.fromHex('#1E40AF');
         break;
       case 1: // Sand Beige
-        bg = PdfColor.fromHex('#EAE0CC'); // Warmer beige background
+        bg = PdfColor.fromHex('#F8F5F0'); // Warmer beige background
         primary = PdfColor.fromHex('#8B5A2B'); // Muted brown/bronze for text accents
         break;
       case 2: // Midnight Navy
-        bg = PdfColor.fromHex('#EBF1F6'); // Slate blue tint BG
+        bg = PdfColor.fromHex('#F3F7FA'); // Slate blue tint BG
         primary = PdfColor.fromHex('#0F172A'); // Deep Navy
         break;
       case 3: // Sage Green
-        bg = PdfColor.fromHex('#EAF0E6'); // Noticeable earthy green BG
+        bg = PdfColor.fromHex('#F3F7F0'); // Noticeable earthy green BG
         primary = PdfColor.fromHex('#4A5D23'); // Sage Green
         break;
       case 4: // Charcoal Onyx
-        bg = PdfColor.fromHex('#EEEEEE'); // Light grey minimalist
+        bg = PdfColor.fromHex('#F6F6F6'); // Light grey minimalist
         primary = PdfColor.fromHex('#18181B'); // Onyx
         break;
       case 5: // Deep Burgundy
-        bg = PdfColor.fromHex('#F9EAEB'); // Noticeable blush/rose tint
+        bg = PdfColor.fromHex('#FCF4F5'); // Noticeable blush/rose tint
         primary = PdfColor.fromHex('#722F37'); // Burgundy
         break;
       default:
