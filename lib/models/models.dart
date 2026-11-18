@@ -35,6 +35,8 @@ enum UserAction {
   selectingSubscriptionPlan,
   removeTeamMember,
   confirmRemoveTeamMember, // Confirmation step before destructive action
+  reviewingReceipt, // A receipt preview is waiting for Send or a change
+  editingLastReceipt, // Fixing a receipt that was already sent
 }
 
 enum TransactionType {
@@ -60,6 +62,10 @@ class BusinessProfile {
   @JsonKey(fromJson: _transactionFromJson)
   final Transaction?
       pendingTransaction; // Temporary storage for theme selection
+
+  /// The most recent receipt sent, kept so the user can fix it afterwards.
+  @JsonKey(fromJson: _transactionFromJson)
+  final Transaction? lastTransaction;
 
   final int? themeIndex;
   final int? layoutIndex;
@@ -89,6 +95,7 @@ class BusinessProfile {
     this.accountNumber,
     this.accountName,
     this.pendingTransaction,
+    this.lastTransaction,
     this.themeIndex,
     this.layoutIndex = 0,
     this.currencyCode = 'NGN',
@@ -122,6 +129,7 @@ class BusinessProfile {
     String? accountNumber,
     String? accountName,
     Transaction? pendingTransaction,
+    Transaction? lastTransaction,
     int? themeIndex,
     int? layoutIndex,
     String? currencyCode,
@@ -149,6 +157,7 @@ class BusinessProfile {
       accountNumber: accountNumber ?? this.accountNumber,
       accountName: accountName ?? this.accountName,
       pendingTransaction: pendingTransaction ?? this.pendingTransaction,
+      lastTransaction: lastTransaction ?? this.lastTransaction,
       themeIndex: themeIndex ?? this.themeIndex,
       layoutIndex: layoutIndex ?? this.layoutIndex,
       currencyCode: currencyCode ?? this.currencyCode,
