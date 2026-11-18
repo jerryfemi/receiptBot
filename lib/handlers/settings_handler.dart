@@ -12,16 +12,19 @@ import 'package:receipt_bot/utils/logo_codec.dart';
 
 /// URLs for layout preview images, served from the bot's own `public/layouts`
 /// folder. Set PUBLIC_BASE_URL to the server's address (e.g. the Render URL).
+///
+/// The redesigned layouts' previews live in `public/layouts/v2`, so the old
+/// preview images are never shown for the new designs.
 abstract class LayoutUrls {
   static final String _base = AppConfig.instance.publicBaseUrl;
-  static String get corporate => '$_base/layouts/standard.png';
-  static String get signature => '$_base/layouts/signature.png';
-  static String get simple => '$_base/layouts/simple.png';
-  static String get legacy => '$_base/layouts/classic.png';
+  static String get studio => '$_base/layouts/v2/studio.png';
+  static String get signature => '$_base/layouts/v2/signature.png';
+  static String get market => '$_base/layouts/v2/market.png';
+  static String get till => '$_base/layouts/v2/till.png';
 
   /// True when the server has a public address and the preview files exist.
   static bool get previewsAvailable =>
-      _base.isNotEmpty && File('public/layouts/standard.png').existsSync();
+      _base.isNotEmpty && File('public/layouts/v2/studio.png').existsSync();
 }
 
 /// Handles profile settings, team management, and customization flows.
@@ -161,7 +164,7 @@ class SettingsHandler {
       if (!profile.isPremium) {
         await whatsappService.sendInteractiveButtons(
           from,
-          "💎 *Premium Feature*\n\nCustom layouts (Modern, Minimal, Signature) are only available for Premium users!",
+          "💎 *Premium Feature*\n\nThe Signature, Market and Till layouts are only available for Premium users!",
           [
             {'id': ButtonIds.upgrade, 'title': '⭐ Upgrade'},
             {'id': ButtonIds.back, 'title': '⬅ Back'},
@@ -486,23 +489,23 @@ class SettingsHandler {
         [
           {
             'id': ButtonIds.layoutCorporate,
-            'title': 'Corporate',
-            'description': 'Premium & high-impact (recommended)'
+            'title': 'Studio',
+            'description': 'Bold and modern, with a dark sidebar'
           },
           {
             'id': ButtonIds.layoutSignature,
             'title': 'Signature',
-            'description': 'Elegant script font'
+            'description': 'Elegant ivory page with a script title'
           },
           {
             'id': ButtonIds.layoutSimple,
-            'title': 'Simple',
-            'description': 'Strict grid structure'
+            'title': 'Market',
+            'description': 'Sales-book pad with a rubber stamp'
           },
           {
             'id': ButtonIds.layoutLegacy,
-            'title': 'Legacy',
-            'description': 'Default plain layout'
+            'title': 'Till',
+            'description': 'Till slip with a QR code'
           },
         ],
       );
@@ -510,55 +513,50 @@ class SettingsHandler {
     }
 
     // Send layout previews with selection buttons
-    await whatsappService.sendInteractiveMedia(
-        from, LayoutUrls.corporate, 'image',
-        bodyText: '1️⃣ Corporate (Premium & High-Impact) ⭐ Recommended',
+    await whatsappService.sendInteractiveMedia(from, LayoutUrls.studio, 'image',
+        bodyText: '1️⃣ Studio (bold and modern) ⭐ Recommended',
         buttons: [
-          {'id': ButtonIds.layoutCorporate, 'title': 'Select Corporate'}
+          {'id': ButtonIds.layoutCorporate, 'title': 'Select Studio'}
         ]);
 
     await whatsappService.sendInteractiveMedia(
         from, LayoutUrls.signature, 'image',
-        bodyText: '2️⃣ Signature (Elegant script font)',
+        bodyText: '2️⃣ Signature (elegant, with a script title)',
         buttons: [
           {'id': ButtonIds.layoutSignature, 'title': 'Select Signature'}
         ]);
 
-    await whatsappService.sendInteractiveMedia(from, LayoutUrls.simple, 'image',
-        bodyText: '3️⃣ Simple (Strict grid structure)',
+    await whatsappService.sendInteractiveMedia(from, LayoutUrls.market, 'image',
+        bodyText: '3️⃣ Market (sales-book pad with a stamp)',
         buttons: [
-          {'id': ButtonIds.layoutSimple, 'title': 'Select Simple'}
+          {'id': ButtonIds.layoutSimple, 'title': 'Select Market'}
         ]);
 
-    await whatsappService.sendInteractiveMedia(from, LayoutUrls.legacy, 'image',
-        bodyText: '4️⃣ Legacy (default plain layout)',
+    await whatsappService.sendInteractiveMedia(from, LayoutUrls.till, 'image',
+        bodyText: '4️⃣ Till (till slip with a QR code)',
         buttons: [
-          {'id': ButtonIds.layoutLegacy, 'title': 'Select Legacy'}
+          {'id': ButtonIds.layoutLegacy, 'title': 'Select Till'}
         ]);
   }
 
   /// Parses layout selection text. Returns layout index or null.
+  ///
+  /// Numbers follow the order the menu shows: 1 Studio, 2 Signature,
+  /// 3 Market, 4 Till. Old names (corporate, simple, legacy) still work.
   int? parseLayoutSelection(String text) {
     final lower = text.toLowerCase().trim();
-    if (lower == ButtonIds.layoutLegacy ||
-        lower == '1' ||
-        lower == 'legacy' ||
-        lower == 'default' ||
-        lower == 'classic') {
-      return 0;
+    if (lower == ButtonIds.layoutCorporate ||
+        const {'1', 'studio', 'corporate', 'standard'}.contains(lower)) {
+      return 3;
     } else if (lower == ButtonIds.layoutSignature ||
-        lower == '2' ||
-        lower == 'signature') {
+        const {'2', 'signature'}.contains(lower)) {
       return 1;
     } else if (lower == ButtonIds.layoutSimple ||
-        lower == '3' ||
-        lower == 'simple') {
+        const {'3', 'market', 'simple'}.contains(lower)) {
       return 2;
-    } else if (lower == ButtonIds.layoutCorporate ||
-        lower == '4' ||
-        lower == 'corporate' ||
-        lower == 'standard') {
-      return 3;
+    } else if (lower == ButtonIds.layoutLegacy ||
+        const {'4', 'till', 'legacy', 'default', 'classic'}.contains(lower)) {
+      return 0;
     }
     return null;
   }
