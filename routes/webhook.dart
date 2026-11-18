@@ -4,8 +4,9 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
@@ -21,15 +22,15 @@ import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/utils/meta_signature.dart';
 
 // Configuration
-final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
-final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
-final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
+final String _verifyToken = AppConfig.instance.verifyToken;
+final String _whatsappToken = AppConfig.instance.whatsappToken;
+final String _phoneNumberId = AppConfig.instance.phoneNumberId;
 final String _projectId =
-    Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
-final String _geminiApiKey = Platform.environment['GEMINI_API_KEY'] ?? '';
+    AppConfig.instance.googleProjectId;
+final String _geminiApiKey = AppConfig.instance.geminiApiKey;
 // App Secret from Meta (App settings > Basic). Used to check that webhook
 // requests really come from Meta.
-final String _metaAppSecret = Platform.environment['META_APP_SECRET'] ?? '';
+final String _metaAppSecret = AppConfig.instance.metaAppSecret;
 
 /// Thread-safe service holder using Completer pattern.
 /// Prevents race conditions during concurrent request initialization.
@@ -179,7 +180,6 @@ Future<void> initializeServicesForExternalWebhooks() =>
     _services.ensureInitialized();
 
 Future<Response> onRequest(RequestContext context) async {
-  print('HIT!');
   final request = context.request;
 
   // 1. WhatsApp Verification (GET)
@@ -187,7 +187,7 @@ Future<Response> onRequest(RequestContext context) async {
     final params = request.uri.queryParameters;
     if (params['hub.mode'] == 'subscribe' &&
         params['hub.verify_token'] == _verifyToken) {
-      print('Webhook verified!');
+      Log.info('webhook', 'Webhook verified!');
       return Response(body: params['hub.challenge']);
     }
     return Response(statusCode: 403, body: 'Verification failed');
@@ -197,7 +197,7 @@ Future<Response> onRequest(RequestContext context) async {
   try {
     await _services.ensureInitialized();
   } catch (e) {
-    print('Service initialization failed: $e');
+    Log.error('webhook', 'Service initialization failed: $e');
     return Response(statusCode: 500, body: 'Service unavailable');
   }
 
@@ -212,9 +212,9 @@ Future<Response> onRequest(RequestContext context) async {
       appSecret: _metaAppSecret,
     )) {
       if (_metaAppSecret.isEmpty) {
-        print('META_APP_SECRET is not set - rejecting webhook request.');
+        Log.warn('webhook', 'META_APP_SECRET is not set - rejecting webhook request.');
       } else {
-        print('Rejected webhook request with an invalid signature.');
+        Log.warn('webhook', 'Rejected webhook request with an invalid signature.');
       }
       return Response(statusCode: 401, body: 'Invalid signature');
     }
@@ -230,7 +230,7 @@ Future<Response> onRequest(RequestContext context) async {
 
         // Idempotency check - prevent duplicate processing on WhatsApp retries
         if (messageId != null && _idempotencyCache.isDuplicate(messageId)) {
-          print('Duplicate message detected: $messageId - skipping');
+          Log.info('webhook', 'Duplicate message detected: $messageId - skipping');
           return Response(body: 'EVENT_RECEIVED');
         }
         if (messageId != null) {
@@ -243,7 +243,7 @@ Future<Response> onRequest(RequestContext context) async {
         unawaited(_processMessage(message));
       }
     } catch (e) {
-      print('Error parsing webhook payload: $e');
+      Log.error('webhook', 'Error parsing webhook payload: $e');
     }
 
     return Response(body: 'EVENT_RECEIVED');
@@ -274,7 +274,7 @@ Future<void> _processMessage(Map<String, dynamic> message) async {
 
     var profile = await _services.firestoreService.getProfile(from);
     if (profile == null) {
-      print('Creating new user profile...');
+      Log.info('webhook', 'Creating new user profile...');
       final currencyInfo = CountryUtils.getCurrencyFromPhone(from);
       profile = BusinessProfile(
         phoneNumber: from,
@@ -291,7 +291,7 @@ Future<void> _processMessage(Map<String, dynamic> message) async {
       profile: profile,
     );
   } catch (e, stack) {
-    print('Background processing error for $from: $e\n$stack');
+    Log.error('webhook', 'Background processing error for $from: $e\n$stack');
   }
 }
 
@@ -305,7 +305,7 @@ Future<void> generateAndSendSubscriptionReceipt(
   String currencyCode,
 ) async {
   try {
-    print('Generating Subscription Receipt for $phoneNumber...');
+    Log.info('webhook', 'Generating Subscription Receipt for $phoneNumber...');
 
     // 1. Create a synthetic Transaction representing the subscription
     final subscriptionItem = ReceiptItem(
@@ -360,8 +360,8 @@ Future<void> generateAndSendSubscriptionReceipt(
       pdfBytes,
       fileName,
     );
-    print('Subscription Receipt sent successfully to $phoneNumber');
+    Log.info('webhook', 'Subscription Receipt sent successfully to $phoneNumber');
   } catch (e) {
-    print('Error generating subscription receipt for $phoneNumber: $e');
+    Log.error('webhook', 'Error generating subscription receipt for $phoneNumber: $e');
   }
 }
