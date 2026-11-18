@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:receipt_bot/models/models.dart';
 
@@ -12,14 +13,14 @@ class GeminiService {
 
   /// Creates a [GeminiService] with the given [apiKey].
   GeminiService({String? apiKey})
-      : apiKey = apiKey ?? Platform.environment['GEMINI_API_KEY'] ?? '' {
+      : apiKey = apiKey ?? AppConfig.instance.geminiApiKey {
     if (this.apiKey.isEmpty) {
-      print('Warning: GEMINI_API_KEY is missing.');
+      Log.warn('gemini', 'GEMINI_API_KEY is missing.');
     }
     _model = GenerativeModel(
       // Set GEMINI_MODEL in the environment to switch models without a code
       // change when Google retires one.
-      model: Platform.environment['GEMINI_MODEL'] ?? 'gemini-3.8-flash',
+      model: AppConfig.instance.geminiModel,
       apiKey: this.apiKey,
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -126,8 +127,10 @@ class GeminiService {
 
         // Check if it's a 503 or 429 error
         if (errorString.contains('503') || errorString.contains('429')) {
-          print(
-              'Gemini API Error (503/429). Retry $retryCount of $maxRetries...');
+          Log.warn(
+            'gemini',
+            'Gemini API Error (503/429). Retry $retryCount of $maxRetries...',
+          );
           if (retryCount >= maxRetries) {
             throw Exception(
                 'GEMINI_BUSY: Google AI servers are temporarily overloaded. Please wait a minute and try again.');
@@ -136,7 +139,7 @@ class GeminiService {
               Duration(seconds: retryCount)); // 1s, 2s, 3s backoff
         } else {
           // If it's another type of error, don't retry, just throw
-          print('Gemini Service Error: $e');
+          Log.error('gemini', 'Gemini Service Error: $e');
           rethrow;
         }
       }
@@ -207,15 +210,17 @@ class GeminiService {
         final errorString = e.toString();
 
         if (errorString.contains('503') || errorString.contains('429')) {
-          print(
-              'Gemini Image API Error (503/429). Retry $retryCount of $maxRetries...');
+          Log.warn(
+            'gemini',
+            'Gemini Image API Error (503/429). Retry $retryCount of $maxRetries...',
+          );
           if (retryCount >= maxRetries) {
             throw Exception(
                 'GEMINI_BUSY: Google AI servers are temporarily overloaded. Please wait a minute and try again.');
           }
           await Future<void>.delayed(Duration(seconds: retryCount));
         } else {
-          print('Gemini Image Parse Error: $e');
+          Log.error('gemini', 'Gemini Image Parse Error: $e');
           rethrow; // Throw other errors immediately
         }
       }
@@ -246,7 +251,7 @@ class GeminiService {
 
       return Transaction.fromJson(json);
     } catch (e) {
-      print("Gemini JSON Parse Error: $e \nRaw: $rawText");
+      Log.error('gemini', "Gemini JSON Parse Error: $e \nRaw: $rawText");
       throw Exception("Failed to parse AI response");
     }
   }
@@ -278,7 +283,7 @@ Keep it punchy, professional, and directly related to the numbers. Do not includ
         }
         break;
       } catch (e) {
-        print('DEBUG: Gemini insight generation failed: $e');
+        Log.warn('gemini', 'Gemini insight generation failed: $e');
         retryCount++;
         if (retryCount >= maxRetries) break;
         await Future<void>.delayed(const Duration(seconds: 1));
@@ -412,14 +417,14 @@ RULES:
         final errorString = e.toString();
 
         if (errorString.contains('503') || errorString.contains('429')) {
-          print('Gemini Intent API Error. Retry $retryCount of $maxRetries...');
+          Log.warn('gemini', 'Gemini Intent API Error. Retry $retryCount of $maxRetries...');
           if (retryCount >= maxRetries) {
             return IntentResult(
                 UserIntent.unknown); // Fallback gracefully if overloaded
           }
           await Future<void>.delayed(Duration(seconds: retryCount));
         } else {
-          print('Gemini Intent Parse Error: $e');
+          Log.error('gemini', 'Gemini Intent Parse Error: $e');
           return IntentResult(UserIntent.unknown);
         }
       }
