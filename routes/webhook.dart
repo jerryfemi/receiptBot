@@ -18,6 +18,7 @@ import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/utils/meta_signature.dart';
 
 // Configuration
 final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
@@ -26,6 +27,9 @@ final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
 final String _projectId =
     Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
 final String _geminiApiKey = Platform.environment['GEMINI_API_KEY'] ?? '';
+// App Secret from Meta (App settings > Basic). Used to check that webhook
+// requests really come from Meta.
+final String _metaAppSecret = Platform.environment['META_APP_SECRET'] ?? '';
 
 /// Thread-safe service holder using Completer pattern.
 /// Prevents race conditions during concurrent request initialization.
@@ -199,19 +203,30 @@ Future<Response> onRequest(RequestContext context) async {
 
   // 3. Handle Messages (POST)
   if (request.method == HttpMethod.post) {
-    print('Received POST request');
     final body = await request.body();
-    final json = jsonDecode(body);
+
+    // Reject anything that wasn't signed by Meta with our App Secret.
+    if (!MetaSignature.isValid(
+      rawBody: body,
+      header: request.headers[MetaSignature.headerName],
+      appSecret: _metaAppSecret,
+    )) {
+      if (_metaAppSecret.isEmpty) {
+        print('META_APP_SECRET is not set - rejecting webhook request.');
+      } else {
+        print('Rejected webhook request with an invalid signature.');
+      }
+      return Response(statusCode: 401, body: 'Invalid signature');
+    }
 
     try {
+      final json = jsonDecode(body);
       final entry = json['entry'][0];
       final changes = entry['changes'][0]['value'];
 
       if (changes['messages'] != null) {
-        final message = changes['messages'][0];
+        final message = changes['messages'][0] as Map<String, dynamic>;
         final messageId = message['id'] as String?;
-        final from = message['from'] as String;
-        final type = message['type'] as String;
 
         // Idempotency check - prevent duplicate processing on WhatsApp retries
         if (messageId != null && _idempotencyCache.isDuplicate(messageId)) {
@@ -222,40 +237,10 @@ Future<Response> onRequest(RequestContext context) async {
           _idempotencyCache.markProcessed(messageId);
         }
 
-        var text = '';
-        if (type == 'text') {
-          text = message['text']['body'] as String;
-        } else if (type == 'image') {
-          text = (message['caption'] ?? '') as String;
-        } else if (type == 'interactive') {
-          final interactive = message['interactive'] as Map<String, dynamic>;
-          if (interactive['type'] == 'button_reply') {
-            text = interactive['button_reply']['id'] as String;
-          } else if (interactive['type'] == 'list_reply') {
-            text = interactive['list_reply']['id'] as String;
-          }
-        }
-
-        var profile = await _services.firestoreService.getProfile(from);
-        if (profile == null) {
-          print('Creating new user profile...');
-          final currencyInfo = CountryUtils.getCurrencyFromPhone(from);
-          profile = BusinessProfile(
-            phoneNumber: from,
-            currencyCode: currencyInfo.code,
-            currencySymbol: currencyInfo.symbol,
-          );
-        }
-
-        await _services.messageRouter
-            .routeMessage(
-              phoneNumber: from,
-              text: text,
-              type: type,
-              messageData: message as Map<String, dynamic>,
-              profile: profile,
-            )
-            .catchError((e) => print('Background processing error: $e'));
+        // Answer Meta straight away and do the slow work (AI, PDF) in the
+        // background. If we made Meta wait, it would assume delivery failed
+        // and send the same message again.
+        unawaited(_processMessage(message));
       }
     } catch (e) {
       print('Error parsing webhook payload: $e');
@@ -265,6 +250,49 @@ Future<Response> onRequest(RequestContext context) async {
   }
 
   return Response(statusCode: 404);
+}
+
+/// Handles one incoming WhatsApp message after Meta has been answered.
+Future<void> _processMessage(Map<String, dynamic> message) async {
+  final from = message['from'] as String;
+  try {
+    final type = message['type'] as String;
+
+    var text = '';
+    if (type == 'text') {
+      text = message['text']['body'] as String;
+    } else if (type == 'image') {
+      text = (message['image']?['caption'] ?? message['caption'] ?? '') as String;
+    } else if (type == 'interactive') {
+      final interactive = message['interactive'] as Map<String, dynamic>;
+      if (interactive['type'] == 'button_reply') {
+        text = interactive['button_reply']['id'] as String;
+      } else if (interactive['type'] == 'list_reply') {
+        text = interactive['list_reply']['id'] as String;
+      }
+    }
+
+    var profile = await _services.firestoreService.getProfile(from);
+    if (profile == null) {
+      print('Creating new user profile...');
+      final currencyInfo = CountryUtils.getCurrencyFromPhone(from);
+      profile = BusinessProfile(
+        phoneNumber: from,
+        currencyCode: currencyInfo.code,
+        currencySymbol: currencyInfo.symbol,
+      );
+    }
+
+    await _services.messageRouter.routeMessage(
+      phoneNumber: from,
+      text: text,
+      type: type,
+      messageData: message,
+      profile: profile,
+    );
+  } catch (e, stack) {
+    print('Background processing error for $from: $e\n$stack');
+  }
 }
 
 /// Helper function to automatically generate and send a Proof of Payment
