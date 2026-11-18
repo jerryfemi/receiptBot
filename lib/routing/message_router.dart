@@ -1,3 +1,4 @@
+import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/user_messages.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
@@ -35,8 +36,8 @@ class MessageRouter {
     required Map<String, dynamic> messageData,
     required BusinessProfile profile,
   }) async {
-    print('--- Handling message from $phoneNumber ---');
-    print('Text: $text');
+    Log.debug('router', 'Message from $phoneNumber');
+    Log.debug('router', 'Text: $text');
 
     try {
       // State Machine
@@ -74,7 +75,7 @@ class MessageRouter {
           break;
       }
     } catch (e) {
-      print('Error in routeMessage: $e');
+      Log.error('router', 'Error in routeMessage: $e');
       // If we fail outside the state machine (e.g. Firestore error)
       await whatsappService.sendMessage(
           phoneNumber, UserMessages.somethingWentWrong);
@@ -283,7 +284,7 @@ class MessageRouter {
               break;
           }
         } catch (e) {
-          print('Router Error: $e');
+          Log.error('router', 'Router Error: $e');
           await whatsappService.sendMessage(from,
               "I'm having a little trouble thinking right now. 😵‍💫 Please try again!");
         }
