@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math'; // For random generate
+import 'package:receipt_bot/utils/log.dart';
 import 'package:googleapis/firestore/v1.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
@@ -33,16 +34,18 @@ class FirestoreService {
       final credentials =
           ServiceAccountCredentials.fromJson(serviceAccountJson);
       _authClient = await clientViaServiceAccount(credentials, scopes);
-      print("✅ Authenticated via Service Account JSON");
+      Log.info('firestore', "Authenticated via Service Account JSON");
     } else {
       // CLOUD RUN MODE
       try {
         _authClient =
             await clientViaApplicationDefaultCredentials(scopes: scopes);
-        print(
-            "✅ Authenticated via Application Default Credentials (Cloud Run)");
+        Log.info(
+          'firestore',
+          "Authenticated via Application Default Credentials (Cloud Run)",
+        );
       } catch (e) {
-        print("⚠️ Failed to get Default Credentials: $e");
+        Log.warn('firestore', "Failed to get Default Credentials: $e");
         rethrow;
       }
     }
@@ -55,7 +58,7 @@ class FirestoreService {
   // --- 2. SAFETY CHECK ---
   Future<void> _ensureInitialized() async {
     if (_firestoreApi == null) {
-      print("🔄 Firestore not ready. Initializing now...");
+      Log.info('firestore', "Firestore not ready. Initializing now...");
       await initialize();
     }
   }
@@ -82,7 +85,7 @@ class FirestoreService {
       if (e.toString().contains('404') || e.toString().contains('Not Found')) {
         return null;
       }
-      print('Error getting profile: $e');
+      Log.error('firestore', 'Error getting profile: $e');
       rethrow;
     }
   }
@@ -126,7 +129,7 @@ class FirestoreService {
       }
       return count;
     } catch (e) {
-      print('Error counting premium users: $e');
+      Log.error('firestore', 'Error counting premium users: $e');
       // If it fails (e.g., missing index), return a high number to disable the deal safely
       return 100;
     }
@@ -164,7 +167,7 @@ class FirestoreService {
       }
       return null;
     } catch (e) {
-      print('Error finding user by payment reference: $e');
+      Log.error('firestore', 'Error finding user by payment reference: $e');
       return null;
     }
   }
@@ -184,7 +187,7 @@ class FirestoreService {
       if (e.toString().contains('404') || e.toString().contains('Not Found')) {
         return null; // Org doesn't exist
       }
-      print('Error getting organization: $e');
+      Log.error('firestore', 'Error getting organization: $e');
       rethrow;
     }
   }
@@ -225,7 +228,7 @@ class FirestoreService {
       }
       return null;
     } catch (e) {
-      print('Error finding organization by invite code: $e');
+      Log.error('firestore', 'Error finding organization by invite code: $e');
       return null;
     }
   }
@@ -345,7 +348,7 @@ class FirestoreService {
       }
       return members;
     } catch (e) {
-      print('Error finding team members by orgId: $e');
+      Log.error('firestore', 'Error finding team members by orgId: $e');
       return [];
     }
   }
@@ -646,7 +649,7 @@ class FirestoreService {
       if (e.toString().contains('404') || e.toString().contains('Not Found')) {
         return false;
       }
-      print('Error checking webhook idempotency: $e');
+      Log.error('firestore', 'Error checking webhook idempotency: $e');
       return false; // Fail open to avoid blocking legitimate webhooks
     }
   }
@@ -671,7 +674,7 @@ class FirestoreService {
     } catch (e) {
       // If it fails due to already existing, that's fine (race condition protection)
       if (!e.toString().contains('ALREADY_EXISTS')) {
-        print('Error marking webhook as processed: $e');
+        Log.error('firestore', 'Error marking webhook as processed: $e');
       }
     }
   }
