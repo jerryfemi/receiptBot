@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/flutterwave_service.dart';
@@ -9,9 +10,9 @@ import 'package:receipt_bot/utils/constants.dart';
 import 'webhook.dart' as webhook_handler;
 
 final String _projectId =
-    Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
+    AppConfig.instance.googleProjectId;
 final String _flutterwaveWebhookSecretHash =
-    Platform.environment['FLW_WEBHOOK_SECRET_HASH'] ?? '';
+    AppConfig.instance.flutterwaveWebhookHash;
 
 final _firestoreService = FirestoreService(projectId: _projectId);
 final _flutterwaveService = FlutterwaveService();
@@ -27,20 +28,18 @@ Future<Response> onRequest(RequestContext context) async {
 
   final signature = request.headers['verif-hash'];
   if (_flutterwaveWebhookSecretHash.isEmpty) {
-    print('WARNING: FLW_WEBHOOK_SECRET_HASH is missing.');
+    Log.warn('flutterwave-webhook', 'FLW_WEBHOOK_SECRET_HASH is missing.');
     return Response(statusCode: 500, body: 'Webhook secret not configured');
   }
 
   if (signature == null || signature != _flutterwaveWebhookSecretHash) {
-    print('WARNING: Flutterwave webhook signature mismatch!');
+    Log.warn('flutterwave-webhook', 'Flutterwave webhook signature mismatch!');
     return Response(statusCode: 401, body: 'Invalid signature');
   }
 
   final bodyString = await request.body();
 
-  print('--- FLUTTERWAVE WEBHOOK PAYLOAD ---');
-  print(bodyString);
-  print('-----------------------------------');
+  Log.debug('flutterwave-webhook', bodyString);
 
   final payload = jsonDecode(bodyString) as Map<String, dynamic>;
 
@@ -49,7 +48,7 @@ Future<Response> onRequest(RequestContext context) async {
       payload['event']?.toString() ?? payload['event.type']?.toString() ?? '';
   final data = (payload['data'] as Map<String, dynamic>?) ?? payload;
 
-  print('Flutterwave Webhook Event/Status: $event / ${data['status']}');
+  Log.info('flutterwave-webhook', 'Flutterwave Webhook Event/Status: $event / ${data['status']}');
 
   final status = data['status']?.toString().toLowerCase() ?? '';
   final isCompleted = event == 'charge.completed' || status == 'successful';
@@ -64,10 +63,10 @@ Future<Response> onRequest(RequestContext context) async {
     final payloadTxRef =
         (data['tx_ref'] ?? data['txRef'])?.toString().trim() ?? '';
 
-    print('Parsed Transaction ID: $transactionId, txRef: $payloadTxRef');
+    Log.info('flutterwave-webhook', 'Parsed Transaction ID: $transactionId, txRef: $payloadTxRef');
 
     if (transactionId == null) {
-      print('WARNING: Flutterwave transaction ID is null. Skipping.');
+      Log.warn('flutterwave-webhook', 'Flutterwave transaction ID is null. Skipping.');
       return Response(statusCode: 200);
     }
 
@@ -83,8 +82,10 @@ Future<Response> onRequest(RequestContext context) async {
       // Fast duplicate guard before making verify API calls.
       if (payloadTxRef.isNotEmpty &&
           await _firestoreService.isWebhookProcessed(payloadTxRef)) {
-        print(
-            'Webhook already processed for tx_ref: $payloadTxRef. Skipping verify call.');
+        Log.info(
+          'flutterwave-webhook',
+          'Webhook already processed for tx_ref: $payloadTxRef. Skipping verify call.',
+        );
         return Response(statusCode: 200);
       }
 
@@ -101,18 +102,20 @@ Future<Response> onRequest(RequestContext context) async {
           verifyData['currency']?.toString().toUpperCase() ?? '';
 
       if (txRef.isEmpty) {
-        print(
-            'Flutterwave verify missing tx_ref for transaction: $transactionId');
+        Log.info(
+          'flutterwave-webhook',
+          'Flutterwave verify missing tx_ref for transaction: $transactionId',
+        );
         return Response(statusCode: 200);
       }
 
       if (await _firestoreService.isWebhookProcessed(txRef)) {
-        print('Webhook already processed for tx_ref: $txRef. Skipping.');
+        Log.info('flutterwave-webhook', 'Webhook already processed for tx_ref: $txRef. Skipping.');
         return Response(statusCode: 200);
       }
 
       if (paymentStatus.toLowerCase() != 'successful') {
-        print('Flutterwave transaction not successful for tx_ref: $txRef');
+        Log.warn('flutterwave-webhook', 'Flutterwave transaction not successful for tx_ref: $txRef');
         return Response(statusCode: 200);
       }
 
@@ -120,13 +123,13 @@ Future<Response> onRequest(RequestContext context) async {
           await _firestoreService.findUserByPaymentReference(txRef);
 
       if (phoneNumber == null) {
-        print('No user found for Flutterwave tx_ref: $txRef');
+        Log.warn('flutterwave-webhook', 'No user found for Flutterwave tx_ref: $txRef');
         return Response(statusCode: 200);
       }
 
       final profile = await _firestoreService.getProfile(phoneNumber);
       if (profile == null) {
-        print('Profile not found for Flutterwave tx_ref: $txRef');
+        Log.warn('flutterwave-webhook', 'Profile not found for Flutterwave tx_ref: $txRef');
         return Response(statusCode: 200);
       }
 
@@ -146,8 +149,10 @@ Future<Response> onRequest(RequestContext context) async {
       final isCurrencyValid = paymentCurrency == expectedCurrency;
 
       if (!isAmountValid || !isCurrencyValid) {
-        print(
-            'Flutterwave amount/currency mismatch for tx_ref: $txRef. Expected $expectedAmount $expectedCurrency, got $amount $paymentCurrency');
+        Log.warn(
+          'flutterwave-webhook',
+          'Flutterwave amount/currency mismatch for tx_ref: $txRef. Expected $expectedAmount $expectedCurrency, got $amount $paymentCurrency',
+        );
         await _firestoreService.markWebhookProcessed(
             txRef, 'flutterwave_mismatch');
         await _whatsappService.sendMessage(
@@ -195,7 +200,7 @@ Future<Response> onRequest(RequestContext context) async {
         paymentCurrency.isEmpty ? expectedCurrency : paymentCurrency,
       );
     } catch (e, stackTrace) {
-      print('Flutterwave verify error: $e\n$stackTrace');
+      Log.error('flutterwave-webhook', 'Flutterwave verify error: $e\n$stackTrace');
     }
   }
 
