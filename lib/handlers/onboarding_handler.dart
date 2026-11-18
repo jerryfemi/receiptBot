@@ -1,3 +1,4 @@
+import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
@@ -241,7 +242,7 @@ class OnboardingHandler {
         await whatsappService.sendMessage(from, 'Logo uploaded! ✅');
         await _completeOnboarding(from, profile);
       } catch (e) {
-        print('Onboarding logo upload error: $e');
+        Log.error('onboarding', 'Onboarding logo upload error: $e');
         await whatsappService.sendMessage(
           from,
           "Something went wrong uploading your logo. You can add it later in Settings.\n\nLet's continue!",
@@ -300,7 +301,7 @@ class OnboardingHandler {
         "✅ *New Team Member!*\nA new agent ($newMemberPhone) has successfully joined your organization and is now ready to generate receipts and invoices.",
       );
     } catch (e) {
-      print('Failed to notify admin of new member: $e');
+      Log.error('onboarding', 'Failed to notify admin of new member: $e');
       // Non-critical - don't fail the flow
     }
   }
