@@ -4,10 +4,12 @@ import 'dart:typed_data';
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/receipts/receipt_review.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
+import 'package:receipt_bot/utils/constants.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/user_messages.dart';
@@ -190,9 +192,8 @@ class ReceiptHandler {
         }
       }
 
-      // Generate directly using saved theme preference or default
-      await generateAndSendPDF(
-          from, profile, transaction, profile.themeIndex ?? 0);
+      // Send straight away, or show a preview first if something looks off
+      await deliverOrReview(from, profile, transaction);
     } catch (e) {
       Log.error('receipt', 'Error generating receipt: $e');
       if (e.toString().contains('GEMINI_BUSY')) {
@@ -237,9 +238,8 @@ class ReceiptHandler {
         currencyCode: profile.currencyCode,
       );
 
-      // Generate directly using saved theme preference or default
-      await generateAndSendPDF(
-          from, profile, transaction, profile.themeIndex ?? 0);
+      // Send straight away, or show a preview first if something looks off
+      await deliverOrReview(from, profile, transaction);
     } catch (e) {
       Log.error('receipt', "Image Scan Error: $e");
       if (e.toString().contains('GEMINI_BUSY')) {
@@ -397,8 +397,9 @@ class ReceiptHandler {
     String from,
     BusinessProfile profile,
     Transaction transaction,
-    int themeIndex,
-  ) async {
+    int themeIndex, {
+    bool isCorrection = false,
+  }) async {
     try {
       // Fetch org in parallel with sending status message (if needed)
       final orgFuture = profile.orgId != null
@@ -407,7 +408,10 @@ class ReceiptHandler {
 
       // Send status and fetch org in parallel
       await Future.wait([
-        whatsappService.sendMessage(from, 'Generating PDF... ⏳'),
+        whatsappService.sendMessage(
+          from,
+          isCorrection ? 'Making the corrected copy... ⏳' : 'Generating PDF... ⏳',
+        ),
         orgFuture,
       ]);
       final org = await orgFuture;
@@ -454,14 +458,26 @@ class ReceiptHandler {
         'WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms',
       );
 
-      // Handle freemium warning and clear pending in parallel
+      // Clear the pending receipt, remember this one so it can be fixed,
+      // and handle the freemium count (corrections don't count again).
       await Future.wait([
-        subscriptionHandler.handleFreemiumPostReceipt(from, profile),
+        if (!isCorrection)
+          subscriptionHandler.handleFreemiumPostReceipt(from, profile),
         firestoreService.updateProfileData(from, {
           'pendingTransaction': '',
+          'lastTransaction': jsonEncode(transaction.toJson()),
           'currentAction': UserAction.idle.name,
         }),
       ]);
+
+      // Offer a one-tap fix in case the AI got something wrong.
+      await whatsappService.sendInteractiveButtons(
+        from,
+        'Something wrong on it? Tap *Fix it* and tell me what to change.',
+        [
+          {'id': ButtonIds.fixLastReceipt, 'title': '✏️ Fix it'},
+        ],
+      );
     } catch (e, stackTrace) {
       Log.error(
           'receipt', 'Error generating PDF: $e\nStack trace:\n$stackTrace');
@@ -470,6 +486,163 @@ class ReceiptHandler {
         'Failed to generate PDF. Please try again.',
       );
       await firestoreService.updateAction(from, UserAction.idle);
+    }
+  }
+
+  // ==========================================================
+  // SEND OR REVIEW
+  // ==========================================================
+
+  /// Sends the receipt right away when it looks complete; otherwise shows a
+  /// preview with what needs checking and waits for Send or a change.
+  Future<void> deliverOrReview(
+    String from,
+    BusinessProfile profile,
+    Transaction transaction,
+  ) async {
+    final problems = ReceiptReview.issues(transaction, profile.currencySymbol);
+    if (problems.isEmpty) {
+      await generateAndSendPDF(
+          from, profile, transaction, profile.themeIndex ?? 0);
+      return;
+    }
+
+    await firestoreService.updateProfileData(from, {
+      'pendingTransaction': jsonEncode(transaction.toJson()),
+      'currentAction': UserAction.reviewingReceipt.name,
+    });
+    await _sendPreview(from, profile, transaction, problems);
+  }
+
+  Future<void> _sendPreview(
+    String from,
+    BusinessProfile profile,
+    Transaction transaction,
+    List<String> problems,
+  ) {
+    return whatsappService.sendInteractiveButtons(
+      from,
+      ReceiptReview.preview(
+        transaction,
+        profile.currencySymbol,
+        problems: problems,
+      ),
+      [
+        {'id': ButtonIds.receiptSend, 'title': '✅ Send'},
+        {'id': ButtonIds.receiptCancel, 'title': '❌ Cancel'},
+      ],
+    );
+  }
+
+  /// "Send" tapped on a preview: make the PDF as it stands.
+  Future<void> sendPendingReceipt(String from, BusinessProfile profile) async {
+    final pending = profile.pendingTransaction;
+    if (pending == null) {
+      await whatsappService.sendMessage(
+        from,
+        'That receipt has already been sent or cancelled. Send me the sale '
+        "details again and I'll make a new one.",
+      );
+      return;
+    }
+    await generateAndSendPDF(from, profile, pending, profile.themeIndex ?? 0);
+  }
+
+  /// "Cancel" tapped on a preview: throw the pending receipt away.
+  Future<void> cancelPendingReceipt(String from) async {
+    await firestoreService.updateProfileData(from, {
+      'pendingTransaction': '',
+      'currentAction': UserAction.idle.name,
+    });
+    await whatsappService.sendMessage(
+      from,
+      "Cancelled. Send me another sale whenever you're ready. 👍",
+    );
+  }
+
+  /// "Fix it" tapped after a receipt was sent: ask what to change.
+  Future<void> startFixLastReceipt(String from, BusinessProfile profile) async {
+    if (profile.lastTransaction == null) {
+      await whatsappService.sendMessage(
+        from,
+        "I can't find your last receipt. Send me the sale details again and "
+        "I'll make a new one.",
+      );
+      return;
+    }
+    await firestoreService.updateAction(from, UserAction.editingLastReceipt);
+    await whatsappService.sendMessage(
+      from,
+      'What should I change? For example:\n'
+      '_tripod is 300k_\n'
+      '_customer is John Okafor_\n'
+      '_remove the bag_\n\n'
+      'Type *Cancel* to leave it as it is.',
+    );
+  }
+
+  /// A typed change while reviewing a preview or fixing a sent receipt.
+  Future<void> applyReceiptChange(
+    String from,
+    String text,
+    BusinessProfile profile,
+  ) async {
+    final isFixingSent =
+        profile.currentAction == UserAction.editingLastReceipt;
+    final base =
+        isFixingSent ? profile.lastTransaction : profile.pendingTransaction;
+
+    if (base == null) {
+      // Nothing to change any more; treat the message as a new sale.
+      await firestoreService.updateAction(from, UserAction.idle);
+      await processReceiptResult(from, text, profile,
+          isInvoice: text.toLowerCase().contains('invoice'));
+      return;
+    }
+
+    try {
+      final edit = await geminiService.applyReceiptEdit(
+        base,
+        text,
+        currencySymbol: profile.currencySymbol,
+      );
+
+      if (edit.isNewSale) {
+        await firestoreService.updateProfileData(from, {
+          'pendingTransaction': '',
+          'currentAction': UserAction.idle.name,
+        });
+        await processReceiptResult(from, text, profile,
+            isInvoice: base.type == TransactionType.invoice);
+        return;
+      }
+
+      final updated = edit.transaction!;
+      final problems = ReceiptReview.issues(updated, profile.currencySymbol);
+
+      if (problems.isNotEmpty) {
+        await firestoreService.updateProfileData(from, {
+          'pendingTransaction': jsonEncode(updated.toJson()),
+          'currentAction': UserAction.reviewingReceipt.name,
+        });
+        await _sendPreview(from, profile, updated, problems);
+        return;
+      }
+
+      await generateAndSendPDF(
+        from,
+        profile,
+        updated,
+        profile.themeIndex ?? 0,
+        isCorrection: isFixingSent,
+      );
+    } catch (e) {
+      Log.error('receipt', 'Error applying receipt change: $e');
+      await whatsappService.sendMessage(
+        from,
+        "Sorry, I couldn't apply that change. 🙏 Try saying it another way, "
+        'e.g. _tripod is 300k_, or type *Cancel*.',
+      );
     }
   }
 
