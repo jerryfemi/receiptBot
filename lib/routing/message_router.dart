@@ -1,6 +1,7 @@
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/routing/quick_intent.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
@@ -179,7 +180,10 @@ class MessageRouter {
         // CONVERSATIONAL ROUTER - Let Gemini decide what the user wants
 
         try {
-          final intentResult = await geminiService.determineUserIntent(text);
+          // Obvious messages (a sale with prices, a greeting) skip the
+          // Gemini call; anything unclear is still classified by Gemini.
+          final intentResult = QuickIntent.detect(text) ??
+              await geminiService.determineUserIntent(text);
 
           switch (intentResult.type) {
             case UserIntent.chat:
