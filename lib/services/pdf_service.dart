@@ -4,13 +4,15 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:receipt_bot/documents/document_data.dart';
+import 'package:receipt_bot/documents/market/market_document.dart';
+import 'package:receipt_bot/documents/signature/signature_document.dart';
+import 'package:receipt_bot/documents/studio/studio_document.dart';
 import 'package:receipt_bot/layouts/corporate_layout.dart';
 import 'package:receipt_bot/layouts/default_layout.dart';
 import 'package:receipt_bot/layouts/signature_layout.dart';
 import 'package:receipt_bot/layouts/simple_layout.dart';
 import 'package:receipt_bot/models/models.dart';
-import 'package:receipt_bot/documents/document_data.dart';
-import 'package:receipt_bot/documents/signature/signature_document.dart';
 import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/logo_codec.dart';
 
@@ -61,7 +63,7 @@ class PdfService {
     BusinessProfile profile,
     Transaction transaction, {
     int themeIndex = 0, // 0: B&W, 1: Beige,
-    int layoutIndex = 3, // Default to Corporate (3)
+    int layoutIndex = 3, // Default to Studio (3)
     Organization? org,
   }) async {
     // Load Fonts (with Caching)
@@ -98,7 +100,7 @@ class PdfService {
 
     // 0. Enforce Freemium Restrictions
     if (!profile.isPremium) {
-      layoutIndex = 3; // Force Corporate layout for free tier
+      layoutIndex = 3; // Free tier always gets Studio
     }
 
     // Determine values correctly from org or fallback
@@ -181,7 +183,7 @@ class PdfService {
     }
 
     // Redesigned layouts build their own A4 pages.
-    if (layoutIndex == 1) {
+    if (layoutIndex >= 1 && layoutIndex <= 3) {
       final data = DocumentData(
         transaction: transaction,
         currencySymbol: org?.currencySymbol ?? profile.currencySymbol,
@@ -193,7 +195,13 @@ class PdfService {
         accountName: usedAccountName,
         logo: logoImage,
       );
-      pdf.addPage(await buildSignaturePage(data, accent: primary));
+      // Market and Studio keep their own colours; Signature follows the theme.
+      final page = switch (layoutIndex) {
+        1 => await buildSignaturePage(data, accent: primary),
+        2 => await buildMarketPage(data),
+        _ => await buildStudioPage(data),
+      };
+      pdf.addPage(page);
       return pdf.save();
     }
 
