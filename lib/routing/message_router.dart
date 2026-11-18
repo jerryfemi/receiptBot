@@ -114,6 +114,10 @@ class MessageRouter {
 
     // 4. Handle Current Action (Remaining actions from the original switch)
     switch (profile.currentAction ?? UserAction.idle) {
+      case UserAction.reviewingReceipt:
+      case UserAction.editingLastReceipt:
+        await receiptHandler.applyReceiptChange(from, text, profile);
+        break;
       case UserAction.createReceipt:
         await receiptHandler.processReceiptResult(from, text, profile,
             isInvoice: false);
@@ -445,7 +449,12 @@ class MessageRouter {
         lower == ButtonIds.cancel ||
         lower == 'exit' ||
         lower.startsWith('quit')) {
-      await firestoreService.updateAction(from, UserAction.idle);
+      // Also drop any receipt waiting for review, so it can't be generated
+      // later by surprise (e.g. when the user changes their layout).
+      await firestoreService.updateProfileData(from, {
+        'currentAction': UserAction.idle.name,
+        'pendingTransaction': '',
+      });
       await whatsappService.sendMessage(from, 'Action cancelled.');
       return true;
     }
@@ -502,6 +511,21 @@ class MessageRouter {
     BusinessProfile profile,
   ) async {
     switch (lower) {
+      // -------------------------------------------------------------------------
+      // RECEIPT REVIEW
+      // -------------------------------------------------------------------------
+      case ButtonIds.receiptSend:
+        await receiptHandler.sendPendingReceipt(from, profile);
+        return true;
+
+      case ButtonIds.receiptCancel:
+        await receiptHandler.cancelPendingReceipt(from);
+        return true;
+
+      case ButtonIds.fixLastReceipt:
+        await receiptHandler.startFixLastReceipt(from, profile);
+        return true;
+
       // -------------------------------------------------------------------------
       // PROFILE EDIT FIELD OVERRIDES (Admin only)
       // -------------------------------------------------------------------------
