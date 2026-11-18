@@ -51,7 +51,7 @@ void main() async {
     terms: 'Payment is due within 14 days. Late payments may incur a 5% fee. No refunds on services rendered.',
   );
 
-  final layouts = ['default', 'signature', 'corporate', 'simple'];
+  final layouts = ['default', 'signature', 'simple', 'corporate']; // Index matches pdf_service.dart
   final themeIndex = 2; // Midnight Navy
 
   for (int i = 0; i < layouts.length; i++) {
