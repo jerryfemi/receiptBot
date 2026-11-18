@@ -54,8 +54,8 @@ class GeminiService {
     - accountNumber (String?): If mentioned, the account number.
     - accountName (String?): If mentioned, the account name.
     - discount (double?): If a discount is mentioned, calculate the absolute amount to deduct.
-    - notes (String?): Any extra notes or messages for the customer (e.g. "Thank you for your business!").
-    - terms (String?): Any terms and conditions (e.g. "No refunds after 7 days").
+    - notes (String?): A note for the customer, ONLY if the user wrote one. Otherwise null. Never invent one.
+    - terms (String?): Terms and conditions, ONLY if the user wrote them. Otherwise null. Never invent them.
 
 ### **CRITICAL MATH RULES (READ CAREFULLY)**
     1. **Unit Price vs Total:** - If the user says: "3 items at 5k each", the `amount` (Unit Price) is 5000.
@@ -165,6 +165,7 @@ class GeminiService {
       4. If items are listed without total, calculate the total.
       5. Determine "type": "invoice" if the image contains "Invoice" or "Bank Name", "Bill To", or has a Due Date. "receipt" otherwise.
       6. CRITICAL: For `items`, ensure `amount` is the UNIT PRICE.
+      7. Only fill "notes" and "terms" if they are written in the image. Otherwise null. Never invent them.
       
       Return ONLY valid JSON matching this schema:
       {
@@ -254,6 +255,7 @@ RULES:
 6. If no customer name is said, use "Customer".
 7. Date: use the date they say, otherwise today ($today).
 8. If the voice note is not about a sale at all, return {"items": []}.
+9. Only fill "notes" and "terms" if the speaker says them. Otherwise null. Never invent them.
 
 Return ONLY valid JSON matching this schema:
 {
