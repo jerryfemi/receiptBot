@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
@@ -300,7 +301,7 @@ Top Customer: $topCustomer ($formatter${formatCurrency(topAmount, '')} $usedCurr
         caption: reportText,
       );
     } catch (e) {
-      print('DEBUG: Error generating stats: $e');
+      Log.error('stats', 'Error generating stats: $e');
       await whatsappService.sendMessage(from,
           'An error occurred while retrieving your stats. Please try again later.');
     }
