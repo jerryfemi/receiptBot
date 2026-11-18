@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' as http_parser;
 
@@ -18,9 +19,9 @@ class WhatsAppService {
     String? phoneNumberId,
     this.timeout = const Duration(seconds: 15),
     this.maxRetries = 1,
-  })  : token = token ?? Platform.environment['WHATSAPP_TOKEN'] ?? '',
+  })  : token = token ?? AppConfig.instance.whatsappToken,
         phoneNumberId =
-            phoneNumberId ?? Platform.environment['PHONE_NUMBER_ID'] ?? '';
+            phoneNumberId ?? AppConfig.instance.phoneNumberId;
 
   /// Sends a text message with retry logic.
   Future<bool> sendMessage(String to, String message) async {
@@ -331,7 +332,7 @@ class WhatsAppService {
           return true;
         }
 
-        print('WhatsApp API error (attempt ${attempt + 1}): ${response.body}');
+        Log.error('whatsapp', 'WhatsApp API error (attempt ${attempt + 1}): ${response.body}');
 
         if (attempt < maxRetries) {
           await Future<void>.delayed(
@@ -341,7 +342,7 @@ class WhatsAppService {
 
         return false;
       } catch (e) {
-        print('WhatsApp request error (attempt ${attempt + 1}): $e');
+        Log.error('whatsapp', 'WhatsApp request error (attempt ${attempt + 1}): $e');
         if (attempt >= maxRetries) return false;
         await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
       }
