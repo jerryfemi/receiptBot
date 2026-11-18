@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
@@ -12,7 +14,7 @@ import 'package:receipt_bot/utils/country_utils.dart';
 /// folder. Set PUBLIC_BASE_URL to the server's address (e.g. the Render URL).
 abstract class LayoutUrls {
   static final String _base =
-      (Platform.environment['PUBLIC_BASE_URL'] ?? '').replaceAll(RegExp(r'/+$'), '');
+      AppConfig.instance.publicBaseUrl;
   static String get corporate => '$_base/layouts/standard.png';
   static String get signature => '$_base/layouts/signature.png';
   static String get simple => '$_base/layouts/simple.png';
@@ -227,7 +229,7 @@ class SettingsHandler {
       await whatsappService.sendMessage(
           from, "Business Name updated to '$text'! ✅");
     } catch (e) {
-      print('Error updating business name: $e');
+      Log.error('settings', 'Error updating business name: $e');
       await whatsappService.sendMessage(
           from, 'Failed to update business name. Please try again.');
     }
@@ -253,7 +255,7 @@ class SettingsHandler {
       await whatsappService.sendMessage(
           from, "Phone Number updated to '$text'! ✅");
     } catch (e) {
-      print('Error updating phone number: $e');
+      Log.error('settings', 'Error updating phone number: $e');
       await whatsappService.sendMessage(
           from, 'Failed to update phone number. Please try again.');
     }
@@ -278,7 +280,7 @@ class SettingsHandler {
       await updateProfileAndOrg(from, profile, {'businessAddress': text});
       await whatsappService.sendMessage(from, "Address updated to '$text'! ✅");
     } catch (e) {
-      print('Error updating address: $e');
+      Log.error('settings', 'Error updating address: $e');
       await whatsappService.sendMessage(
           from, 'Failed to update address. Please try again.');
     }
@@ -351,7 +353,7 @@ class SettingsHandler {
       await updateProfileAndOrg(from, profile, {'logoUrl': logoData});
       await whatsappService.sendMessage(from, 'Logo updated successfully! 🖼️');
     } catch (e) {
-      print('Error updating logo: $e');
+      Log.error('settings', 'Error updating logo: $e');
       await whatsappService.sendMessage(
           from, 'Failed to save logo. Please try again.');
     }
@@ -407,7 +409,7 @@ class SettingsHandler {
 
         await showEditProfileMenuContinue(from);
       } catch (e) {
-        print('Error updating currency: $e');
+        Log.error('settings', 'Error updating currency: $e');
         await whatsappService.sendMessage(
             from, 'Failed to update currency. Please try again later.');
         await firestoreService.updateAction(from, UserAction.idle);
@@ -684,7 +686,7 @@ class SettingsHandler {
             'ℹ️ You have been removed from the organization by the Admin. Your account has been reset.');
       } catch (_) {}
     } catch (e) {
-      print('Error removing team member: $e');
+      Log.error('settings', 'Error removing team member: $e');
       await whatsappService.sendMessage(
           from, '⚠️ Failed to remove team member. Please try again.');
     }
