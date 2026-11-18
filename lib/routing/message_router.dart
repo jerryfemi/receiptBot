@@ -103,6 +103,12 @@ class MessageRouter {
       }
     }
 
+    // 1b. VOICE NOTES - a spoken sale becomes a receipt
+    if (type == 'audio') {
+      await receiptHandler.processVoiceReceipt(from, messageData, profile);
+      return;
+    }
+
     // 2. TEXT & INTERACTIVE COMMANDS (Global)
     if (type == 'text' || type == 'interactive') {
       final lower = text.toLowerCase().trim();
