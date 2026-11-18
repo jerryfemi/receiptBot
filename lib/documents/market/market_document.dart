@@ -57,8 +57,11 @@ Future<pw.Page> buildMarketPage(DocumentData data, {PdfColor? stamp}) async {
 
 /// The grey stub with the serial number, and the punched tear line.
 pw.Widget _stubAndPerforation(DocumentData data, MarketStyle s) {
+  // unconstrained: lay the text out on one line before turning it, instead
+  // of wrapping it to the stub's narrow width.
   pw.Widget vertical(String text, pw.TextStyle style) => pw.Transform.rotateBox(
         angle: math.pi / 2,
+        unconstrained: true,
         child: pw.Text(text, style: style),
       );
 
@@ -137,9 +140,7 @@ pw.Widget _stubAndPerforation(DocumentData data, MarketStyle s) {
 }
 
 pw.Widget _pageFooter(DocumentData data, MarketStyle s, pw.Context context) {
-  final left = data.isInvoice
-      ? 'QUOTE ${data.number} WHEN PAYING'
-      : 'THANK YOU FOR YOUR PATRONAGE';
+  final left = data.isInvoice ? '' : DocumentData.thanks.toUpperCase();
   return pw.Padding(
     padding: const pw.EdgeInsets.only(top: 16),
     child: pw.Row(
