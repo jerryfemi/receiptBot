@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:receipt_bot/utils/user_messages.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
@@ -196,10 +197,7 @@ class ReceiptHandler {
           "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt details again.",
         );
       } else {
-        await whatsappService.sendMessage(
-          from,
-          "⚠️ Error: I couldn't process that.\n\nDetails: $e\n\nPlease try again or type 'Create Receipt' for help.",
-        );
+        await whatsappService.sendMessage(from, UserMessages.receiptFailed);
       }
     }
   }
