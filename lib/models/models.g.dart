@@ -25,6 +25,7 @@ BusinessProfile _$BusinessProfileFromJson(Map<String, dynamic> json) =>
       accountNumber: json['accountNumber'] as String?,
       accountName: json['accountName'] as String?,
       pendingTransaction: _transactionFromJson(json['pendingTransaction']),
+      lastTransaction: _transactionFromJson(json['lastTransaction']),
       themeIndex: (json['themeIndex'] as num?)?.toInt(),
       layoutIndex: (json['layoutIndex'] as num?)?.toInt() ?? 0,
       currencyCode: json['currencyCode'] as String? ?? 'NGN',
@@ -56,6 +57,7 @@ Map<String, dynamic> _$BusinessProfileToJson(BusinessProfile instance) =>
       'accountNumber': instance.accountNumber,
       'accountName': instance.accountName,
       'pendingTransaction': instance.pendingTransaction,
+      'lastTransaction': instance.lastTransaction,
       'themeIndex': instance.themeIndex,
       'layoutIndex': instance.layoutIndex,
       'currencyCode': instance.currencyCode,
@@ -103,6 +105,8 @@ const _$UserActionEnumMap = {
   UserAction.selectingSubscriptionPlan: 'selectingSubscriptionPlan',
   UserAction.removeTeamMember: 'removeTeamMember',
   UserAction.confirmRemoveTeamMember: 'confirmRemoveTeamMember',
+  UserAction.reviewingReceipt: 'reviewingReceipt',
+  UserAction.editingLastReceipt: 'editingLastReceipt',
 };
 
 ReceiptItem _$ReceiptItemFromJson(Map<String, dynamic> json) => ReceiptItem(
