@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
@@ -9,9 +10,9 @@ import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'webhook.dart' as webhook_handler;
 
 final String _projectId =
-    Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
+    AppConfig.instance.googleProjectId;
 final String _paystackSecretKey =
-    Platform.environment['PAYSTACK_SECRET_KEY'] ?? '';
+    AppConfig.instance.paystackSecretKey;
 
 final _firestoreService = FirestoreService(projectId: _projectId);
 final _paystackService = PaystackService();
@@ -36,7 +37,7 @@ Future<Response> onRequest(RequestContext context) async {
   final digest = hmac.convert(utf8.encode(bodyString));
 
   if (digest.toString() != signature) {
-    print('WARNING: Paystack webhook signature mismatch!');
+    Log.warn('paystack-webhook', 'Paystack webhook signature mismatch!');
     return Response(statusCode: 401, body: 'Invalid signature');
   }
 
@@ -58,11 +59,11 @@ Future<Response> onRequest(RequestContext context) async {
 
       // Idempotency check - prevent double processing on webhook retries
       if (await _firestoreService.isWebhookProcessed(reference)) {
-        print('Webhook already processed for reference: $reference. Skipping.');
+        Log.info('paystack-webhook', 'Webhook already processed for reference: $reference. Skipping.');
         return Response(statusCode: 200);
       }
 
-      print('Ping received for reference: $reference. Verifying...');
+      Log.info('paystack-webhook', 'Ping received for reference: $reference. Verifying...');
       final verifyData = await _paystackService.verifyTransaction(reference);
 
       final status = verifyData['status'];
@@ -71,7 +72,7 @@ Future<Response> onRequest(RequestContext context) async {
 
       // We expect either 350,000 NGN kobo (3,500 NGN Monthly) or 3,500,000 NGN kobo (35,000 NGN Yearly)
       if (status == 'success' && amountInKobo >= 350000) {
-        print('Payment Verified for $email. Upgrading profile...');
+        Log.info('paystack-webhook', 'Payment Verified for $email. Upgrading profile...');
 
         // Find user by pending reference
         final phoneNumber =
@@ -81,7 +82,7 @@ Future<Response> onRequest(RequestContext context) async {
           // Fetch the user's current profile to do the "fair extension" math
           final profile = await _firestoreService.getProfile(phoneNumber);
           if (profile == null) {
-            print('Error: Profile not found for phone: $phoneNumber');
+            Log.warn('paystack-webhook', 'Profile not found for phone: $phoneNumber');
             return Response(statusCode: 200);
           }
           final bool isCurrentlyPremium = profile.isPremium;
@@ -128,11 +129,13 @@ Future<Response> onRequest(RequestContext context) async {
             profile.currencyCode,
           );
         } else {
-          print('Error: User not found for reference: $reference');
+          Log.error('paystack-webhook', 'User not found for reference: $reference');
         }
       } else if (status == 'success') {
-        print(
-            'Payment Verified but amount is insufficient: $amountInKobo kobo. Email: $email');
+        Log.warn(
+          'paystack-webhook',
+          'Payment Verified but amount is insufficient: $amountInKobo kobo. Email: $email',
+        );
         final phoneNumber =
             await _firestoreService.findUserByPaymentReference(reference);
         if (phoneNumber != null) {
@@ -142,8 +145,8 @@ Future<Response> onRequest(RequestContext context) async {
         }
       }
     } catch (e, stackTrace) {
-      print('Paystack webhook verification error: $e');
-      print('Stack trace: $stackTrace');
+      Log.error('paystack-webhook', 'Paystack webhook verification error: $e');
+      Log.error('paystack-webhook', 'Stack trace: $stackTrace');
     }
   }
 
