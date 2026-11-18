@@ -17,7 +17,9 @@ class GeminiService {
       print('Warning: GEMINI_API_KEY is missing.');
     }
     _model = GenerativeModel(
-      model: 'gemini-2.5-flash',
+      // Set GEMINI_MODEL in the environment to switch models without a code
+      // change when Google retires one.
+      model: Platform.environment['GEMINI_MODEL'] ?? 'gemini-3.8-flash',
       apiKey: this.apiKey,
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
