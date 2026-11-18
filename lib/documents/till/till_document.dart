@@ -198,9 +198,9 @@ pw.Widget _payTo(DocumentData data, TillStyle s) {
   );
 }
 
-/// A real QR code. Receipts carry a summary of the sale; invoices carry
-/// the payment details, so the customer can copy them straight into
-/// their banking app.
+/// A real QR code, with no caption. Receipts carry a summary of the sale;
+/// invoices carry the payment details, so the customer can copy them
+/// straight into their banking app.
 pw.Widget _qrBlock(DocumentData data, TillStyle s) {
   final payload = data.isInvoice && data.hasBankDetails
       ? [
@@ -215,32 +215,27 @@ pw.Widget _qrBlock(DocumentData data, TillStyle s) {
           'Total: ${data.money(data.total)}',
         ].join('\n');
 
-  final caption = data.isInvoice
-      ? 'QUOTE ${data.number}\nWHEN YOU PAY.'
-      : 'THANK YOU FOR\nYOUR PATRONAGE.';
-  final hint = data.isInvoice && data.hasBankDetails
-      ? 'SCAN FOR THE\nPAYMENT DETAILS'
-      : 'SCAN FOR THE\n${data.title.toUpperCase()} DETAILS';
+  final qr = pw.BarcodeWidget(
+    barcode: pw.Barcode.qrCode(),
+    data: payload,
+    width: 72,
+    height: 72,
+    color: TillStyle.ink,
+    drawText: false,
+  );
+
+  // Invoices show the code on its own; receipts add the thank-you beside it.
+  if (data.isInvoice) return pw.Center(child: qr);
 
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.center,
     children: [
-      pw.BarcodeWidget(
-        barcode: pw.Barcode.qrCode(),
-        data: payload,
-        width: 72,
-        height: 72,
-        color: TillStyle.ink,
-        drawText: false,
-      ),
+      qr,
       pw.SizedBox(width: 14),
       pw.Expanded(
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(caption, style: s.mono(size: 11)),
-            pw.Text(hint, style: s.mono(size: 11, color: TillStyle.grey)),
-          ],
+        child: pw.Text(
+          DocumentData.thanks.toUpperCase(),
+          style: s.mono(size: 11),
         ),
       ),
     ],
@@ -248,8 +243,8 @@ pw.Widget _qrBlock(DocumentData data, TillStyle s) {
 }
 
 List<pw.Widget> _notes(DocumentData data, TillStyle s) {
-  final notes = data.transaction.notes?.trim() ?? '';
-  final terms = data.transaction.terms?.trim() ?? '';
+  final notes = data.notes ?? '';
+  final terms = data.terms ?? '';
   if (notes.isEmpty && terms.isEmpty) return [];
   return [
     tillDash(above: 12, below: 8),
