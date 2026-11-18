@@ -83,6 +83,21 @@ class DocumentData {
 
   String money(double amount) => formatCurrency(amount, currencySymbol);
 
+  /// "NGN" for ₦ and so on; falls back to the symbol for anything unknown.
+  String get currencyCode {
+    const codes = {
+      '₦': 'NGN',
+      r'$': 'USD',
+      '£': 'GBP',
+      '€': 'EUR',
+      '₵': 'GHS',
+      'GH₵': 'GHS',
+      'KSh': 'KES',
+      'R': 'ZAR',
+    };
+    return codes[currencySymbol.trim()] ?? currencySymbol.trim();
+  }
+
   /// An amount without the currency symbol, for columns headed "AMOUNT ₦".
   static String plain(double amount) {
     final text = amount % 1 == 0
