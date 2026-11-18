@@ -230,6 +230,55 @@ class GeminiService {
   }
 
   // Helper to safely parse Gemini's response
+  // --- Receipt Editing ---
+
+  /// Applies a change the user typed (e.g. "tripod is 300k", "remove the
+  /// bag", "customer is John Okafor") to an existing receipt.
+  ///
+  /// Returns [ReceiptEdit.newSale] when the message is a different sale
+  /// rather than a change, so the caller can start a fresh receipt instead.
+  Future<ReceiptEdit> applyReceiptEdit(
+    Transaction transaction,
+    String instruction, {
+    String currencySymbol = '₦',
+  }) async {
+    final current = jsonEncode(transaction.toJson());
+    final prompt = """
+You edit receipts for a small business. Here is the current receipt as JSON:
+
+$current
+
+The business owner says: "$instruction"
+
+If this message is a change to the receipt above (fix a price, quantity,
+item name or customer name, add or remove an item, add a discount, tax or
+note), apply ONLY that change and return the full updated receipt as JSON in
+exactly the same shape. Keep every field you were not asked to change.
+Item "amount" is the unit price, not the line total. Amounts may be written
+like 300k (300000), 1.5m (1500000) or 2,500. Currency: $currencySymbol.
+Recalculate "totalAmount" as the sum of quantity × amount, minus discount,
+plus tax.
+
+If the message is instead a completely new, different sale, return exactly:
+{"newSale": true}
+
+Respond with JSON only.
+""";
+
+    final response = await _model.generateContent([Content.text(prompt)]);
+    final raw = response.text;
+    if (raw == null || raw.trim().isEmpty) {
+      throw Exception('Gemini returned an empty response.');
+    }
+
+    final cleaned = raw.replaceAll('```json', '').replaceAll('```', '').trim();
+    final decoded = jsonDecode(cleaned);
+    if (decoded is Map<String, dynamic> && decoded['newSale'] == true) {
+      return const ReceiptEdit.newSale();
+    }
+    return ReceiptEdit.updated(_cleanAndParseJson(cleaned));
+  }
+
   Transaction _cleanAndParseJson(String rawText) {
     try {
       // Clean up markdown code blocks if present
@@ -460,6 +509,20 @@ enum UserIntent {
 
   // Fallback
   unknown,
+}
+
+/// The result of [GeminiService.applyReceiptEdit].
+class ReceiptEdit {
+  const ReceiptEdit.updated(Transaction this.transaction) : isNewSale = false;
+  const ReceiptEdit.newSale()
+      : transaction = null,
+        isNewSale = true;
+
+  /// The updated receipt, or null when [isNewSale] is true.
+  final Transaction? transaction;
+
+  /// True when the message described a different sale, not a change.
+  final bool isNewSale;
 }
 
 class IntentResult {
