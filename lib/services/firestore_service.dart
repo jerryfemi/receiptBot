@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math'; // For random generate
 import 'package:googleapis/firestore/v1.dart';
-import 'package:googleapis/storage/v1.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:receipt_bot/models/models.dart';
@@ -11,7 +10,6 @@ import 'package:uuid/uuid.dart';
 class FirestoreService {
   final String projectId;
   FirestoreApi? _firestoreApi;
-  StorageApi? _storageApi;
   AutoRefreshingAuthClient? _authClient;
 
   FirestoreApi? get firestoreApi => _firestoreApi;
@@ -23,9 +21,11 @@ class FirestoreService {
 
   // --- 1. ROBUST INITIALIZATION ---
   Future<void> initialize([String? serviceAccountJson]) async {
+    if (projectId.isEmpty) {
+      throw StateError('GOOGLE_PROJECT_ID is not set');
+    }
     final scopes = [
       FirestoreApi.datastoreScope,
-      StorageApi.devstorageReadWriteScope,
     ];
 
     if (serviceAccountJson != null && serviceAccountJson.isNotEmpty) {
@@ -49,7 +49,6 @@ class FirestoreService {
 
     if (_authClient != null) {
       _firestoreApi = FirestoreApi(_authClient!);
-      _storageApi = StorageApi(_authClient!);
     }
   }
 
@@ -447,38 +446,6 @@ class FirestoreService {
       _userPath(phoneNumber),
       updateMask_fieldPaths: fields.keys.toList(),
     );
-  }
-
-  Future<String> uploadFile(
-      String filePath, List<int> bytes, String contentType) async {
-    await _ensureInitialized(); // Safety Check
-
-    if (_storageApi == null) throw Exception('Storage not initialized');
-
-    final activeProjectId =
-        projectId.isEmpty ? 'invoicemaker-b3876' : projectId;
-    final bucket = '$activeProjectId.firebasestorage.app';
-
-    final uuid = Uuid().v4();
-    // Use Stream.value which is robust for known byte lists
-    final media = Media(Stream.fromIterable([bytes]), bytes.length,
-        contentType: contentType);
-
-    final object = Object(
-      name: filePath,
-      contentType: contentType,
-      metadata: {'token': uuid},
-    );
-
-    // Use Resumable upload which manages connections better
-    await _storageApi!.objects.insert(
-      object,
-      bucket,
-      uploadMedia: media,
-      uploadOptions: UploadOptions.resumable,
-    );
-
-    return 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/${Uri.encodeComponent(filePath)}?alt=media&token=$uuid';
   }
 
   // Helper
