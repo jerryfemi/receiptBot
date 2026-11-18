@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/user_messages.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/handlers/settings_handler.dart';
@@ -121,12 +122,14 @@ class ReceiptHandler {
       'Generating ${isInvoice ? "Invoice" : "Receipt"}... ⏳',
     );
 
-    print(
-        'DEBUG: Processing receipt with Currency: ${profile.currencyCode} (${profile.currencySymbol})');
+    Log.debug(
+      'receipt',
+      'Processing receipt with Currency: ${profile.currencyCode} (${profile.currencySymbol})',
+    );
 
     try {
       // AI Parsing
-      print('DEBUG: Starting Gemini Parse...');
+      Log.debug('receipt', 'Starting Gemini Parse...');
       final swGemini = Stopwatch()..start();
       final transaction = await geminiService.parseTransaction(
         text,
@@ -134,7 +137,7 @@ class ReceiptHandler {
         currencyCode: profile.currencyCode,
       );
       swGemini.stop();
-      print('DEBUG: Gemini Parse took ${swGemini.elapsedMilliseconds} ms');
+      Log.debug('receipt', 'Gemini Parse took ${swGemini.elapsedMilliseconds} ms');
 
       // Validate Transaction
       if (transaction.items.isEmpty && transaction.totalAmount == 0) {
@@ -190,7 +193,7 @@ class ReceiptHandler {
       await generateAndSendPDF(
           from, profile, transaction, profile.themeIndex ?? 0);
     } catch (e) {
-      print('Error generating receipt: $e');
+      Log.error('receipt', 'Error generating receipt: $e');
       if (e.toString().contains('GEMINI_BUSY')) {
         await whatsappService.sendMessage(
           from,
@@ -237,7 +240,7 @@ class ReceiptHandler {
       await generateAndSendPDF(
           from, profile, transaction, profile.themeIndex ?? 0);
     } catch (e) {
-      print("Image Scan Error: $e");
+      Log.error('receipt', "Image Scan Error: $e");
       if (e.toString().contains('GEMINI_BUSY')) {
         await whatsappService.sendMessage(from,
             "Google's AI servers are currently taking a quick nap! 😴 Please wait a minute and try sending your receipt image again.");
@@ -408,7 +411,7 @@ class ReceiptHandler {
       ]);
       final org = await orgFuture;
 
-      print('DEBUG: Starting PDF Generation...');
+      Log.debug('receipt', 'Starting PDF Generation...');
       final swPdf = Stopwatch()..start();
       final pdfBytes = await pdfService.generateReceipt(
         profile,
@@ -418,7 +421,7 @@ class ReceiptHandler {
         org: org,
       );
       swPdf.stop();
-      print('DEBUG: PDF generation took ${swPdf.elapsedMilliseconds} ms');
+      Log.debug('receipt', 'PDF generation took ${swPdf.elapsedMilliseconds} ms');
 
       // Upload PDF
       final fileName =
@@ -436,16 +439,18 @@ class ReceiptHandler {
         transaction.date,
       )
           .catchError((e) {
-        print('DEBUG: Failed to add ledger entry: $e');
+        Log.error('receipt', 'Failed to add ledger entry: $e');
       });
 
       // Send document directly (no extra "Here is your receipt" message)
-      print('DEBUG: Sending WhatsApp Document...');
+      Log.debug('receipt', 'Sending WhatsApp Document...');
       final swSend = Stopwatch()..start();
       await whatsappService.sendDocumentBytes(from, pdfBytes, fileName);
       swSend.stop();
-      print(
-          'DEBUG: WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms');
+      Log.debug(
+        'receipt',
+        'WhatsApp Document Send took ${swSend.elapsedMilliseconds} ms',
+      );
 
       // Handle freemium warning and clear pending in parallel
       await Future.wait([
@@ -456,7 +461,7 @@ class ReceiptHandler {
         }),
       ]);
     } catch (e, stackTrace) {
-      print('Error generating PDF: $e\nStack trace:\n$stackTrace');
+      Log.error('receipt', 'Error generating PDF: $e\nStack trace:\n$stackTrace');
       await whatsappService.sendMessage(
         from,
         'Failed to generate PDF. Please try again.',
