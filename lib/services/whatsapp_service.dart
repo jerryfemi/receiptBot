@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' as http_parser;
+import 'package:receipt_bot/config/app_config.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 /// Service for WhatsApp Cloud API interactions.
 /// Centralizes all WhatsApp messaging with built-in timeout and retry logic.
@@ -20,8 +21,7 @@ class WhatsAppService {
     this.timeout = const Duration(seconds: 15),
     this.maxRetries = 1,
   })  : token = token ?? AppConfig.instance.whatsappToken,
-        phoneNumberId =
-            phoneNumberId ?? AppConfig.instance.phoneNumberId;
+        phoneNumberId = phoneNumberId ?? AppConfig.instance.phoneNumberId;
 
   /// Sends a text message with retry logic.
   Future<bool> sendMessage(String to, String message) async {
@@ -332,7 +332,8 @@ class WhatsAppService {
           return true;
         }
 
-        Log.error('whatsapp', 'WhatsApp API error (attempt ${attempt + 1}): ${response.body}');
+        Log.error('whatsapp',
+            'WhatsApp API error (attempt ${attempt + 1}): ${response.body}');
 
         if (attempt < maxRetries) {
           await Future<void>.delayed(
@@ -342,7 +343,8 @@ class WhatsAppService {
 
         return false;
       } catch (e) {
-        Log.error('whatsapp', 'WhatsApp request error (attempt ${attempt + 1}): $e');
+        Log.error(
+            'whatsapp', 'WhatsApp request error (attempt ${attempt + 1}): $e');
         if (attempt >= maxRetries) return false;
         await Future<void>.delayed(Duration(milliseconds: 200 * (attempt + 1)));
       }

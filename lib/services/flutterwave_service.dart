@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
 import 'package:http/http.dart' as http;
+import 'package:receipt_bot/config/app_config.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 class FlutterwaveService {
   final String secretKey;
@@ -13,8 +13,7 @@ class FlutterwaveService {
 
   FlutterwaveService({String? key, String? redirect})
       : secretKey = key ?? AppConfig.instance.flutterwaveSecretKey,
-        redirectUrl = redirect ??
-            AppConfig.instance.flutterwaveRedirectUrl {
+        redirectUrl = redirect ?? AppConfig.instance.flutterwaveRedirectUrl {
     if (secretKey.isEmpty) {
       Log.warn('flutterwave', 'FLW_SECRET_KEY is missing.');
     }

@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
+
 import 'package:http/http.dart' as http;
+import 'package:receipt_bot/config/app_config.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 class PaystackService {
   final String secretKey;

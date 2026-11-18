@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
+
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 /// Service to interact with Google Gemini API for receipt parsing.
 class GeminiService {
@@ -417,7 +418,8 @@ RULES:
         final errorString = e.toString();
 
         if (errorString.contains('503') || errorString.contains('429')) {
-          Log.warn('gemini', 'Gemini Intent API Error. Retry $retryCount of $maxRetries...');
+          Log.warn('gemini',
+              'Gemini Intent API Error. Retry $retryCount of $maxRetries...');
           if (retryCount >= maxRetries) {
             return IntentResult(
                 UserIntent.unknown); // Fallback gracefully if overloaded

@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/utils/country_utils.dart';
+
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 class StatsHandler {
   final FirestoreService firestoreService;

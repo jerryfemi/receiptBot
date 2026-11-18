@@ -1,5 +1,3 @@
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/utils/user_messages.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -7,6 +5,8 @@ import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/utils/user_messages.dart';
 
 class MessageRouter {
   final FirestoreService firestoreService;

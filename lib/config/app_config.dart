@@ -15,8 +15,8 @@ class AppConfig {
         metaAppSecret = _read(env, 'META_APP_SECRET'),
         geminiApiKey = _read(env, 'GEMINI_API_KEY'),
         geminiModel = _read(env, 'GEMINI_MODEL', fallback: 'gemini-3.8-flash'),
-        publicBaseUrl = _read(env, 'PUBLIC_BASE_URL')
-            .replaceAll(RegExp(r'/+$'), ''),
+        publicBaseUrl =
+            _read(env, 'PUBLIC_BASE_URL').replaceAll(RegExp(r'/+$'), ''),
         logLevel = _read(env, 'LOG_LEVEL', fallback: 'info'),
         paystackSecretKey = _read(env, 'PAYSTACK_SECRET_KEY'),
         flutterwaveSecretKey = _read(env, 'FLW_SECRET_KEY'),

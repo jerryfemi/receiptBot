@@ -1,9 +1,9 @@
-import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
-import 'package:receipt_bot/utils/logo_codec.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/utils/logo_codec.dart';
 
 /// Handles user onboarding flows (new user, join team, setup profile).
 class OnboardingHandler {

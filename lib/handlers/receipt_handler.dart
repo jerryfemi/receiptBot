@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/utils/user_messages.dart';
-import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -11,6 +8,9 @@ import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/utils/user_messages.dart';
 
 /// Handles receipt and invoice generation flows.
 class ReceiptHandler {
@@ -137,7 +137,8 @@ class ReceiptHandler {
         currencyCode: profile.currencyCode,
       );
       swGemini.stop();
-      Log.debug('receipt', 'Gemini Parse took ${swGemini.elapsedMilliseconds} ms');
+      Log.debug(
+          'receipt', 'Gemini Parse took ${swGemini.elapsedMilliseconds} ms');
 
       // Validate Transaction
       if (transaction.items.isEmpty && transaction.totalAmount == 0) {
@@ -421,7 +422,8 @@ class ReceiptHandler {
         org: org,
       );
       swPdf.stop();
-      Log.debug('receipt', 'PDF generation took ${swPdf.elapsedMilliseconds} ms');
+      Log.debug(
+          'receipt', 'PDF generation took ${swPdf.elapsedMilliseconds} ms');
 
       // Upload PDF
       final fileName =
@@ -461,7 +463,8 @@ class ReceiptHandler {
         }),
       ]);
     } catch (e, stackTrace) {
-      Log.error('receipt', 'Error generating PDF: $e\nStack trace:\n$stackTrace');
+      Log.error(
+          'receipt', 'Error generating PDF: $e\nStack trace:\n$stackTrace');
       await whatsappService.sendMessage(
         from,
         'Failed to generate PDF. Please try again.',

@@ -5,9 +5,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
 import 'package:dart_frog/dart_frog.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -19,14 +18,14 @@ import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/meta_signature.dart';
 
 // Configuration
 final String _verifyToken = AppConfig.instance.verifyToken;
 final String _whatsappToken = AppConfig.instance.whatsappToken;
 final String _phoneNumberId = AppConfig.instance.phoneNumberId;
-final String _projectId =
-    AppConfig.instance.googleProjectId;
+final String _projectId = AppConfig.instance.googleProjectId;
 final String _geminiApiKey = AppConfig.instance.geminiApiKey;
 // App Secret from Meta (App settings > Basic). Used to check that webhook
 // requests really come from Meta.
@@ -212,9 +211,11 @@ Future<Response> onRequest(RequestContext context) async {
       appSecret: _metaAppSecret,
     )) {
       if (_metaAppSecret.isEmpty) {
-        Log.warn('webhook', 'META_APP_SECRET is not set - rejecting webhook request.');
+        Log.warn('webhook',
+            'META_APP_SECRET is not set - rejecting webhook request.');
       } else {
-        Log.warn('webhook', 'Rejected webhook request with an invalid signature.');
+        Log.warn(
+            'webhook', 'Rejected webhook request with an invalid signature.');
       }
       return Response(statusCode: 401, body: 'Invalid signature');
     }
@@ -230,7 +231,8 @@ Future<Response> onRequest(RequestContext context) async {
 
         // Idempotency check - prevent duplicate processing on WhatsApp retries
         if (messageId != null && _idempotencyCache.isDuplicate(messageId)) {
-          Log.info('webhook', 'Duplicate message detected: $messageId - skipping');
+          Log.info(
+              'webhook', 'Duplicate message detected: $messageId - skipping');
           return Response(body: 'EVENT_RECEIVED');
         }
         if (messageId != null) {
@@ -262,7 +264,8 @@ Future<void> _processMessage(Map<String, dynamic> message) async {
     if (type == 'text') {
       text = message['text']['body'] as String;
     } else if (type == 'image') {
-      text = (message['image']?['caption'] ?? message['caption'] ?? '') as String;
+      text =
+          (message['image']?['caption'] ?? message['caption'] ?? '') as String;
     } else if (type == 'interactive') {
       final interactive = message['interactive'] as Map<String, dynamic>;
       if (interactive['type'] == 'button_reply') {
@@ -360,8 +363,10 @@ Future<void> generateAndSendSubscriptionReceipt(
       pdfBytes,
       fileName,
     );
-    Log.info('webhook', 'Subscription Receipt sent successfully to $phoneNumber');
+    Log.info(
+        'webhook', 'Subscription Receipt sent successfully to $phoneNumber');
   } catch (e) {
-    Log.error('webhook', 'Error generating subscription receipt for $phoneNumber: $e');
+    Log.error('webhook',
+        'Error generating subscription receipt for $phoneNumber: $e');
   }
 }

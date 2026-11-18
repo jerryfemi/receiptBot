@@ -1,9 +1,8 @@
-import 'package:receipt_bot/config/app_config.dart';
 import 'package:dart_frog/dart_frog.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 
-final String _projectId =
-    AppConfig.instance.googleProjectId;
+final String _projectId = AppConfig.instance.googleProjectId;
 
 // Initialize the FirestoreService once
 final _firestoreService = FirestoreService(projectId: _projectId);

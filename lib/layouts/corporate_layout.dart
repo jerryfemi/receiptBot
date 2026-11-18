@@ -1,8 +1,8 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 List<pw.Widget> corporateInvoice(
     pw.Context context,
@@ -27,8 +27,8 @@ List<pw.Widget> corporateInvoice(
   final styleTitle =
       pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
 
-  final headerBgColor = primary.toHex() == PdfColors.black.toHex() 
-      ? PdfColors.white 
+  final headerBgColor = primary.toHex() == PdfColors.black.toHex()
+      ? PdfColors.white
       : PdfColor(
           primary.red * 0.05 + 0.95,
           primary.green * 0.05 + 0.95,
@@ -84,9 +84,7 @@ List<pw.Widget> corporateInvoice(
             pw.Text("BILL TO:",
                 style: serifFont != null
                     ? pw.TextStyle(font: serifFont, color: primary)
-                    : styleLabel.copyWith(
-                        fontSize: 12, color: primary
-                      )),
+                    : styleLabel.copyWith(fontSize: 12, color: primary)),
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
                 style: serifFont != null
@@ -212,8 +210,7 @@ List<pw.Widget> corporateInvoice(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
                               formatCurrency(
-                                  transaction.subTotal,
-                                  currencySymbol),
+                                  transaction.subTotal, currencySymbol),
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),
@@ -228,7 +225,8 @@ List<pw.Widget> corporateInvoice(
                             padding: const pw.EdgeInsets.all(6),
                             child: pw.Text(
                                 "-${formatCurrency(transaction.discount!, currencySymbol)}",
-                                style: styleBody.copyWith(color: PdfColors.red700),
+                                style:
+                                    styleBody.copyWith(color: PdfColors.red700),
                                 textAlign: pw.TextAlign.right)),
                       ]),
                 if (transaction.tax != null && transaction.tax! > 0)
@@ -289,7 +287,8 @@ List<pw.Widget> corporateInvoice(
       pw.SizedBox(height: 20),
       pw.Text("TERMS & CONDITIONS:", style: styleLabel),
       pw.SizedBox(height: 5),
-      pw.Text(transaction.terms!, style: styleBody.copyWith(fontSize: 8, color: PdfColors.grey700)),
+      pw.Text(transaction.terms!,
+          style: styleBody.copyWith(fontSize: 8, color: PdfColors.grey700)),
     ],
   ];
 }
@@ -314,8 +313,8 @@ List<pw.Widget> corporateReceipt(
   final styleTitle =
       pw.TextStyle(font: boldFont, fontSize: 32, color: PdfColors.black);
 
-  final headerBgColor = primary.toHex() == PdfColors.black.toHex() 
-      ? PdfColors.white 
+  final headerBgColor = primary.toHex() == PdfColors.black.toHex()
+      ? PdfColors.white
       : PdfColor(
           primary.red * 0.05 + 0.95,
           primary.green * 0.05 + 0.95,
@@ -390,7 +389,8 @@ List<pw.Widget> corporateReceipt(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text("BILLED TO:", style: styleLabel.copyWith(fontSize: 12, color: primary)),
+            pw.Text("BILLED TO:",
+                style: styleLabel.copyWith(fontSize: 12, color: primary)),
             pw.SizedBox(height: 4),
             pw.Text(transaction.customerName,
                 style: serifFont != null
@@ -515,8 +515,7 @@ List<pw.Widget> corporateReceipt(
                           padding: const pw.EdgeInsets.all(6),
                           child: pw.Text(
                               formatCurrency(
-                                  transaction.subTotal,
-                                  currencySymbol),
+                                  transaction.subTotal, currencySymbol),
                               style: styleBody,
                               textAlign: pw.TextAlign.right)),
                     ]),

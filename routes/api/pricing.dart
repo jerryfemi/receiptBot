@@ -1,7 +1,7 @@
-import 'package:receipt_bot/utils/log.dart';
 import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 // In-memory cache variables
 int? _cachedPremiumCount;

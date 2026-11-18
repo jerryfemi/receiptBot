@@ -1,6 +1,7 @@
 import 'dart:io';
-import 'package:receipt_bot/services/pdf_service.dart';
+
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/services/pdf_service.dart';
 
 void main() async {
   final pdfService = PdfService();
@@ -19,17 +20,17 @@ void main() async {
     ReceiptItem(
       description: 'Gear (2 Cameras & Accessories)',
       quantity: 1,
-      amount: 415000.0,
+      amount: 415000,
     ),
     ReceiptItem(
       description: 'Production: Videographers',
       quantity: 2,
-      amount: 450000.0,
+      amount: 450000,
     ),
     ReceiptItem(
       description: 'Post-Production',
       quantity: 1,
-      amount: 800000.0,
+      amount: 800000,
     ),
   ];
 
@@ -38,17 +39,17 @@ void main() async {
     date: DateTime.now(),
     customerName: 'Valued Customer',
     items: items,
-    totalAmount: 2115000.0,
+    totalAmount: 2115000,
     amountInWords: 'Two Million One Hundred and Fifteen Thousand Naira Only',
     notes: 'Deliverables: One cinematic recap',
   );
 
-  final layoutIndex = 3; // Corporate layout
-  final themeIndex = 5; // Deep Burgundy
-  
+  const layoutIndex = 3; // Corporate layout
+  const themeIndex = 5; // Deep Burgundy
+
   try {
     print('Generating Corporate Invoice for theme: Deep Burgundy...');
-    
+
     final invBytes = await pdfService.generateReceipt(
       profile,
       invoice,

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:receipt_bot/utils/log.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 part 'models.g.dart';
 

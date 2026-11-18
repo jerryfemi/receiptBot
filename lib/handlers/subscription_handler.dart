@@ -1,5 +1,3 @@
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/flutterwave_service.dart';
@@ -7,6 +5,8 @@ import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/pdf_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/utils/log.dart';
 
 /// Handles subscription, premium upgrades, and payment verification.
 class SubscriptionHandler {
@@ -546,7 +546,8 @@ class SubscriptionHandler {
     String currencyCode,
   ) async {
     try {
-      Log.info('subscription', 'Generating Subscription Receipt for $phoneNumber...');
+      Log.info('subscription',
+          'Generating Subscription Receipt for $phoneNumber...');
 
       // Create a synthetic Transaction
       final subscriptionItem = ReceiptItem(
@@ -590,9 +591,11 @@ class SubscriptionHandler {
       final fileName =
           'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
       await whatsappService.sendDocumentBytes(phoneNumber, pdfBytes, fileName);
-      Log.info('subscription', 'Subscription Receipt sent successfully to $phoneNumber');
+      Log.info('subscription',
+          'Subscription Receipt sent successfully to $phoneNumber');
     } catch (e) {
-      Log.error('subscription', 'Error generating subscription receipt for $phoneNumber: $e');
+      Log.error('subscription',
+          'Error generating subscription receipt for $phoneNumber: $e');
     }
   }
 

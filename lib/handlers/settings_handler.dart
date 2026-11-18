@@ -1,20 +1,19 @@
 import 'dart:io';
 
-import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
-import 'package:receipt_bot/utils/logo_codec.dart';
 import 'package:receipt_bot/utils/constants.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/utils/logo_codec.dart';
 
 /// URLs for layout preview images, served from the bot's own `public/layouts`
 /// folder. Set PUBLIC_BASE_URL to the server's address (e.g. the Render URL).
 abstract class LayoutUrls {
-  static final String _base =
-      AppConfig.instance.publicBaseUrl;
+  static final String _base = AppConfig.instance.publicBaseUrl;
   static String get corporate => '$_base/layouts/standard.png';
   static String get signature => '$_base/layouts/signature.png';
   static String get simple => '$_base/layouts/simple.png';
@@ -428,17 +427,29 @@ class SettingsHandler {
   /// Returns the selected theme index, or null if invalid selection.
   int? parseThemeSelection(String text) {
     final lower = text.toLowerCase().trim();
-    if (lower == ButtonIds.themeOceanBlue || lower == '1' || lower == 'ocean blue') {
+    if (lower == ButtonIds.themeOceanBlue ||
+        lower == '1' ||
+        lower == 'ocean blue') {
       return 0;
-    } else if (lower == ButtonIds.themeSandBeige || lower == '2' || lower == 'sand beige') {
+    } else if (lower == ButtonIds.themeSandBeige ||
+        lower == '2' ||
+        lower == 'sand beige') {
       return 1;
-    } else if (lower == ButtonIds.themeMidnightNavy || lower == '3' || lower == 'midnight navy') {
+    } else if (lower == ButtonIds.themeMidnightNavy ||
+        lower == '3' ||
+        lower == 'midnight navy') {
       return 2;
-    } else if (lower == ButtonIds.themeSageGreen || lower == '4' || lower == 'sage green') {
+    } else if (lower == ButtonIds.themeSageGreen ||
+        lower == '4' ||
+        lower == 'sage green') {
       return 3;
-    } else if (lower == ButtonIds.themeCharcoalOnyx || lower == '5' || lower == 'charcoal onyx') {
+    } else if (lower == ButtonIds.themeCharcoalOnyx ||
+        lower == '5' ||
+        lower == 'charcoal onyx') {
       return 4;
-    } else if (lower == ButtonIds.themeDeepBurgundy || lower == '6' || lower == 'deep burgundy') {
+    } else if (lower == ButtonIds.themeDeepBurgundy ||
+        lower == '6' ||
+        lower == 'deep burgundy') {
       return 5;
     }
     return null;
@@ -473,10 +484,26 @@ class SettingsHandler {
         'View Layouts',
         'Layouts',
         [
-          {'id': ButtonIds.layoutCorporate, 'title': 'Corporate', 'description': 'Premium & high-impact (recommended)'},
-          {'id': ButtonIds.layoutSignature, 'title': 'Signature', 'description': 'Elegant script font'},
-          {'id': ButtonIds.layoutSimple, 'title': 'Simple', 'description': 'Strict grid structure'},
-          {'id': ButtonIds.layoutLegacy, 'title': 'Legacy', 'description': 'Default plain layout'},
+          {
+            'id': ButtonIds.layoutCorporate,
+            'title': 'Corporate',
+            'description': 'Premium & high-impact (recommended)'
+          },
+          {
+            'id': ButtonIds.layoutSignature,
+            'title': 'Signature',
+            'description': 'Elegant script font'
+          },
+          {
+            'id': ButtonIds.layoutSimple,
+            'title': 'Simple',
+            'description': 'Strict grid structure'
+          },
+          {
+            'id': ButtonIds.layoutLegacy,
+            'title': 'Legacy',
+            'description': 'Default plain layout'
+          },
         ],
       );
       return;

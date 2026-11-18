@@ -1,8 +1,8 @@
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/country_utils.dart';
 
 List<pw.Widget> signatureReceipt(
     pw.Context context,
@@ -163,13 +163,9 @@ List<pw.Widget> signatureReceipt(
             decoration: pw.BoxDecoration(
               border: pw.Border(
                 top: pw.BorderSide(
-                    color: primary,
-                    width: 1.5,
-                    style: pw.BorderStyle.solid),
+                    color: primary, width: 1.5, style: pw.BorderStyle.solid),
                 bottom: pw.BorderSide(
-                    color: primary,
-                    width: 1.5,
-                    style: pw.BorderStyle.solid),
+                    color: primary, width: 1.5, style: pw.BorderStyle.solid),
               ),
             ),
             children: [
@@ -242,9 +238,7 @@ List<pw.Widget> signatureReceipt(
               pw.Padding(
                   padding: const pw.EdgeInsets.only(right: 8),
                   child: pw.Text(
-                      formatCurrency(
-                          transaction.subTotal,
-                          currencySymbol),
+                      formatCurrency(transaction.subTotal, currencySymbol),
                       style: styleBody.copyWith(
                           fontWeight: pw.FontWeight.bold,
                           color: PdfColors.black))),
@@ -261,7 +255,8 @@ List<pw.Widget> signatureReceipt(
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
                 pw.Text("Discount", style: styleLabel),
                 pw.SizedBox(width: 30),
-                pw.Text("-${formatCurrency(transaction.discount!, currencySymbol)}",
+                pw.Text(
+                    "-${formatCurrency(transaction.discount!, currencySymbol)}",
                     style: styleBody),
               ]),
               pw.SizedBox(height: 5),
@@ -277,8 +272,7 @@ List<pw.Widget> signatureReceipt(
             ],
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
               pw.Text("TOTAL",
-                  style: styleLabel.copyWith(
-                      color: primary, fontSize: 14)),
+                  style: styleLabel.copyWith(color: primary, fontSize: 14)),
               pw.SizedBox(width: 30),
               pw.Text(
                   formatCurrency(transaction.transactionTotal, currencySymbol),
@@ -348,8 +342,7 @@ List<pw.Widget> signatureInvoice(
           child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-            pw.Text("INVOICE",
-                style: titleStyle.copyWith(color: primary)),
+            pw.Text("INVOICE", style: titleStyle.copyWith(color: primary)),
             pw.SizedBox(height: 20),
             pw.Text("BILL TO:", style: styleLabel.copyWith(color: primary)),
             pw.SizedBox(height: 5),
@@ -455,13 +448,9 @@ List<pw.Widget> signatureInvoice(
               decoration: pw.BoxDecoration(
                 border: pw.Border(
                   top: pw.BorderSide(
-                      color: primary,
-                      width: 1.5,
-                      style: pw.BorderStyle.solid),
+                      color: primary, width: 1.5, style: pw.BorderStyle.solid),
                   bottom: pw.BorderSide(
-                      color: primary,
-                      width: 1.5,
-                      style: pw.BorderStyle.solid),
+                      color: primary, width: 1.5, style: pw.BorderStyle.solid),
                 ),
               ),
               children: [
@@ -472,13 +461,11 @@ List<pw.Widget> signatureInvoice(
                 pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(vertical: 8),
                     child: _tableHeader('PRICE',
-                        alignment: pw.TextAlign.center,
-                        color: primary)),
+                        alignment: pw.TextAlign.center, color: primary)),
                 pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(vertical: 8),
                     child: _tableHeader('QTY',
-                        alignment: pw.TextAlign.center,
-                        color: primary)),
+                        alignment: pw.TextAlign.center, color: primary)),
                 pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(vertical: 8),
                     child: _tableHeader('TOTAL',
@@ -531,9 +518,7 @@ List<pw.Widget> signatureInvoice(
               pw.Padding(
                   padding: const pw.EdgeInsets.only(right: 8),
                   child: pw.Text(
-                      formatCurrency(
-                          transaction.subTotal,
-                          currencySymbol),
+                      formatCurrency(transaction.subTotal, currencySymbol),
                       style: styleBody.copyWith(
                           fontWeight: pw.FontWeight.bold,
                           color: PdfColors.black))),

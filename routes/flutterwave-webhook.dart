@@ -1,16 +1,16 @@
 import 'dart:convert';
 
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
 import 'package:dart_frog/dart_frog.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/flutterwave_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
+import 'package:receipt_bot/utils/log.dart';
+
 import 'webhook.dart' as webhook_handler;
 
-final String _projectId =
-    AppConfig.instance.googleProjectId;
+final String _projectId = AppConfig.instance.googleProjectId;
 final String _flutterwaveWebhookSecretHash =
     AppConfig.instance.flutterwaveWebhookHash;
 
@@ -48,7 +48,8 @@ Future<Response> onRequest(RequestContext context) async {
       payload['event']?.toString() ?? payload['event.type']?.toString() ?? '';
   final data = (payload['data'] as Map<String, dynamic>?) ?? payload;
 
-  Log.info('flutterwave-webhook', 'Flutterwave Webhook Event/Status: $event / ${data['status']}');
+  Log.info('flutterwave-webhook',
+      'Flutterwave Webhook Event/Status: $event / ${data['status']}');
 
   final status = data['status']?.toString().toLowerCase() ?? '';
   final isCompleted = event == 'charge.completed' || status == 'successful';
@@ -63,10 +64,12 @@ Future<Response> onRequest(RequestContext context) async {
     final payloadTxRef =
         (data['tx_ref'] ?? data['txRef'])?.toString().trim() ?? '';
 
-    Log.info('flutterwave-webhook', 'Parsed Transaction ID: $transactionId, txRef: $payloadTxRef');
+    Log.info('flutterwave-webhook',
+        'Parsed Transaction ID: $transactionId, txRef: $payloadTxRef');
 
     if (transactionId == null) {
-      Log.warn('flutterwave-webhook', 'Flutterwave transaction ID is null. Skipping.');
+      Log.warn('flutterwave-webhook',
+          'Flutterwave transaction ID is null. Skipping.');
       return Response(statusCode: 200);
     }
 
@@ -110,12 +113,14 @@ Future<Response> onRequest(RequestContext context) async {
       }
 
       if (await _firestoreService.isWebhookProcessed(txRef)) {
-        Log.info('flutterwave-webhook', 'Webhook already processed for tx_ref: $txRef. Skipping.');
+        Log.info('flutterwave-webhook',
+            'Webhook already processed for tx_ref: $txRef. Skipping.');
         return Response(statusCode: 200);
       }
 
       if (paymentStatus.toLowerCase() != 'successful') {
-        Log.warn('flutterwave-webhook', 'Flutterwave transaction not successful for tx_ref: $txRef');
+        Log.warn('flutterwave-webhook',
+            'Flutterwave transaction not successful for tx_ref: $txRef');
         return Response(statusCode: 200);
       }
 
@@ -123,13 +128,15 @@ Future<Response> onRequest(RequestContext context) async {
           await _firestoreService.findUserByPaymentReference(txRef);
 
       if (phoneNumber == null) {
-        Log.warn('flutterwave-webhook', 'No user found for Flutterwave tx_ref: $txRef');
+        Log.warn('flutterwave-webhook',
+            'No user found for Flutterwave tx_ref: $txRef');
         return Response(statusCode: 200);
       }
 
       final profile = await _firestoreService.getProfile(phoneNumber);
       if (profile == null) {
-        Log.warn('flutterwave-webhook', 'Profile not found for Flutterwave tx_ref: $txRef');
+        Log.warn('flutterwave-webhook',
+            'Profile not found for Flutterwave tx_ref: $txRef');
         return Response(statusCode: 200);
       }
 
@@ -200,7 +207,8 @@ Future<Response> onRequest(RequestContext context) async {
         paymentCurrency.isEmpty ? expectedCurrency : paymentCurrency,
       );
     } catch (e, stackTrace) {
-      Log.error('flutterwave-webhook', 'Flutterwave verify error: $e\n$stackTrace');
+      Log.error(
+          'flutterwave-webhook', 'Flutterwave verify error: $e\n$stackTrace');
     }
   }
 

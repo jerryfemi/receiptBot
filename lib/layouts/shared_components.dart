@@ -52,7 +52,7 @@ class SharedComponents {
         ? uniqueIdString.substring(uniqueIdString.length - 5)
         : uniqueIdString.padLeft(5, '0');
 
-    pw.Widget _buildRow(String label, String value) {
+    pw.Widget buildRow(String label, String value) {
       return pw.Row(
         mainAxisAlignment:
             rightAlign ? pw.MainAxisAlignment.end : pw.MainAxisAlignment.start,
@@ -68,13 +68,13 @@ class SharedComponents {
       crossAxisAlignment:
           rightAlign ? pw.CrossAxisAlignment.end : pw.CrossAxisAlignment.start,
       children: [
-        _buildRow(titleLabel, "$prefix$uniqueId"),
+        buildRow(titleLabel, "$prefix$uniqueId"),
         pw.SizedBox(height: AppSpacing.xs),
-        _buildRow(
+        buildRow(
             dateLabel, DateFormat('MMM dd, yyyy').format(transaction.date)),
         if (transaction.dueDate != null) ...[
           pw.SizedBox(height: AppSpacing.xs),
-          _buildRow(dueDateLabel,
+          buildRow(dueDateLabel,
               DateFormat('MMM dd, yyyy').format(transaction.dueDate!)),
         ],
       ],
@@ -87,8 +87,9 @@ class SharedComponents {
       required pw.TextStyle style,
       pw.EdgeInsets? padding}) {
     return pw.Padding(
-      padding: padding ?? const pw.EdgeInsets.symmetric(
-          vertical: AppSpacing.sm, horizontal: AppSpacing.sm),
+      padding: padding ??
+          const pw.EdgeInsets.symmetric(
+              vertical: AppSpacing.sm, horizontal: AppSpacing.sm),
       child: pw.Text(text, textAlign: alignment, style: style),
     );
   }
@@ -122,28 +123,43 @@ class SharedComponents {
           decoration: headerDecoration,
           children: [
             _tableCell("ITEM DESCRIPTION",
-                alignment: pw.TextAlign.left, style: headerStyle, padding: headerPadding),
+                alignment: pw.TextAlign.left,
+                style: headerStyle,
+                padding: headerPadding),
             _tableCell("PRICE",
-                alignment: pw.TextAlign.center, style: headerStyle, padding: headerPadding),
+                alignment: pw.TextAlign.center,
+                style: headerStyle,
+                padding: headerPadding),
             _tableCell("QTY",
-                alignment: pw.TextAlign.center, style: headerStyle, padding: headerPadding),
+                alignment: pw.TextAlign.center,
+                style: headerStyle,
+                padding: headerPadding),
             _tableCell("TOTAL",
-                alignment: pw.TextAlign.right, style: headerStyle, padding: headerPadding),
+                alignment: pw.TextAlign.right,
+                style: headerStyle,
+                padding: headerPadding),
           ],
         ),
         ...transaction.items.map((item) {
           return pw.TableRow(
             children: [
               _tableCell(item.description,
-                  alignment: pw.TextAlign.left, style: bodyStyle, padding: cellPadding),
+                  alignment: pw.TextAlign.left,
+                  style: bodyStyle,
+                  padding: cellPadding),
               _tableCell(formatCurrency(item.amount, currencySymbol),
-                  alignment: pw.TextAlign.center, style: bodyStyle, padding: cellPadding),
+                  alignment: pw.TextAlign.center,
+                  style: bodyStyle,
+                  padding: cellPadding),
               _tableCell(item.quantity.toString(),
-                  alignment: pw.TextAlign.center, style: bodyStyle, padding: cellPadding),
+                  alignment: pw.TextAlign.center,
+                  style: bodyStyle,
+                  padding: cellPadding),
               _tableCell(
                   formatCurrency(item.amount * item.quantity, currencySymbol),
                   alignment: pw.TextAlign.right,
-                  style: bodyStyle, padding: cellPadding),
+                  style: bodyStyle,
+                  padding: cellPadding),
             ],
           );
         }),
@@ -161,7 +177,7 @@ class SharedComponents {
     required pw.TextStyle grandTotalValueStyle,
     pw.TableBorder? tableBorder,
   }) {
-    pw.TableRow _row(String label, String value, {bool isGrandTotal = false}) {
+    pw.TableRow row(String label, String value, {bool isGrandTotal = false}) {
       return pw.TableRow(
         children: [
           pw.Padding(
@@ -190,14 +206,14 @@ class SharedComponents {
           1: const pw.FlexColumnWidth(1),
         },
         children: [
-          _row("Sub Total",
+          row("Sub Total",
               formatCurrency(transaction.subTotal, currencySymbol)),
           if (transaction.discount != null && transaction.discount! > 0)
-            _row("Discount",
+            row("Discount",
                 "-${formatCurrency(transaction.discount!, currencySymbol)}"),
           if (transaction.tax != null && transaction.tax! > 0)
-            _row("Tax", formatCurrency(transaction.tax!, currencySymbol)),
-          _row("Total Amount",
+            row("Tax", formatCurrency(transaction.tax!, currencySymbol)),
+          row("Total Amount",
               formatCurrency(transaction.transactionTotal, currencySymbol),
               isGrandTotal: true),
         ],

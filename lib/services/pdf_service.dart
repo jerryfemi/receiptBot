@@ -1,17 +1,16 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:receipt_bot/utils/log.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:receipt_bot/utils/logo_codec.dart';
 import 'package:receipt_bot/layouts/corporate_layout.dart';
 import 'package:receipt_bot/layouts/default_layout.dart';
 import 'package:receipt_bot/layouts/signature_layout.dart';
 import 'package:receipt_bot/layouts/simple_layout.dart';
-
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/utils/log.dart';
+import 'package:receipt_bot/utils/logo_codec.dart';
 
 /// Simple LRU cache with max size eviction
 class _LruCache<K, V> {
@@ -154,7 +153,8 @@ class PdfService {
         break;
       case 1: // Sand Beige
         bg = PdfColor.fromHex('#F8F5F0'); // Warmer beige background
-        primary = PdfColor.fromHex('#8B5A2B'); // Muted brown/bronze for text accents
+        primary =
+            PdfColor.fromHex('#8B5A2B'); // Muted brown/bronze for text accents
         break;
       case 2: // Midnight Navy
         bg = PdfColor.fromHex('#F3F7FA'); // Slate blue tint BG

@@ -1,18 +1,17 @@
 import 'dart:convert';
 
-import 'package:receipt_bot/utils/log.dart';
-import 'package:receipt_bot/config/app_config.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dart_frog/dart_frog.dart';
+import 'package:receipt_bot/config/app_config.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
 import 'package:receipt_bot/services/whatsapp_service.dart';
+import 'package:receipt_bot/utils/log.dart';
+
 import 'webhook.dart' as webhook_handler;
 
-final String _projectId =
-    AppConfig.instance.googleProjectId;
-final String _paystackSecretKey =
-    AppConfig.instance.paystackSecretKey;
+final String _projectId = AppConfig.instance.googleProjectId;
+final String _paystackSecretKey = AppConfig.instance.paystackSecretKey;
 
 final _firestoreService = FirestoreService(projectId: _projectId);
 final _paystackService = PaystackService();
@@ -59,11 +58,13 @@ Future<Response> onRequest(RequestContext context) async {
 
       // Idempotency check - prevent double processing on webhook retries
       if (await _firestoreService.isWebhookProcessed(reference)) {
-        Log.info('paystack-webhook', 'Webhook already processed for reference: $reference. Skipping.');
+        Log.info('paystack-webhook',
+            'Webhook already processed for reference: $reference. Skipping.');
         return Response(statusCode: 200);
       }
 
-      Log.info('paystack-webhook', 'Ping received for reference: $reference. Verifying...');
+      Log.info('paystack-webhook',
+          'Ping received for reference: $reference. Verifying...');
       final verifyData = await _paystackService.verifyTransaction(reference);
 
       final status = verifyData['status'];
@@ -72,7 +73,8 @@ Future<Response> onRequest(RequestContext context) async {
 
       // We expect either 350,000 NGN kobo (3,500 NGN Monthly) or 3,500,000 NGN kobo (35,000 NGN Yearly)
       if (status == 'success' && amountInKobo >= 350000) {
-        Log.info('paystack-webhook', 'Payment Verified for $email. Upgrading profile...');
+        Log.info('paystack-webhook',
+            'Payment Verified for $email. Upgrading profile...');
 
         // Find user by pending reference
         final phoneNumber =
@@ -82,7 +84,8 @@ Future<Response> onRequest(RequestContext context) async {
           // Fetch the user's current profile to do the "fair extension" math
           final profile = await _firestoreService.getProfile(phoneNumber);
           if (profile == null) {
-            Log.warn('paystack-webhook', 'Profile not found for phone: $phoneNumber');
+            Log.warn('paystack-webhook',
+                'Profile not found for phone: $phoneNumber');
             return Response(statusCode: 200);
           }
           final bool isCurrentlyPremium = profile.isPremium;
@@ -129,7 +132,8 @@ Future<Response> onRequest(RequestContext context) async {
             profile.currencyCode,
           );
         } else {
-          Log.error('paystack-webhook', 'User not found for reference: $reference');
+          Log.error(
+              'paystack-webhook', 'User not found for reference: $reference');
         }
       } else if (status == 'success') {
         Log.warn(
