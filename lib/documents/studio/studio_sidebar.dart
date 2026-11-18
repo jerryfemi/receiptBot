@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,11 +11,10 @@ const double studioSidebarWidth = 228;
 /// The full-height sidebar: who the business is, how to pay (invoices),
 /// and the total in big type at the bottom. Drawn on every page.
 pw.Widget studioSidebar(DocumentData data, StudioStyle s) {
-  // Receipts sit on near-black; invoices on the accent colour.
-  final fill = data.isInvoice ? s.accent : StudioStyle.ink;
-  final tileFill = data.isInvoice ? StudioStyle.ink : s.accent;
-  final soft = data.isInvoice ? PdfColor.fromHex('#D3D6FA') : StudioStyle.sideMuted;
-  final softer = data.isInvoice ? PdfColor.fromHex('#EEF0FF') : StudioStyle.sideSoft;
+  // The sidebar is the accent colour: blue on receipts, green on invoices.
+  final fill = s.accent;
+  final soft = _towardWhite(s.accent, 0.78);
+  final softer = _towardWhite(s.accent, 0.9);
 
   return pw.Container(
     width: studioSidebarWidth,
@@ -22,7 +23,7 @@ pw.Widget studioSidebar(DocumentData data, StudioStyle s) {
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _logoTile(data, s, tileFill),
+        _logo(data, s),
         pw.SizedBox(height: 18),
         pw.Text(
           data.name,
@@ -66,17 +67,23 @@ List<String> _addressLines(DocumentData data) => [
       if (data.businessPhone?.trim().isNotEmpty ?? false) data.businessPhone!.trim(),
     ];
 
-pw.Widget _logoTile(DocumentData data, StudioStyle s, PdfColor fill) {
+/// A colour mixed [amount] of the way toward white, for soft text on the
+/// sidebar whatever the accent is.
+PdfColor _towardWhite(PdfColor c, double amount) => PdfColor(
+      c.red + (1 - c.red) * amount,
+      c.green + (1 - c.green) * amount,
+      c.blue + (1 - c.blue) * amount,
+    );
+
+/// The logo as it is, with no box behind it. Without a logo, the first
+/// letter of the business name on a dark tile.
+pw.Widget _logo(DocumentData data, StudioStyle s) {
   if (data.logo != null) {
-    return pw.ClipRRect(
-      horizontalRadius: 10,
-      verticalRadius: 10,
-      child: pw.Container(
-        width: 40,
-        height: 40,
-        color: StudioStyle.white,
-        child: pw.Image(data.logo!, fit: pw.BoxFit.cover),
-      ),
+    return pw.Container(
+      height: 44,
+      constraints: const pw.BoxConstraints(maxWidth: 150),
+      alignment: pw.Alignment.centerLeft,
+      child: pw.Image(data.logo!, fit: pw.BoxFit.contain),
     );
   }
   return pw.Container(
@@ -84,7 +91,7 @@ pw.Widget _logoTile(DocumentData data, StudioStyle s, PdfColor fill) {
     height: 40,
     alignment: pw.Alignment.center,
     decoration: pw.BoxDecoration(
-      color: fill,
+      color: StudioStyle.ink,
       borderRadius: pw.BorderRadius.circular(10),
     ),
     child: pw.Text(data.initial, style: s.headline(20, color: StudioStyle.white, tracking: 0)),
@@ -117,26 +124,65 @@ pw.Widget _payToCard(DocumentData data, StudioStyle s) {
 }
 
 pw.Widget _statusPill(DocumentData data, StudioStyle s) {
-  if (!data.isInvoice) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: pw.BoxDecoration(
-        color: s.accent,
-        borderRadius: pw.BorderRadius.circular(99),
-      ),
-      child: pw.Text('Paid', style: s.text(size: 11, color: StudioStyle.white, semiBold: true)),
-    );
-  }
+  if (!data.isInvoice) return _paidBurst(s);
+
   final due = data.dueDate;
-  return pw.Container(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+  // Radius is half the pill's height; anything bigger draws stray arcs.
+  // The Row keeps the pill as wide as its text, not the whole sidebar.
+  return pw.Row(children: [pw.Container(
+    height: 20,
+    padding: const pw.EdgeInsets.symmetric(horizontal: 10),
+    alignment: pw.Alignment.center,
     decoration: pw.BoxDecoration(
       border: pw.Border.all(color: StudioStyle.white, width: 1.5),
-      borderRadius: pw.BorderRadius.circular(99),
+      borderRadius: pw.BorderRadius.circular(10),
     ),
     child: pw.Text(
       due == null ? 'Due on receipt' : 'Due ${DocumentData.shortDate(due)}',
       style: s.text(size: 11, color: StudioStyle.white, semiBold: true),
+    ),
+  )]);
+}
+
+/// A white starburst seal with PAID in the accent colour.
+pw.Widget _paidBurst(StudioStyle s) {
+  const size = 76.0;
+  const points = 14;
+  return pw.SizedBox(
+    width: size,
+    height: size,
+    child: pw.Stack(
+      alignment: pw.Alignment.center,
+      children: [
+        pw.CustomPaint(
+          size: const PdfPoint(size, size),
+          painter: (canvas, box) {
+            final cx = box.x / 2;
+            final cy = box.y / 2;
+            const outer = size / 2;
+            const inner = size / 2 * 0.74;
+            canvas.setFillColor(StudioStyle.white);
+            for (var i = 0; i < points * 2; i++) {
+              final r = i.isEven ? outer : inner;
+              final a = math.pi / 2 + i * math.pi / points;
+              final x = cx + r * math.cos(a);
+              final y = cy + r * math.sin(a);
+              if (i == 0) {
+                canvas.moveTo(x, y);
+              } else {
+                canvas.lineTo(x, y);
+              }
+            }
+            canvas
+              ..closePath()
+              ..fillPath();
+          },
+        ),
+        pw.Transform.rotate(
+          angle: 12 * math.pi / 180,
+          child: pw.Text('PAID', style: s.headline(17, color: s.accent, tracking: 0.02)),
+        ),
+      ],
     ),
   );
 }
