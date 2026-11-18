@@ -1,3 +1,4 @@
+import 'package:receipt_bot/utils/user_messages.dart';
 import 'package:receipt_bot/handlers/handlers.dart';
 import 'package:receipt_bot/handlers/stats_handler.dart';
 import 'package:receipt_bot/models/models.dart';
@@ -75,7 +76,8 @@ class MessageRouter {
     } catch (e) {
       print('Error in routeMessage: $e');
       // If we fail outside the state machine (e.g. Firestore error)
-      await whatsappService.sendMessage(phoneNumber, 'System Error: $e');
+      await whatsappService.sendMessage(
+          phoneNumber, UserMessages.somethingWentWrong);
     }
   }
 
