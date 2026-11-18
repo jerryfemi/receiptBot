@@ -4,12 +4,11 @@ version: 1.0.0+1
 publish_to: none
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
   crypto: ^3.0.7
   dart_frog: ^1.1.0
-  google_generative_ai: ^0.4.7
   googleapis: ^16.0.0
   googleapis_auth: ^2.0.0
   http: ^1.2.0
