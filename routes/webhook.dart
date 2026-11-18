@@ -257,6 +257,18 @@ Future<Response> onRequest(RequestContext context) async {
 /// Handles one incoming WhatsApp message after Meta has been answered.
 Future<void> _processMessage(Map<String, dynamic> message) async {
   final from = message['from'] as String;
+
+  // Let the user know straight away that the bot got their message.
+  final messageId = message['id'] as String?;
+  if (messageId != null) {
+    unawaited(
+      _services.whatsappService.showTyping(messageId).catchError((Object e) {
+        Log.warn('webhook', 'Could not show typing indicator: $e');
+        return false;
+      }),
+    );
+  }
+
   try {
     final type = message['type'] as String;
 
