@@ -144,8 +144,8 @@ pw.Widget studioTotals(DocumentData data, StudioStyle s) {
 
 /// Notes and terms the business added.
 List<pw.Widget> studioNotes(DocumentData data, StudioStyle s) {
-  final notes = data.transaction.notes?.trim() ?? '';
-  final terms = data.transaction.terms?.trim() ?? '';
+  final notes = data.notes ?? '';
+  final terms = data.terms ?? '';
   pw.Widget block(String label, String body) => pw.Padding(
         padding: const pw.EdgeInsets.only(top: 18),
         child: pw.Column(
@@ -163,10 +163,11 @@ List<pw.Widget> studioNotes(DocumentData data, StudioStyle s) {
   ];
 }
 
-/// The sign-off at the foot of the last page.
+/// The sign-off at the foot of the last page (receipts only).
 pw.Widget studioSignOff(DocumentData data, StudioStyle s) {
+  if (data.isInvoice) return pw.SizedBox();
   return pw.Text(
-    data.isInvoice ? 'Quote ${data.number}\nwhen you pay.' : 'Thanks for\nbuying from us.',
+    'Thanks for\npatronizing us.',
     style: s.headline(17, bold: true, tracking: -0.01, height: 3),
   );
 }
