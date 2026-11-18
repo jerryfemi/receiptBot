@@ -9,6 +9,8 @@ import 'package:receipt_bot/layouts/default_layout.dart';
 import 'package:receipt_bot/layouts/signature_layout.dart';
 import 'package:receipt_bot/layouts/simple_layout.dart';
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/documents/document_data.dart';
+import 'package:receipt_bot/documents/signature/signature_document.dart';
 import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/logo_codec.dart';
 
@@ -176,6 +178,23 @@ class PdfService {
         bg = PdfColors.white;
         primary = PdfColors.black;
         break;
+    }
+
+    // Redesigned layouts build their own A4 pages.
+    if (layoutIndex == 1) {
+      final data = DocumentData(
+        transaction: transaction,
+        currencySymbol: org?.currencySymbol ?? profile.currencySymbol,
+        businessName: usedBusinessName,
+        businessAddress: usedBusinessAddress,
+        businessPhone: usedDisplayPhoneNumber,
+        bankName: usedBankName,
+        accountNumber: usedAccountNumber,
+        accountName: usedAccountName,
+        logo: logoImage,
+      );
+      pdf.addPage(await buildSignaturePage(data, accent: primary));
+      return pdf.save();
     }
 
     pdf.addPage(pw.MultiPage(
