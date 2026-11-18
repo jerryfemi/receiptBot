@@ -3,7 +3,7 @@ import 'package:dart_frog/dart_frog.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 
 final String _projectId =
-    Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
+    Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
 
 // Initialize the FirestoreService once
 final _firestoreService = FirestoreService(projectId: _projectId);

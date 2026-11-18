@@ -9,7 +9,7 @@ import 'package:receipt_bot/utils/constants.dart';
 import 'webhook.dart' as webhook_handler;
 
 final String _projectId =
-    Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
+    Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
 final String _flutterwaveWebhookSecretHash =
     Platform.environment['FLW_WEBHOOK_SECRET_HASH'] ?? '';
 

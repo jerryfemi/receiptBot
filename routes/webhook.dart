@@ -24,7 +24,7 @@ final String _verifyToken = Platform.environment['VERIFY_TOKEN'] ?? '';
 final String _whatsappToken = Platform.environment['WHATSAPP_TOKEN'] ?? '';
 final String _phoneNumberId = Platform.environment['PHONE_NUMBER_ID'] ?? '';
 final String _projectId =
-    Platform.environment['GOOGLE_PROJECT_ID'] ?? 'invoicemaker-b3876';
+    Platform.environment['GOOGLE_PROJECT_ID'] ?? '';
 final String _geminiApiKey = Platform.environment['GEMINI_API_KEY'] ?? '';
 
 /// Thread-safe service holder using Completer pattern.
@@ -308,8 +308,7 @@ Future<void> generateAndSendSubscriptionReceipt(
       businessName: 'ReceiptBot Inc.',
       businessAddress: 'Global Digital Service',
       displayPhoneNumber: '+2348021146844', // Or standard bot support number
-      logoUrl:
-          'https://firebasestorage.googleapis.com/v0/b/invoicemaker-b3876.appspot.com/o/receipts%2Fbot_logo.png?alt=media',
+      logoUrl: null, // TODO: add the bot's own logo to public/logos
       inviteCode: '',
       currencyCode: currencyCode,
       currencySymbol: resolvedCurrencySymbol,
@@ -325,19 +324,12 @@ Future<void> generateAndSendSubscriptionReceipt(
       org: botOrg,
     );
 
-    // 4. Upload to Firebase Storage
+    // 4. Send via WhatsApp (uploaded straight to WhatsApp's media store)
     final fileName =
         'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    final pdfUrl = await _services.firestoreService.uploadFile(
-      'receipts/$phoneNumber/$fileName',
-      pdfBytes,
-      'application/pdf',
-    );
-
-    // 5. Send via WhatsApp
-    await _services.whatsappService.sendDocument(
+    await _services.whatsappService.sendDocumentBytes(
       phoneNumber,
-      pdfUrl,
+      pdfBytes,
       fileName,
     );
     print('Subscription Receipt sent successfully to $phoneNumber');
