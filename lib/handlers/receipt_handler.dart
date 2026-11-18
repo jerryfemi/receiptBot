@@ -253,6 +253,67 @@ class ReceiptHandler {
   }
 
   // ==========================================================
+  // VOICE NOTES
+  // ==========================================================
+
+  /// Turns a voice note describing a sale into a receipt.
+  Future<void> processVoiceReceipt(
+    String from,
+    Map<String, dynamic> messageData,
+    BusinessProfile profile,
+  ) async {
+    if (!(await subscriptionHandler.checkFreemiumLimit(from, profile))) {
+      return;
+    }
+
+    try {
+      final audio = messageData['audio'] as Map<String, dynamic>;
+      final audioId = audio['id'] as String;
+      // WhatsApp sends e.g. "audio/ogg; codecs=opus"; Gemini wants the type.
+      final mimeType =
+          (audio['mime_type'] as String? ?? 'audio/ogg').split(';').first.trim();
+
+      final url = await whatsappService.getMediaUrl(audioId);
+      final audioBytes =
+          Uint8List.fromList(await whatsappService.downloadFileBytes(url));
+
+      final transaction = await geminiService.parseVoiceTransaction(
+        audioBytes,
+        mimeType: mimeType,
+        currencySymbol: profile.currencySymbol,
+        currencyCode: profile.currencyCode,
+      );
+
+      if (transaction.items.isEmpty) {
+        await whatsappService.sendMessage(
+          from,
+          "I listened, but I couldn't hear a sale in that voice note. 🎧\n\n"
+          'Try something like: _"I sold two bags of rice at forty-five '
+          'thousand each to Mrs Ade"_',
+        );
+        return;
+      }
+
+      await deliverOrReview(from, profile, transaction);
+    } catch (e) {
+      Log.error('receipt', 'Voice note error: $e');
+      if (e.toString().contains('GEMINI_BUSY')) {
+        await whatsappService.sendMessage(
+          from,
+          "Google's AI servers are busy right now. 😴 Please send the voice "
+          'note again in a minute.',
+        );
+      } else {
+        await whatsappService.sendMessage(
+          from,
+          "Sorry, I couldn't understand that voice note. 🙏 Please try again "
+          'somewhere quieter, or type the sale instead.',
+        );
+      }
+    }
+  }
+
+  // ==========================================================
   // THEME SELECTION FOR DOCUMENT
   // ==========================================================
 
