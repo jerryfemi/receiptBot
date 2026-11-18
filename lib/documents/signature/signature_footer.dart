@@ -139,16 +139,7 @@ List<pw.Widget> signatureNotes(DocumentData data, SignatureStyle s) {
   ];
 }
 
-/// "with gratitude" and the Remi credit, on the last page only.
+/// "with gratitude", on the last page only.
 pw.Widget signatureSignOff(SignatureStyle s) {
-  return pw.Column(
-    children: [
-      pw.Text('with gratitude', style: s.scriptText(28)),
-      pw.SizedBox(height: 4),
-      pw.Text(
-        'MADE WITH REMI',
-        style: s.label(size: 8.5, color: SignatureStyle.faint),
-      ),
-    ],
-  );
+  return pw.Text('with gratitude', style: s.scriptText(28));
 }
