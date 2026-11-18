@@ -24,6 +24,18 @@ class WhatsAppService {
         phoneNumberId = phoneNumberId ?? AppConfig.instance.phoneNumberId;
 
   /// Sends a text message with retry logic.
+  /// Marks [messageId] as read (blue ticks) and shows "typing..." in the
+  /// user's chat until the bot replies, or for up to 25 seconds.
+  Future<bool> showTyping(String messageId) {
+    final body = jsonEncode({
+      'messaging_product': 'whatsapp',
+      'status': 'read',
+      'message_id': messageId,
+      'typing_indicator': {'type': 'text'},
+    });
+    return _sendRequest('/messages', body);
+  }
+
   Future<bool> sendMessage(String to, String message) async {
     final body = jsonEncode({
       'messaging_product': 'whatsapp',
