@@ -1,3 +1,4 @@
+import 'package:receipt_bot/utils/log.dart';
 import 'package:receipt_bot/utils/country_utils.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
@@ -302,7 +303,7 @@ class SubscriptionHandler {
         ],
       );
     } catch (e) {
-      print("Payment initialization error: $e");
+      Log.error('subscription', "Payment initialization error: $e");
       await whatsappService.sendMessage(from,
           "Sorry, there was an issue generating your payment link. Please try again later.");
       await firestoreService.updateAction(from, UserAction.idle);
@@ -412,7 +413,7 @@ class SubscriptionHandler {
         );
       }
     } catch (e) {
-      print("Manual verify error: $e");
+      Log.error('subscription', "Manual verify error: $e");
       await whatsappService.sendMessage(
         from,
         "Sorry, I couldn't verify your payment right now. Please try again later.",
@@ -545,7 +546,7 @@ class SubscriptionHandler {
     String currencyCode,
   ) async {
     try {
-      print('Generating Subscription Receipt for $phoneNumber...');
+      Log.info('subscription', 'Generating Subscription Receipt for $phoneNumber...');
 
       // Create a synthetic Transaction
       final subscriptionItem = ReceiptItem(
@@ -589,9 +590,9 @@ class SubscriptionHandler {
       final fileName =
           'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
       await whatsappService.sendDocumentBytes(phoneNumber, pdfBytes, fileName);
-      print('Subscription Receipt sent successfully to $phoneNumber');
+      Log.info('subscription', 'Subscription Receipt sent successfully to $phoneNumber');
     } catch (e) {
-      print('Error generating subscription receipt for $phoneNumber: $e');
+      Log.error('subscription', 'Error generating subscription receipt for $phoneNumber: $e');
     }
   }
 
