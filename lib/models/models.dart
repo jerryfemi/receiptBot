@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:receipt_bot/utils/log.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'models.g.dart';
@@ -173,7 +174,7 @@ Transaction? _transactionFromJson(dynamic json) {
     try {
       return Transaction.fromJson(jsonDecode(json) as Map<String, dynamic>);
     } catch (e) {
-      print('Error parsing pendingTransaction string: $e');
+      Log.error('models', 'Error parsing pendingTransaction string: $e');
       return null;
     }
   }
