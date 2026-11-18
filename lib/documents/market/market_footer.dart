@@ -19,8 +19,8 @@ pw.Widget marketAmountInWords(DocumentData data, MarketStyle s) {
 
 /// Notes and terms the business added, in small print.
 List<pw.Widget> marketNotes(DocumentData data, MarketStyle s) {
-  final notes = data.transaction.notes?.trim() ?? '';
-  final terms = data.transaction.terms?.trim() ?? '';
+  final notes = data.notes ?? '';
+  final terms = data.terms ?? '';
   pw.Widget block(String label, String body) => pw.Padding(
         padding: const pw.EdgeInsets.only(top: 12),
         child: pw.Column(
