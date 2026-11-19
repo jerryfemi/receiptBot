@@ -3,6 +3,9 @@ import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/utils/constants.dart';
 import 'package:receipt_bot/utils/log.dart';
 
+/// Prices are public, so any website (the landing page) may read them.
+const _cors = {'Access-Control-Allow-Origin': '*'};
+
 // In-memory cache variables
 int? _cachedPremiumCount;
 DateTime? _lastFetchTime;
@@ -43,13 +46,18 @@ Future<Response> onRequest(RequestContext context) async {
           : Pricing.annualNgn,
       'monthlyPriceUsd': Pricing.monthlyUsd,
       'annualPriceUsd': Pricing.annualUsd,
+      // Normal prices, so the website can show them crossed out during
+      // early access.
+      'regularMonthlyPriceNgn': Pricing.monthlyNgn,
+      'regularAnnualPriceNgn': Pricing.annualNgn,
     };
 
-    return Response.json(body: responseData);
+    return Response.json(body: responseData, headers: _cors);
   } catch (e) {
     Log.error('pricing', 'Error fetching pricing: $e');
     // FAILSAFE: If the database is unreachable, return standard pricing
     return Response.json(
+      headers: _cors,
       body: {
         'isEarlyAccessActive': false,
         'spotsLeft': 0,
