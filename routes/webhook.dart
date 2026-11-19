@@ -170,6 +170,18 @@ class _IdempotencyCache {
   }
 }
 
+/// Messages older than this are ignored (see the webhook handler).
+const Duration _maxMessageAge = Duration(minutes: 10);
+
+/// How long ago WhatsApp says the message was sent, or null if unknown.
+/// The `timestamp` field is Unix time in seconds, sent as a string.
+Duration? _messageAge(Map<String, dynamic> message) {
+  final seconds = int.tryParse('${message['timestamp'] ?? ''}');
+  if (seconds == null) return null;
+  final sentAt = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+  return DateTime.now().difference(sentAt);
+}
+
 // Global singleton instances
 final _services = _ServiceHolder();
 final _idempotencyCache = _IdempotencyCache();
@@ -237,6 +249,16 @@ Future<Response> onRequest(RequestContext context) async {
         }
         if (messageId != null) {
           _idempotencyCache.markProcessed(messageId);
+        }
+
+        // Meta keeps re-sending messages our server failed to accept (for
+        // up to 7 days). After downtime they all arrive at once, so drop
+        // anything old instead of answering yesterday's messages.
+        final age = _messageAge(message);
+        if (age != null && age > _maxMessageAge) {
+          Log.info('webhook',
+              'Skipping old message $messageId (sent ${age.inMinutes} min ago)');
+          return Response(body: 'EVENT_RECEIVED');
         }
 
         // Answer Meta straight away and do the slow work (AI, PDF) in the
