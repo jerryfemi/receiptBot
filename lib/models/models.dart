@@ -337,11 +337,20 @@ class SalesLedgerStats {
   Map<String, double> customerSpending;
   Map<String, double> dailyTotals;
 
+  /// Sales per team member, keyed by the phone number that made them.
+  /// An empty key holds sales recorded before team tracking existed.
+  Map<String, double> memberRevenue;
+  Map<String, int> memberReceipts;
+
   SalesLedgerStats({
     this.totalRevenue = 0.0,
     this.receiptCount = 0,
     Map<String, double>? customerSpending,
     Map<String, double>? dailyTotals,
+    Map<String, double>? memberRevenue,
+    Map<String, int>? memberReceipts,
   })  : customerSpending = customerSpending ?? {},
-        dailyTotals = dailyTotals ?? {};
+        dailyTotals = dailyTotals ?? {},
+        memberRevenue = memberRevenue ?? {},
+        memberReceipts = memberReceipts ?? {};
 }
