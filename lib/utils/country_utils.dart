@@ -1,9 +1,9 @@
 import 'package:receipt_bot/models/models.dart';
 
 class CountryUtils {
-  static const Set<String> forceInternationalGatewayNumbers = {
-    '2347026964097',
-  };
+  /// Numbers to treat as international when testing the dollar checkout.
+  /// Add one here temporarily; keep it empty in production.
+  static const Set<String> forceInternationalGatewayNumbers = {};
 
   /// Returns a tuple of (currencyCode, currencySymbol) based on the phone number.
   /// Defaults to ('USD', '$') if the country code is not recognized.
