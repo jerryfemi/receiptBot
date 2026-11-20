@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:receipt_bot/handlers/team_sales.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
@@ -293,6 +294,14 @@ Top Customer: $topCustomer ($formatter${formatCurrency(topAmount, '')} $usedCurr
               .add('$k (${formatCurrency(currencyData[k]!.totalRevenue, '')})');
         }
         reportText += '${footnoteParts.join(', ')} this $timeframe._';
+      }
+
+      // Owners of a team also see who sold what.
+      if (profile.role == UserRole.admin && profile.orgId != null) {
+        final lines = await TeamSales(firestoreService).lines(profile, data);
+        if (lines.isNotEmpty) {
+          reportText += '\n👥 *Team*\n${lines.join('\n')}\n';
+        }
       }
 
       // 8. Send image message
