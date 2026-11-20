@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:receipt_bot/models/models.dart';
+import 'package:receipt_bot/services/bachs_service.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/flutterwave_service.dart';
 import 'package:receipt_bot/services/paystack_service.dart';
@@ -15,6 +18,7 @@ class SubscriptionHandler {
   final PaystackService paystackService;
   final FlutterwaveService flutterwaveService;
   final PdfService pdfService;
+  final BachsService bachsService;
 
   SubscriptionHandler({
     required this.firestoreService,
@@ -22,7 +26,8 @@ class SubscriptionHandler {
     required this.paystackService,
     required this.flutterwaveService,
     required this.pdfService,
-  });
+    BachsService? bachsService,
+  }) : bachsService = bachsService ?? BachsService();
 
   // ==========================================================
   // UPGRADE MENU
@@ -93,7 +98,7 @@ class SubscriptionHandler {
           : r'Add 30 Days ($' '${Pricing.monthlyUsd})';
       final annualDesc = isPaystack
           ? 'Save 20%! (₦${Pricing.annualNgn}/yr)'
-          : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
+          : r'Save $30! ($' '${Pricing.annualUsd}/yr)';
 
       await whatsappService.sendInteractiveList(
         from,
@@ -148,7 +153,7 @@ class SubscriptionHandler {
         : r'Flexible ($' '${Pricing.monthlyUsd}/mo)';
     final annualDesc = isPaystack
         ? 'Save big! (₦$annualPriceNgn/yr)'
-        : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
+        : r'Save $30! ($' '${Pricing.annualUsd}/yr)';
 
     await whatsappService.sendInteractiveList(
       from,
@@ -254,7 +259,20 @@ class SubscriptionHandler {
       String checkoutUrl;
       String referenceOrLocalId;
 
-      if (isPaystack) {
+      if (bachsService.isConfigured) {
+        // Nigerians pay in naira; everyone else is charged in dollars.
+        final currency =
+            CountryUtils.getCurrencyFromPhone(from).code == 'NGN' ? 'NGN' : 'USD';
+        final checkout = await bachsService.createCheckout(
+          phone: from,
+          email: email,
+          plan: plan,
+          currency: currency,
+          name: profile.businessName,
+        );
+        checkoutUrl = checkout.url;
+        referenceOrLocalId = checkout.checkoutId;
+      } else if (isPaystack) {
         int amount = plan == 'monthly' ? Pricing.monthlyNgn : Pricing.annualNgn;
 
         // Apply Early Access discount if available
@@ -364,6 +382,11 @@ class SubscriptionHandler {
       return;
     }
 
+    if (profile.pendingPaymentReference!.startsWith('chk_')) {
+      await _verifyBachsPayment(from, profile.pendingPaymentReference!);
+      return;
+    }
+
     // International payments (Flutterwave) are webhook-verified
     if (profile.pendingPaymentReference!.startsWith('fw_')) {
       await whatsappService.sendMessage(
@@ -421,6 +444,100 @@ class SubscriptionHandler {
     }
   }
 
+  /// Looks up a Bachs checkout when the user taps "Verify Payment".
+  Future<void> _verifyBachsPayment(String from, String checkoutId) async {
+    await whatsappService.sendMessage(
+        from, "Checking your payment status... ⏳");
+    try {
+      final checkout = await bachsService.getCheckout(checkoutId);
+      final charge = checkout['charge'] as Map<String, dynamic>?;
+      final paid = checkout['status'] == 'completed' &&
+          (checkout['payment_status'] == 'succeeded' ||
+              charge?['status'] == 'succeeded');
+
+      if (!paid) {
+        await whatsappService.sendMessage(
+          from,
+          "Your payment is still pending or was not successful.\n\nIf you just paid, please wait a minute and try again. If you haven't paid yet, you can still use the payment link provided earlier.",
+        );
+        return;
+      }
+
+      final products = (checkout['products'] as List?) ?? const [];
+      final productId = products.isEmpty
+          ? ''
+          : (products.first as Map)['product_id']?.toString() ?? '';
+      final metadata = (checkout['metadata'] as Map?) ?? const {};
+      final plan = bachsService.planForProduct(productId) ??
+          metadata['plan']?.toString() ??
+          'monthly';
+
+      final activated = await activateBachsPayment(
+        checkoutId: checkoutId,
+        phone: from,
+        plan: plan,
+        amount: num.tryParse('${charge?['amount'] ?? checkout['amount']}') ?? 0,
+        currency: '${charge?['currency'] ?? checkout['currency']}',
+      );
+      if (!activated) {
+        await whatsappService.sendMessage(
+            from, "✅ This payment has already been applied. You're on Premium!");
+      }
+    } catch (e) {
+      Log.error('subscription', 'Bachs verify error: $e');
+      await whatsappService.sendMessage(
+        from,
+        "Sorry, I couldn't verify your payment right now. Please try again later.",
+      );
+    }
+  }
+
+  /// Gives Premium for a paid Bachs checkout. Both the webhook and the
+  /// "Verify Payment" button call this, so a checkout is only ever applied
+  /// once. Returns false if it was already applied.
+  Future<bool> activateBachsPayment({
+    required String checkoutId,
+    required String phone,
+    required String plan,
+    required num amount,
+    required String currency,
+  }) async {
+    if (await firestoreService.isWebhookProcessed(checkoutId)) return false;
+    final profile = await firestoreService.getProfile(phone);
+    if (profile == null) {
+      Log.error('subscription', 'Bachs payment for unknown user $phone');
+      return false;
+    }
+    await firestoreService.markWebhookProcessed(checkoutId, 'bachs');
+
+    final isAnnual = plan == 'yearly';
+    final planName = isAnnual ? 'Annual' : 'Monthly';
+    final now = DateTime.now();
+    final current = profile.premiumExpiresAt;
+    final start = profile.isPremium && current != null && current.isAfter(now)
+        ? current
+        : now;
+    final expiry = start.add(Duration(days: isAnnual ? 365 : 30));
+
+    await firestoreService.updateProfileData(phone, {
+      'isPremium': true,
+      'pendingSubscriptionTier': planName,
+      'premiumExpiresAt': expiry.toIso8601String(),
+      'pendingPaymentReference': '',
+      'receiptCount': 0,
+    });
+
+    await whatsappService.sendMessage(
+      phone,
+      "🎉 *$planName Payment Successful!* 🎉\n\nYou are now a Premium user! Enjoy all four layouts, your logo on receipts, team accounts and sales stats.\n\nYour access is valid until ${expiry.day}/${expiry.month}/${expiry.year}.",
+    );
+
+    // The receipt takes a few seconds; don't hold up the caller.
+    unawaited(generateAndSendSubscriptionReceipt(
+        phone, profile, planName, amount, currency));
+    return true;
+  }
+
   // ==========================================================
   // FREEMIUM CHECKS
   // ==========================================================
@@ -448,7 +565,7 @@ class SubscriptionHandler {
           : r'Flexible ($' '${Pricing.monthlyUsd}/mo)';
       final annualDesc = isPaystack
           ? 'Save ₦7,000! (₦${Pricing.annualNgn}/yr)'
-          : r'Save $16! ($' '${Pricing.annualUsd}/yr)';
+          : r'Save $30! ($' '${Pricing.annualUsd}/yr)';
 
       await whatsappService.sendInteractiveList(
         from,
@@ -519,7 +636,7 @@ class SubscriptionHandler {
             'title': 'Annual Plan',
             'description': isPaystack
                 ? 'Save ₦7,000! (₦${Pricing.annualNgn}/yr)'
-                : r'Save $16! ($' '${Pricing.annualUsd}/yr)'
+                : r'Save $30! ($' '${Pricing.annualUsd}/yr)'
           },
         ],
       );
