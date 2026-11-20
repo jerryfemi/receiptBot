@@ -27,9 +27,14 @@ Future<Response> onRequest(RequestContext context) async {
   final valid = BachsService.verifySignature(
     secret: _secret,
     rawBody: rawBody,
-    signatureV2: request.headers['x-bachs-signature-v2'],
-    signature: request.headers['x-bachs-signature'],
-    timestamp: request.headers['x-bachs-timestamp'],
+    // The docs name X-Bachs-Signature(-V2); the dashboard says
+    // Bachs-Signature. Accept whichever arrives.
+    signatureV2: request.headers['x-bachs-signature-v2'] ??
+        _v2Style(request.headers['bachs-signature']),
+    signature: request.headers['x-bachs-signature'] ??
+        _plainStyle(request.headers['bachs-signature']),
+    timestamp: request.headers['x-bachs-timestamp'] ??
+        request.headers['bachs-timestamp'],
   );
   if (!valid) {
     Log.error('bachs', 'Webhook signature check failed.');
@@ -81,3 +86,11 @@ Future<Response> onRequest(RequestContext context) async {
   }
   return Response();
 }
+
+/// A "t=...,v1=..." signature header, or null if [header] isn't one.
+String? _v2Style(String? header) =>
+    header != null && header.contains('v1=') ? header : null;
+
+/// A bare hex signature header, or null if [header] isn't one.
+String? _plainStyle(String? header) =>
+    header != null && !header.contains('=') ? header : null;
