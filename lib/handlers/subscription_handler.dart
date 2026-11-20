@@ -206,7 +206,9 @@ class SubscriptionHandler {
     });
 
     final isPaystack = CountryUtils.isPaystackRegion(from);
-    final gatewayName = isPaystack ? 'Paystack' : 'Flutterwave';
+    final gatewayName = bachsService.isConfigured
+        ? 'Our payment partner'
+        : (isPaystack ? 'Paystack' : 'Flutterwave');
     final planLabel = plan == 'monthly' ? 'Monthly' : 'Annual';
 
     String pitchText;
@@ -222,7 +224,7 @@ class SubscriptionHandler {
     } else {
       pitchText =
           "Amazing choice! 🎉 Let's get you set up on the *$planLabel Plan*.\n\n$gatewayName requires an email address to securely process your receipt. Please reply with your best email address so I can generate your checkout link.\n\n(Don't worry, you won't be charged just by typing your email!)";
-      if (!isPaystack) {
+      if (!isPaystack && !bachsService.isConfigured) {
         pitchText +=
             "\n\n(Note: Your exact price in £ or € or \$ will be calculated automatically at checkout).";
       }
@@ -260,9 +262,8 @@ class SubscriptionHandler {
       String referenceOrLocalId;
 
       if (bachsService.isConfigured) {
-        // Nigerians pay in naira; everyone else is charged in dollars.
-        final currency =
-            CountryUtils.getCurrencyFromPhone(from).code == 'NGN' ? 'NGN' : 'USD';
+        // Charge in the currency the plan menu showed them.
+        final currency = isPaystack ? 'NGN' : 'USD';
         final checkout = await bachsService.createCheckout(
           phone: from,
           email: email,
