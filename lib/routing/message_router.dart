@@ -83,6 +83,23 @@ class MessageRouter {
     }
   }
 
+  /// States where the bot is waiting for the user to pick from a menu.
+  /// A clear sale typed in one of these is not a menu answer.
+  static const _menuStates = {
+    UserAction.editProfileMenu,
+    UserAction.selectTheme,
+    UserAction.selectLayout,
+    UserAction.selectCurrency,
+    UserAction.selectingSubscriptionPlan,
+    UserAction.removeTeamMember,
+  };
+
+  static bool _isSale(String text) {
+    final intent = QuickIntent.detect(text)?.type;
+    return intent == UserIntent.hasReceiptData ||
+        intent == UserIntent.hasInvoiceData;
+  }
+
   Future<void> _handleActiveUser(
     String from,
     String text,
@@ -116,6 +133,16 @@ class MessageRouter {
       // Global Command Handler
       final isHandled = await _handleGlobalCommands(from, lower, text, profile);
       if (isHandled) return;
+    }
+
+    // 3. A sale sent while a menu is still open (the user opened Settings
+    // earlier and never finished) leaves the menu and becomes a receipt,
+    // instead of getting "please select an option".
+    if (type == 'text' &&
+        _menuStates.contains(profile.currentAction) &&
+        _isSale(text)) {
+      await firestoreService.updateAction(from, UserAction.idle);
+      profile = profile.copyWith(currentAction: UserAction.idle);
     }
 
     // 4. Handle Current Action (Remaining actions from the original switch)
