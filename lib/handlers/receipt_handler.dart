@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:receipt_bot/handlers/settings_handler.dart';
 import 'package:receipt_bot/handlers/subscription_handler.dart';
+import 'package:receipt_bot/documents/document_data.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/receipts/receipt_review.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
@@ -490,9 +491,10 @@ class ReceiptHandler {
       Log.debug(
           'receipt', 'PDF generation took ${swPdf.elapsedMilliseconds} ms');
 
-      // Upload PDF
+      // The ledger keeps a unique id; the customer sees a readable name.
       final fileName =
           '${transaction.type == TransactionType.invoice ? "invoice" : "receipt"}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final displayName = DocumentData.fileNameFor(transaction);
 
       // --- ADD SALES LEDGER ENTRY ---
       // We purposefully don't await this to speed up sending the receipt message!
@@ -512,7 +514,7 @@ class ReceiptHandler {
       // Send document directly (no extra "Here is your receipt" message)
       Log.debug('receipt', 'Sending WhatsApp Document...');
       final swSend = Stopwatch()..start();
-      await whatsappService.sendDocumentBytes(from, pdfBytes, fileName);
+      await whatsappService.sendDocumentBytes(from, pdfBytes, displayName);
       swSend.stop();
       Log.debug(
         'receipt',
