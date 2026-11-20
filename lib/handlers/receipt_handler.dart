@@ -454,6 +454,25 @@ class ReceiptHandler {
   // PDF GENERATION
   // ==========================================================
 
+  /// The AI gives the sale's day without a time, and the receipt number is
+  /// built from the date, so every receipt from one day got the same number.
+  /// Adding the current local time gives each receipt its own number.
+  /// A corrected copy keeps its time, so it keeps its number.
+  Transaction _withTimeNow(Transaction transaction, BusinessProfile profile) {
+    final d = transaction.date;
+    if (d.hour != 0 || d.minute != 0 || d.second != 0) return transaction;
+
+    final offset = CountryUtils.isPaystackRegion(profile.phoneNumber) ? 1 : 0;
+    final now = DateTime.now().toUtc().add(Duration(hours: offset));
+    final stamped =
+        DateTime(d.year, d.month, d.day, now.hour, now.minute, now.second);
+
+    final json =
+        jsonDecode(jsonEncode(transaction.toJson())) as Map<String, dynamic>;
+    json['date'] = stamped.toIso8601String();
+    return Transaction.fromJson(json);
+  }
+
   /// Generates and sends a PDF receipt/invoice.
   Future<void> generateAndSendPDF(
     String from,
@@ -462,6 +481,7 @@ class ReceiptHandler {
     int themeIndex, {
     bool isCorrection = false,
   }) async {
+    transaction = _withTimeNow(transaction, profile);
     try {
       // Fetch org in parallel with sending status message (if needed)
       final orgFuture = profile.orgId != null
