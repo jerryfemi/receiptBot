@@ -506,6 +506,7 @@ class ReceiptHandler {
         transaction.transactionTotal,
         profile.currencyCode,
         transaction.date,
+        issuerPhone: from,
       )
           .catchError((e) {
         Log.error('receipt', 'Failed to add ledger entry: $e');
