@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:receipt_bot/config/app_config.dart';
+import 'package:receipt_bot/handlers/team_sales.dart';
 import 'package:receipt_bot/models/models.dart';
 import 'package:receipt_bot/services/firestore_service.dart';
 import 'package:receipt_bot/services/gemini_service.dart';
@@ -595,23 +596,26 @@ class SettingsHandler {
     final teamMembers = await firestoreService.getTeamMembers(profile.orgId!);
     final agents = teamMembers.where((m) => m.phoneNumber != from).toList();
 
-    String message = '👥 *Team Management*\n\n';
+    String message = '👥 *Your Team*\n\n';
 
     final inviteCode =
         await firestoreService.ensureOrganizationInviteCode(profile.orgId!);
-    message += 'Your Team Invite Code is:\n*${inviteCode ?? "N/A"}*\n\n';
 
     if (agents.isEmpty) {
-      message +=
+      message += 'Your Team Invite Code is:\n*${inviteCode ?? "N/A"}*\n\n'
           'You currently have no other team members.\nShare the code above for them to join!';
       await whatsappService.sendMessage(from, message);
     } else {
-      message += 'Select a team member to remove:';
+      final roster =
+          await TeamSales(firestoreService).roster(profile, teamMembers);
+      message += '*Sales this month*\n${roster.join('\n')}\n\n'
+          'Invite code: *${inviteCode ?? "N/A"}*\n\n'
+          'To remove someone, pick them below:';
 
       final listOptions = agents.map((agent) {
         return {
           'id': '${ButtonIds.removeTeamMemberPrefix}${agent.phoneNumber}',
-          'title': agent.businessName ?? agent.phoneNumber,
+          'title': TeamSales.nameFor(agent, profile),
         };
       }).toList();
 
