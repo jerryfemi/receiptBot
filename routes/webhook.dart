@@ -190,6 +190,11 @@ final _idempotencyCache = _IdempotencyCache();
 Future<void> initializeServicesForExternalWebhooks() =>
     _services.ensureInitialized();
 
+/// The subscription handler, for payment webhooks. Call
+/// [initializeServicesForExternalWebhooks] first.
+SubscriptionHandler subscriptionHandlerForExternalWebhooks() =>
+    _services.subscriptionHandler;
+
 Future<Response> onRequest(RequestContext context) async {
   final request = context.request;
 
