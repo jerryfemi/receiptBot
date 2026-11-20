@@ -669,7 +669,7 @@ class SubscriptionHandler {
 
       // Create a synthetic Transaction
       final subscriptionItem = ReceiptItem(
-        description: '1x Premium Subscription ($planName)',
+        description: 'Remi Pro ($planName)',
         amount: amountPaid.toDouble(),
         quantity: 1,
       );
@@ -687,27 +687,29 @@ class SubscriptionHandler {
 
       final botOrg = Organization(
         id: 'bot_org',
-        businessName: 'ReceiptBot Inc.',
-        businessAddress: 'Global Digital Service',
+        businessName: 'Remi',
+        businessAddress: 'remireceipts.web.app',
         displayPhoneNumber: '+2348021146844',
-        logoUrl: null, // TODO: add the bot's own logo to public/logos
+        logoUrl: 'public/logos/remi.png',
         inviteCode: '',
         currencyCode: currencyCode,
         currencySymbol: resolvedCurrencySymbol,
       );
 
-      // Generate PDF (Signature Layout, Classic Theme)
       final pdfBytes = await pdfService.generateReceipt(
         profile,
         transaction,
-        themeIndex: 0,
-        layoutIndex: 1,
+        layoutIndex: DocumentLayout.studio,
         org: botOrg,
       );
 
       // Send via WhatsApp (uploaded straight to WhatsApp's media store)
+      // e.g. "Remi Pro - Monthly - 20 Nov 2026.pdf"
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
+        'Sep', 'Oct', 'Nov', 'Dec'];
+      final d = transaction.date;
       final fileName =
-          'proof_of_payment_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          'Remi Pro - $planName - ${d.day} ${months[d.month - 1]} ${d.year}.pdf';
       await whatsappService.sendDocumentBytes(phoneNumber, pdfBytes, fileName);
       Log.info('subscription',
           'Subscription Receipt sent successfully to $phoneNumber');
