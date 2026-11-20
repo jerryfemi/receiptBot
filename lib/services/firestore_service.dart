@@ -548,10 +548,12 @@ class FirestoreService {
     String customerName,
     double amount,
     String currency,
-    DateTime createdAt,
-  ) async {
+    DateTime createdAt, {
+    String? issuerPhone,
+  }) async {
     await _ensureInitialized();
     final fields = <String, Value>{
+      if (issuerPhone != null) 'issuer_phone': Value(stringValue: issuerPhone),
       'owner_id': Value(stringValue: ownerId),
       'receipt_id': Value(stringValue: receiptId),
       'customer_name': Value(stringValue: customerName),
@@ -632,6 +634,11 @@ class FirestoreService {
           data.customerSpending[customerName] =
               (data.customerSpending[customerName] ?? 0.0) + amount;
           data.dailyTotals[dayKey] = (data.dailyTotals[dayKey] ?? 0.0) + amount;
+
+          final issuer = fields['issuer_phone']?.stringValue ?? '';
+          data.memberRevenue[issuer] =
+              (data.memberRevenue[issuer] ?? 0.0) + amount;
+          data.memberReceipts[issuer] = (data.memberReceipts[issuer] ?? 0) + 1;
         }
       }
     }
