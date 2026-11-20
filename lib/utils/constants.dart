@@ -127,8 +127,8 @@ abstract class Pricing {
   static const int earlyAccessAnnualNgnKobo = 2000000; // 20,000 * 100
 
   // === INTERNATIONAL BASE PRICING (USD) ===
-  static const int monthlyUsd = 18;
-  static const int annualUsd = 200;
+  static const int monthlyUsd = 15;
+  static const int annualUsd = 150;
 
   /// Minimum kobo amount to consider a payment valid for Premium.
   /// Adjusted dynamically lower to accommodate Early Access users on renewal.
