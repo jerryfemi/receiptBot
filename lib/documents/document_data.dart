@@ -66,9 +66,29 @@ class DocumentData {
   String get number => '${isInvoice ? 'INV' : 'R'}-$serial';
 
   /// The five digits of [number] on their own, e.g. 48213.
-  String get serial {
-    final id = (transaction.date.millisecondsSinceEpoch ~/ 1000) % 100000;
+  String get serial => serialFor(transaction.date);
+
+  static String serialFor(DateTime date) {
+    final id = (date.millisecondsSinceEpoch ~/ 1000) % 100000;
     return id.toString().padLeft(5, '0');
+  }
+
+  /// The PDF's file name as the customer sees it in WhatsApp, e.g.
+  /// "Tunde Okafor - Receipt R-40171.pdf", or "Receipt R-40171.pdf" when
+  /// there is no real customer name. The number matches the printed one.
+  static String fileNameFor(Transaction transaction) {
+    final isInvoice = transaction.type == TransactionType.invoice;
+    final kind = isInvoice ? 'Invoice' : 'Receipt';
+    final number = '${isInvoice ? 'INV' : 'R'}-${serialFor(transaction.date)}';
+
+    var name = transaction.customerName
+        .replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (_placeholderNames.contains(name.toLowerCase())) name = '';
+    if (name.length > 40) name = name.substring(0, 40).trim();
+
+    return name.isEmpty ? '$kind $number.pdf' : '$name - $kind $number.pdf';
   }
 
   /// Notes the business wrote for this sale, or null.
